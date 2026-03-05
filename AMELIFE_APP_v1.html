@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<!-- AMELIFE EMS Technologies - Web App v1.0 | 2026-03-05 10:30 ARG -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMELIFE · EMS Technologies</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* =============================================
+     AMELIFE APP v1.0 | 2026-03-05 10:30 ARG
+     ============================================= */
+  :root {
+    --green:       #6CB33F;
+    --green-light: #8DD05A;
+    --green-dark:  #4A8A28;
+    --green-glow:  rgba(108,179,63,0.18);
+    --bg:          #0C1520;
+    --sidebar:     #111D2B;
+    --card:        #162030;
+    --card2:       #1C2A3D;
+    --border:      rgba(108,179,63,0.15);
+    --border2:     rgba(255,255,255,0.07);
+    --text:        #E2EBF5;
+    --muted:       #7A90AA;
+    --danger:      #E05252;
+    --warning:     #E0A030;
+    --info:        #4A9FD5;
+    --radius:      10px;
+    --radius-lg:   16px;
+    --shadow:      0 4px 24px rgba(0,0,0,0.4);
+    --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+  /* ---- SCROLLBAR ---- */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+  /* ===================== LOGIN ===================== */
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 999;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+    background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108,179,63,0.08) 0%, transparent 70%);
+  }
+  .login-box {
+    width: 100%; max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 44px 40px 36px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(108,179,63,0.08);
+    animation: fadeUp 0.5s ease;
+  }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:none;} }
+  .login-logo { display:flex; align-items:center; gap:14px; margin-bottom:32px; }
+  .login-logo img { height: 48px; }
+  .login-logo-text { display:flex; flex-direction:column; }
+  .login-logo-text span:first-child { font-size:22px; font-weight:800; color:var(--green); letter-spacing:-0.5px; }
+  .login-logo-text span:last-child { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; font-weight:500; }
+  .login-title { font-size:17px; font-weight:600; margin-bottom:6px; }
+  .login-sub { font-size:13px; color:var(--muted); margin-bottom:28px; }
+  .field { margin-bottom:16px; }
+  .field label { display:block; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:7px; }
+  .field input, .field select {
+    width:100%; padding:12px 14px;
+    background:var(--bg); border:1px solid var(--border2);
+    border-radius:var(--radius); color:var(--text);
+    font-family:'Outfit',sans-serif; font-size:14px;
+    outline:none; transition:border var(--transition);
+  }
+  .field input:focus, .field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
+  .field select option { background: var(--card2); }
+  .btn-login {
+    width:100%; padding:13px; margin-top:8px;
+    background: var(--green); color:#fff;
+    border:none; border-radius:var(--radius);
+    font-family:'Outfit',sans-serif; font-size:15px; font-weight:700;
+    cursor:pointer; transition:background var(--transition), transform 0.15s;
+    letter-spacing:0.3px;
+  }
+  .btn-login:hover { background:var(--green-light); transform:translateY(-1px); }
+  .btn-login:active { transform:translateY(0); }
+  .login-error { display:none; color:var(--danger); font-size:13px; margin-top:10px; text-align:center; }
+  .login-footer { margin-top:24px; text-align:center; font-size:11px; color:var(--muted); }
+
+  /* ===================== LAYOUT ===================== */
+  #app { display:none; height:100vh; flex-direction:row; }
+  #app.visible { display:flex; }
+
+  /* ---- SIDEBAR ---- */
+  #sidebar {
+    width: 230px; min-width:230px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border2);
+    display: flex; flex-direction:column;
+    padding: 0;
+    transition: width var(--transition);
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border2);
+    display:flex; align-items:center; gap:10px;
+  }
+  .sidebar-header img { height:36px; }
+  .sidebar-header-text { display:flex; flex-direction:column; }
+  .sidebar-header-text b { font-size:14px; font-weight:800; color:var(--green); }
+  .sidebar-header-text span { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+
+  .nav-section { padding: 20px 12px 6px; }
+  .nav-label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; padding: 0 8px; margin-bottom:6px; }
+  .nav-item {
+    display:flex; align-items:center; gap:10px;
+    padding: 10px 12px; border-radius:var(--radius);
+    cursor:pointer; color:var(--muted); font-size:13.5px; font-weight:500;
+    transition: all var(--transition); margin-bottom:2px;
+    white-space:nowrap;
+  }
+  .nav-item:hover { background:var(--border2); color:var(--text); }
+  .nav-item.active { background:var(--green-glow); color:var(--green); }
+  .nav-item .icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
+  .nav-badge { margin-left:auto; background:var(--green); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; }
+
+  .sidebar-bottom { margin-top:auto; padding:14px 12px; border-top:1px solid var(--border2); }
+  .user-pill {
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px; border-radius:var(--radius);
+    background:var(--card); cursor:pointer;
+  }
+  .user-avatar {
+    width:32px; height:32px; border-radius:50%;
+    background:var(--green-dark); display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:13px; color:#fff; flex-shrink:0;
+  }
+  .user-info b { font-size:13px; font-weight:600; display:block; }
+  .user-info span { font-size:11px; color:var(--muted); }
+  .logout-btn { margin-top:8px; width:100%; padding:9px; background:transparent; border:1px solid var(--border2); border-radius:var(--radius); color:var(--muted); font-size:12px; cursor:pointer; font-family:'Outfit',sans-serif; transition:all var(--transition); }
+  .logout-btn:hover { border-color:var(--danger); color:var(--danger); }
+
+  /* ---- MAIN ---- */
+  #main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar {
+    height:60px; padding:0 28px;
+    border-bottom:1px solid var(--border2);
+    display:flex; align-items:center; gap:16px;
+    background:var(--sidebar); flex-shrink:0;
+  }
+  .topbar-title { font-size:16px; font-weight:700; }
+  .topbar-sub { font-size:12px; color:var(--muted); }
+  .topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .topbar-date { font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+  .notif-btn { width:34px; height:34px; border-radius:var(--radius); background:var(--card2); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; transition:background var(--transition); }
+  .notif-btn:hover { background:var(--border); }
+
+  #content { flex:1; overflow-y:auto; padding:28px; }
+
+  /* ---- PANELS ---- */
+  .panel { display:none; }
+  .panel.active { display:block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from {opacity:0; transform:translateY(8px);} to {opacity:1; transform:none;} }
+
+  /* ===================== DASHBOARD ===================== */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+  .stat-card {
+    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
+    padding:20px 22px; position:relative; overflow:hidden;
+  }
+  .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--green); border-radius:3px 3px 0 0; }
+  .stat-card.warning::before { background:var(--warning); }
+  .stat-card.info::before { background:var(--info); }
+  .stat-card.danger::before { background:var(--danger); }
+  .stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:10px; }
+  .stat-value { font-size:32px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1; }
+  .stat-sub { font-size:12px; color:var(--muted); margin-top:8px; }
+  .stat-icon { position:absolute; right:18px; top:18px; font-size:28px; opacity:0.12; }
+
+  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:22px; }
+  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .card-title { font-size:14px; font-weight:700; }
+  .card-action { font-size:12px; color:var(--green); cursor:pointer; font-weight:600; }
+  .card-action:hover { color:var(--green-light); }
+
+  .activity-item { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--border2); }
+  .activity-item:last-child { border-bottom:none; }
+  .act-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; margin-top:2px; }
+  .act-icon.g { background:var(--green-glow); color:var(--green); }
+  .act-icon.i { background:rgba(74,159,213,0.15); color:var(--info); }
+  .act-icon.w { background:rgba(224,160,48,0.15); color:var(--warning); }
+  .act-text { flex:1; }
+  .act-text b { font-size:13px; font-weight:600; display:block; }
+  .act-text span { font-size:12px; color:var(--muted); }
+  .act-time { font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+
+  .quick-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .qa-btn {
+    padding:14px 12px; border-radius:var(--radius); background:var(--card2);
+    border:1px solid var(--border2); cursor:pointer; text-align:left;
+    transition:all var(--transition);
+  }
+  .qa-btn:hover { border-color:var(--green); background:var(--green-glow); }
+  .qa-btn .qa-icon { font-size:22px; margin-bottom:8px; }
+  .qa-btn b { display:block; font-size:13px; font-weight:600; }
+  .qa-btn span { font-size:11px; color:var(--muted); }
+
+  /* ===================== INVENTARIO ===================== */
+  .toolbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+  .search-box {
+    flex:1; min-width:220px; position:relative;
+  }
+  .search-box input {
+    width:100%; padding:10px 14px 10px 38px;
+    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius);
+    color:var(--text); font-family:'Outfit',sans-serif; font-size:13.5px;
+    outline:none; transition:border var(--transition);
+  }
+  .search-box input:focus { border-color:var(--green); }
+  .search-box::before { content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none; }
+  .filter-select {
+    padding:10px 12px; background:var(--card); border:1px solid var(--border2); border-radius:var(--radius);
+    color:var(--text); font-family:'Outfit',sans-serif; font-size:13px; outline:none; cursor:pointer;
+  }
+  .btn { padding:10px 18px; border-radius:var(--radius); border:none; font-family:'Outfit',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-primary:hover { background:var(--green-light); }
+  .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text); }
+  .btn-outline:hover { border-color:var(--green); color:var(--green); }
+  .btn-danger { background:var(--danger); color:#fff; }
+
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table thead tr { background:var(--card2); }
+  .data-table th { padding:11px 14px; text-align:left; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; white-space:nowrap; }
+  .data-table td { padding:12px 14px; border-bottom:1px solid var(--border2); vertical-align:middle; }
+  .data-table tbody tr:hover { background:rgba(255,255,255,0.025); }
+  .data-table .pn { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--green); }
+  .badge { display:inline-block; padding:3px 9px; border-radius:99px; font-size:11px; font-weight:600; }
+  .badge-green { background:rgba(108,179,63,0.15); color:var(--green); }
+  .badge-warning { background:rgba(224,160,48,0.15); color:var(--warning); }
+  .badge-danger { background:rgba(224,82,82,0.15); color:var(--danger); }
+  .badge-info { background:rgba(74,159,213,0.15); color:var(--info); }
+  .badge-muted { background:rgba(255,255,255,0.07); color:var(--muted); }
+  .tbl-action { background:none; border:none; cursor:pointer; font-size:15px; padding:4px; transition:opacity 0.2s; }
+  .tbl-action:hover { opacity:0.7; }
+  .table-container { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); overflow:hidden; }
+  .table-footer { padding:12px 16px; border-top:1px solid var(--border2); display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--muted); }
+
+  /* ===================== PRICE BOOK ===================== */
+  .pb-tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+  .pb-tab {
+    padding:8px 16px; border-radius:99px; font-size:12.5px; font-weight:600;
+    cursor:pointer; transition:all var(--transition);
+    background:var(--card); border:1px solid var(--border2); color:var(--muted);
+  }
+  .pb-tab:hover { color:var(--text); border-color:var(--border); }
+  .pb-tab.active { background:var(--green-glow); border-color:var(--green); color:var(--green); }
+  .pb-content { display:none; }
+  .pb-content.active { display:block; }
+  .pb-category { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; padding:14px 14px 8px; }
+
+  /* ===================== MODAL ===================== */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7);
+    z-index:500; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:28px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto;
+    animation: fadeUp 0.3s ease;
+  }
+  .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  .modal-title { font-size:17px; font-weight:700; }
+  .modal-close { background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; }
+  .modal-close:hover { color:var(--text); }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:24px; }
+
+  /* ===================== EMPTY STATE ===================== */
+  .empty { text-align:center; padding:60px 20px; color:var(--muted); }
+  .empty .empty-icon { font-size:48px; margin-bottom:14px; opacity:0.5; }
+  .empty h3 { font-size:16px; font-weight:600; color:var(--text); margin-bottom:8px; }
+  .empty p { font-size:13px; }
+
+  /* ===================== CLIENTES ===================== */
+  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+  .client-card {
+    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:18px;
+    transition:border-color var(--transition), transform var(--transition);
+    cursor:pointer;
+  }
+  .client-card:hover { border-color:var(--green); transform:translateY(-2px); }
+  .client-avatar { width:44px; height:44px; border-radius:50%; background:var(--green-dark); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; margin-bottom:12px; }
+  .client-name { font-size:15px; font-weight:700; margin-bottom:4px; }
+  .client-company { font-size:12px; color:var(--green); font-weight:600; margin-bottom:8px; }
+  .client-info { font-size:12px; color:var(--muted); line-height:1.6; }
+
+  /* ===================== FINANZAS ===================== */
+  .finanzas-lock { text-align:center; padding:80px 20px; }
+  .lock-icon { font-size:64px; margin-bottom:20px; }
+  .finanzas-balance { font-size:48px; font-weight:800; color:var(--green); font-family:'JetBrains Mono',monospace; }
+
+  /* ===================== RESPONSIVO ===================== */
+  @media(max-width:900px) {
+    .stats-grid { grid-template-columns:1fr 1fr; }
+    .dash-grid { grid-template-columns:1fr; }
+    #sidebar { width:60px; min-width:60px; }
+    .sidebar-header-text, .nav-item span, .user-info, .sidebar-header img, .nav-label { display:none; }
+    .sidebar-header { padding:16px 10px; justify-content:center; }
+    .nav-item { justify-content:center; padding:12px; }
+    .sidebar-bottom { padding:10px; }
+    .user-pill { justify-content:center; }
+    .logout-btn { display:none; }
+  }
+  @media(max-width:600px) {
+    .stats-grid { grid-template-columns:1fr; }
+    #content { padding:16px; }
+  }
+
+  /* ---- TOAST ---- */
+  #toast {
+    position:fixed; bottom:24px; right:24px; z-index:9999;
+    background:var(--card2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 20px; font-size:14px; font-weight:500;
+    box-shadow:var(--shadow); transform:translateY(100px); opacity:0;
+    transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    display:flex; align-items:center; gap:10px;
+  }
+  #toast.show { transform:translateY(0); opacity:1; }
+  #toast.success { border-left:3px solid var(--green); }
+  #toast.error { border-left:3px solid var(--danger); }
+  #toast.info { border-left:3px solid var(--info); }
+
+  /* ---- PILL STATUS ---- */
+  .status-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
+  .status-dot.green { background:var(--green); }
+  .status-dot.warning { background:var(--warning); }
+  .status-dot.danger { background:var(--danger); }
+
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
+      <div class="login-logo-text">
+        <span>AMELIFE</span>
+        <span>EMS Technologies</span>
+      </div>
+    </div>
+    <div class="login-title">Bienvenido al sistema</div>
+    <div class="login-sub">Ingresá tus credenciales para continuar</div>
+    <div class="field">
+      <label>Usuario / Email</label>
+      <input type="text" id="loginUser" placeholder="usuario@amelife-911.com" />
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••" />
+    </div>
+    <div class="field">
+      <label>Perfil</label>
+      <select id="loginRole">
+        <option value="admin">Admin</option>
+        <option value="staff">Staff</option>
+        <option value="finanzas">Finanzas</option>
+        <option value="subdist">Subdistribuidor</option>
+      </select>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Ingresar al sistema →</button>
+    <div class="login-error" id="loginError">Usuario o contraseña incorrectos</div>
+    <div class="login-footer">AMELIFE EMS Technologies LLC · Miami, FL · amelife-911.com</div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
+      <div class="sidebar-header-text">
+        <b>AMELIFE</b>
+        <span>EMS Technologies</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Principal</div>
+      <div class="nav-item active" onclick="showPanel('dashboard',this)">
+        <span class="icon">📊</span><span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('inventario',this)">
+        <span class="icon">📦</span><span>Inventario</span>
+        <span class="nav-badge">24</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('pricebook',this)">
+        <span class="icon">📋</span><span>Price Book ZOLL</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('clientes',this)">
+        <span class="icon">👥</span><span>Clientes</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Operaciones</div>
+      <div class="nav-item" onclick="showPanel('cotizaciones',this)">
+        <span class="icon">📄</span><span>Cotizaciones</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('ordenes',this)">
+        <span class="icon">🛒</span><span>Órdenes de Compra</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('trackings',this)">
+        <span class="icon">✈️</span><span>Trackings</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('warehouse',this)">
+        <span class="icon">🏭</span><span>Warehouse</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Acceso especial</div>
+      <div class="nav-item" onclick="showPanel('subdist',this)">
+        <span class="icon">🤝</span><span>Subdistribuidores</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('goldway',this)">
+        <span class="icon">🔗</span><span>Goldway</span>
+      </div>
+      <div class="nav-item" id="navFinanzas" onclick="showPanel('finanzas',this)">
+        <span class="icon">💰</span><span>Finanzas</span>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="user-pill">
+        <div class="user-avatar" id="userAvatar">G</div>
+        <div class="user-info">
+          <b id="userName">Germán</b>
+          <span id="userRole">Admin</span>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">⬅ Cerrar sesión</button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-date" id="topbarDate"></span>
+        <div class="notif-btn" title="Notificaciones">🔔</div>
+        <div class="notif-btn" title="Configuración">⚙️</div>
+      </div>
+    </div>
+
+    <div id="content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <div class="panel active" id="panel-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-label">Ítems en Stock</div>
+            <div class="stat-value" style="color:var(--green)">24</div>
+            <div class="stat-sub">↑ 3 ingresados este mes</div>
+          </div>
+          <div class="stat-card warning">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-label">Stock Bajo</div>
+            <div class="stat-value" style="color:var(--warning)">3</div>
+            <div class="stat-sub">Requieren reposición</div>
+          </div>
+          <div class="stat-card info">
+            <div class="stat-icon">📄</div>
+            <div class="stat-label">Cotizaciones activas</div>
+            <div class="stat-value" style="color:var(--info)">7</div>
+            <div class="stat-sub">2 pendientes de respuesta</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✈️</div>
+            <div class="stat-label">Trackings Activos</div>
+            <div class="stat-value" style="color:var(--green)">5</div>
+            <div class="stat-sub">3 en tránsito</div>
+          </div>
+        </div>
+
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">⚡ Actividad reciente</div>
+              <span class="card-action">Ver todo</span>
+            </div>
+            <div class="activity-item">
+              <div class="act-icon g">📦</div>
+              <div class="act-text"><b>Ingreso al inventario</b><span>X Series Advanced SpO2 · 1 unidad · WH-041</span></div>
+              <span class="act-time">Hoy 09:15</span>
+            </div>
+            <div class="activity-item">
+              <div class="act-icon i">📄</div>
+              <div class="act-text"><b>Cotización enviada</b><span>Cmd. Conjunto FFAA Ecuador · EMV+ x1</span></div>
+              <span class="act-time">Ayer</span>
+            </div>
+            <div class="activity-item">
+              <div class="act-icon w">✈️</div>
+              <div class="act-text"><b>Tracking actualizado</b><span>TRK-2026-012 · En Miami</span></div>
+              <span class="act-time">03 Mar</span>
+            </div>
+            <div class="activity-item">
+              <div class="act-icon g">🤝</div>
+              <div class="act-text"><b>Subdistribuidor · Pedido</b><span>Dist. Perú · R Series ALS x2</span></div>
+              <span class="act-time">01 Mar</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🚀 Accesos rápidos</div>
+            </div>
+            <div class="quick-actions">
+              <div class="qa-btn" onclick="showPanel('cotizaciones',null); openModal('modalCotizacion')">
+                <div class="qa-icon">📄</div>
+                <b>Nueva Cotización</b>
+                <span>Con template AMELIFE</span>
+              </div>
+              <div class="qa-btn" onclick="showPanel('inventario',null); openModal('modalItem')">
+                <div class="qa-icon">➕</div>
+                <b>Agregar Item</b>
+                <span>Al inventario</span>
+              </div>
+              <div class="qa-btn" onclick="showPanel('clientes',null); openModal('modalCliente')">
+                <div class="qa-icon">👤</div>
+                <b>Nuevo Cliente</b>
+                <span>Autoguardado</span>
+              </div>
+              <div class="qa-btn" onclick="showPanel('trackings',null)">
+                <div class="qa-icon">✈️</div>
+                <b>Ver Trackings</b>
+                <span>Estado de envíos</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== INVENTARIO ===== -->
+      <div class="panel" id="panel-inventario">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" id="invSearch" placeholder="Buscar por PN, descripción, WH..." oninput="filterInventario()" />
+          </div>
+          <select class="filter-select" id="invFilterProv" onchange="filterInventario()">
+            <option value="">Todos los proveedores</option>
+            <option value="ZOLL">ZOLL</option>
+            <option value="Goldway">Goldway</option>
+            <option value="Otro">Otro</option>
+          </select>
+          <select class="filter-select" id="invFilterStock" onchange="filterInventario()">
+            <option value="">Todo el stock</option>
+            <option value="ok">Stock OK</option>
+            <option value="low">Stock bajo</option>
+            <option value="zero">Sin stock</option>
+          </select>
+          <button class="btn btn-outline" onclick="exportInventario()">⬇ Exportar</button>
+          <button class="btn btn-primary" onclick="openModal('modalItem')">+ Agregar ítem</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table" id="invTable">
+            <thead>
+              <tr>
+                <th>Part Number</th>
+                <th>Descripción</th>
+                <th>Proveedor</th>
+                <th>P. Lista</th>
+                <th>P. Costo</th>
+                <th>Stock</th>
+                <th>WH #</th>
+                <th>Tracking</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="invBody"></tbody>
+          </table>
+          <div class="table-footer">
+            <span id="invCount">Cargando...</span>
+            <span>AMELIFE EMS Technologies · 2026</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== PRICE BOOK ZOLL ===== -->
+      <div class="panel" id="panel-pricebook">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" id="pbSearch" placeholder="Buscar por PN o descripción..." oninput="filterPB()" />
+          </div>
+          <button class="btn btn-outline" onclick="addPBtoInventario()">📦 Agregar al inventario</button>
+        </div>
+        <div class="pb-tabs" id="pbTabs"></div>
+        <div id="pbContents"></div>
+      </div>
+
+      <!-- ===== CLIENTES ===== -->
+      <div class="panel" id="panel-clientes">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" id="clientSearch" placeholder="Buscar cliente..." oninput="filterClientes()" />
+          </div>
+          <select class="filter-select">
+            <option>Todos los países</option>
+            <option>Ecuador</option>
+            <option>Perú</option>
+            <option>Colombia</option>
+            <option>Argentina</option>
+            <option>EEUU</option>
+          </select>
+          <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
+        </div>
+        <div class="client-grid" id="clientGrid"></div>
+      </div>
+
+      <!-- ===== COTIZACIONES ===== -->
+      <div class="panel" id="panel-cotizaciones">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="Buscar cotización..." />
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modalCotizacion')">+ Nueva cotización</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Cliente</th><th>Items</th><th>Markup</th><th>Total USD</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="pn">COT-2026-001</td>
+                <td>Cmd. Conjunto FFAA Ecuador</td>
+                <td>EMV+ 731 x1</td>
+                <td>+58%</td>
+                <td>$18,080</td>
+                <td>20 MAR 2025</td>
+                <td><span class="badge badge-warning">Pendiente</span></td>
+                <td>
+                  <button class="tbl-action" title="Ver">👁</button>
+                  <button class="tbl-action" title="PDF">📄</button>
+                  <button class="tbl-action" title="WhatsApp">💬</button>
+                  <button class="tbl-action" title="Email">📧</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="pn">COT-2026-002</td>
+                <td>Hospital San Martín, Lima</td>
+                <td>Z Vent x2, X Series x1</td>
+                <td>+35%</td>
+                <td>$45,200</td>
+                <td>15 FEB 2026</td>
+                <td><span class="badge badge-info">En revisión</span></td>
+                <td>
+                  <button class="tbl-action" title="Ver">👁</button>
+                  <button class="tbl-action" title="PDF">📄</button>
+                  <button class="tbl-action" title="WhatsApp">💬</button>
+                  <button class="tbl-action" title="Email">📧</button>
+                </td>
+              </tr>
+              <tr>
+                <td class="pn">COT-2026-003</td>
+                <td>Cruz Roja Colombiana</td>
+                <td>AED 3 x10</td>
+                <td>+40%</td>
+                <td>$18,550</td>
+                <td>01 MAR 2026</td>
+                <td><span class="badge badge-green">Aprobada</span></td>
+                <td>
+                  <button class="tbl-action">👁</button>
+                  <button class="tbl-action">📄</button>
+                  <button class="tbl-action">💬</button>
+                  <button class="tbl-action">📧</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-footer"><span>3 cotizaciones</span></div>
+        </div>
+      </div>
+
+      <!-- ===== ÓRDENES ===== -->
+      <div class="panel" id="panel-ordenes">
+        <div class="empty">
+          <div class="empty-icon">🛒</div>
+          <h3>Órdenes de Compra</h3>
+          <p>Módulo en construcción. Próxima actualización incluirá armado de OC desde Price Book.</p>
+        </div>
+      </div>
+
+      <!-- ===== TRACKINGS ===== -->
+      <div class="panel" id="panel-trackings">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="Buscar tracking..." />
+          </div>
+          <button class="btn btn-primary">+ Nuevo Tracking</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>Tracking ID</th><th>Carrier</th><th>Items</th><th>Origen</th><th>Destino</th><th>Estado</th><th>ETA</th><th>WH asignado</th></tr></thead>
+            <tbody>
+              <tr>
+                <td class="pn">TRK-2026-012</td>
+                <td>FedEx</td>
+                <td>X Series Adv. x1, Z Vent x1</td>
+                <td>Boston, MA</td>
+                <td>Miami, FL</td>
+                <td><span class="badge badge-warning">En tránsito</span></td>
+                <td>07 MAR 2026</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td class="pn">TRK-2026-011</td>
+                <td>DHL</td>
+                <td>AutoPulse NXT x2</td>
+                <td>Boston, MA</td>
+                <td>Miami, FL</td>
+                <td><span class="badge badge-green">Recibido</span></td>
+                <td>28 FEB 2026</td>
+                <td>WH-039, WH-040</td>
+              </tr>
+              <tr>
+                <td class="pn">TRK-2026-010</td>
+                <td>UPS</td>
+                <td>AED 3 BLS x5</td>
+                <td>Chelmsford, MA</td>
+                <td>Miami, FL</td>
+                <td><span class="badge badge-green">Recibido</span></td>
+                <td>20 FEB 2026</td>
+                <td>WH-034..038</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-footer"><span>3 trackings</span></div>
+        </div>
+      </div>
+
+      <!-- ===== WAREHOUSE ===== -->
+      <div class="panel" id="panel-warehouse">
+        <div class="empty">
+          <div class="empty-icon">🏭</div>
+          <h3>Módulo Warehouse</h3>
+          <p>Gestión de números de warehouse, series, lotes y vencimientos. En construcción.</p>
+          <br>
+          <button class="btn btn-primary" onclick="showToast('📧 Template de email al WH próximamente!','info')">📧 Template Email WH</button>
+        </div>
+      </div>
+
+      <!-- ===== SUBDISTRIBUIDORES ===== -->
+      <div class="panel" id="panel-subdist">
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" placeholder="Buscar subdistribuidor..." />
+          </div>
+          <button class="btn btn-primary">+ Agregar subdist.</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr><th>Nombre</th><th>País</th><th>Email</th><th>Stock declarado</th><th>Pedidos abiertos</th><th>Último acceso</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>Dist. Perú S.A.</b></td>
+                <td>🇵🇪 Perú</td>
+                <td>peru@dist.com</td>
+                <td>12 items</td>
+                <td>R Series ALS x2</td>
+                <td>04 MAR 2026</td>
+                <td><span class="badge badge-green">Activo</span></td>
+              </tr>
+              <tr>
+                <td><b>MedTech Colombia</b></td>
+                <td>🇨🇴 Colombia</td>
+                <td>medtech@col.com</td>
+                <td>5 items</td>
+                <td>—</td>
+                <td>01 MAR 2026</td>
+                <td><span class="badge badge-green">Activo</span></td>
+              </tr>
+              <tr>
+                <td><b>Emergency Pro ARG</b></td>
+                <td>🇦🇷 Argentina</td>
+                <td>info@emergpro.ar</td>
+                <td>8 items</td>
+                <td>AED Plus x5</td>
+                <td>28 FEB 2026</td>
+                <td><span class="badge badge-warning">Pendiente</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-footer"><span>3 subdistribuidores · Máx 4</span></div>
+        </div>
+      </div>
+
+      <!-- ===== GOLDWAY ===== -->
+      <div class="panel" id="panel-goldway">
+        <div class="empty">
+          <div class="empty-icon">🔗</div>
+          <h3>Inventario Goldway</h3>
+          <p>El Sheet de Goldway necesita ser compartido como <b>público de sólo lectura</b> para poder sincronizarlo aquí.</p>
+          <br>
+          <p style="font-size:12px;color:var(--muted)">Ir a Google Sheets → Compartir → Cualquier persona con el enlace → Lector → Copiar enlace</p>
+          <br>
+          <button class="btn btn-primary" onclick="showToast('Paste the public URL in the config settings','info')">⚙ Configurar enlace</button>
+        </div>
+      </div>
+
+      <!-- ===== FINANZAS ===== -->
+      <div class="panel" id="panel-finanzas">
+        <div id="finanzasLocked" class="finanzas-lock">
+          <div class="lock-icon">🔐</div>
+          <h3 style="font-size:20px;margin-bottom:10px;">Sección Financiera</h3>
+          <p style="color:var(--muted);margin-bottom:24px;">Acceso restringido: Germán y Ezequiel</p>
+          <div style="max-width:300px;margin:0 auto;">
+            <div class="field"><label>PIN de acceso</label><input type="password" id="finPin" placeholder="••••" maxlength="6" /></div>
+            <button class="btn btn-primary" style="width:100%" onclick="unlockFinanzas()">Desbloquear</button>
+          </div>
+        </div>
+        <div id="finanzasContent" style="display:none">
+          <div class="stats-grid" style="max-width:800px">
+            <div class="stat-card">
+              <div class="stat-label">Saldo en cuenta</div>
+              <div class="finanzas-balance">$42,850</div>
+              <div class="stat-sub">Actualizado hoy</div>
+            </div>
+            <div class="stat-card info">
+              <div class="stat-label">Cobros pendientes</div>
+              <div class="stat-value" style="color:var(--info)">$18,080</div>
+              <div class="stat-sub">Ecuador FFAA</div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px;max-width:800px">
+            <div class="card-header"><div class="card-title">💸 Movimientos</div><span class="card-action" onclick="showToast('Editando...','info')">+ Agregar</span></div>
+            <table class="data-table">
+              <thead><tr><th>Fecha</th><th>Descripción</th><th>Ingreso</th><th>Egreso</th><th>Saldo</th></tr></thead>
+              <tbody>
+                <tr><td>05 MAR 2026</td><td>Wire transfer EMV+ Ecuador</td><td style="color:var(--green)">+$18,000</td><td>—</td><td class="pn">$42,850</td></tr>
+                <tr><td>28 FEB 2026</td><td>Compra ZOLL · factura 2026-089</td><td>—</td><td style="color:var(--danger)">-$22,400</td><td class="pn">$24,850</td></tr>
+                <tr><td>15 FEB 2026</td><td>Wire Cruz Roja Colombia</td><td style="color:var(--green)">+$18,550</td><td>—</td><td class="pn">$47,250</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end content -->
+  </div><!-- end main -->
+</div><!-- end app -->
+
+<!-- ===================== MODALES ===================== -->
+
+<!-- Modal: Nuevo Item Inventario -->
+<div class="modal-overlay" id="modalItem">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📦 Agregar ítem al inventario</div>
+      <button class="modal-close" onclick="closeModal('modalItem')">✕</button>
+    </div>
+    <div class="modal-grid">
+      <div class="field"><label>Part Number</label><input type="text" placeholder="8000-000XXX" /></div>
+      <div class="field"><label>Proveedor</label><select><option>ZOLL</option><option>Goldway</option><option>Otro</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label>Descripción</label><input type="text" placeholder="Descripción completa del ítem" /></div>
+      <div class="field"><label>Precio Lista (USD)</label><input type="number" placeholder="0.00" /></div>
+      <div class="field"><label>Precio Costo (USD)</label><input type="number" placeholder="0.00" /></div>
+      <div class="field"><label>Stock (unidades)</label><input type="number" placeholder="0" /></div>
+      <div class="field"><label>WH #</label><input type="text" placeholder="WH-041" /></div>
+      <div class="field"><label>Número de tracking</label><input type="text" placeholder="TRK-2026-XXX" /></div>
+      <div class="field"><label>Lote</label><input type="text" placeholder="LOT-XXXX" /></div>
+      <div class="field"><label>Vencimiento</label><input type="date" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalItem')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveItem()">💾 Guardar ítem</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo Cliente -->
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">👤 Nuevo cliente</div>
+      <button class="modal-close" onclick="closeModal('modalCliente')">✕</button>
+    </div>
+    <div class="modal-grid">
+      <div class="field"><label>Nombre</label><input type="text" placeholder="Nombre completo" /></div>
+      <div class="field"><label>Empresa / Institución</label><input type="text" placeholder="Nombre de la organización" /></div>
+      <div class="field"><label>Email</label><input type="email" placeholder="email@cliente.com" /></div>
+      <div class="field"><label>Teléfono / WhatsApp</label><input type="text" placeholder="+1 305 XXX XXXX" /></div>
+      <div class="field"><label>País</label><select><option>Ecuador</option><option>Perú</option><option>Colombia</option><option>Argentina</option><option>EEUU</option><option>México</option><option>Otro</option></select></div>
+      <div class="field"><label>Ciudad</label><input type="text" placeholder="Ciudad" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Notas</label><input type="text" placeholder="Notas adicionales sobre el cliente" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">💾 Guardar cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva Cotización -->
+<div class="modal-overlay" id="modalCotizacion">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div class="modal-title">📄 Nueva Cotización AMELIFE</div>
+      <button class="modal-close" onclick="closeModal('modalCotizacion')">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field">
+        <label>Cliente</label>
+        <select id="cotCliente"><option>Cmd. Conjunto FFAA Ecuador</option><option>Hospital San Martín</option><option>Cruz Roja Colombiana</option><option>+ Nuevo cliente...</option></select>
+      </div>
+      <div class="field">
+        <label>% Markup sobre lista</label>
+        <input type="number" placeholder="30" value="30" id="cotMarkup" />
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label>Buscar producto del Price Book</label>
+        <input type="text" placeholder="Escribí PN o descripción..." oninput="searchForQuote(this.value)" />
+      </div>
+    </div>
+    <div style="margin:14px 0;font-size:13px;color:var(--muted)">Items en la cotización:</div>
+    <div id="cotItems" style="background:var(--bg);border-radius:var(--radius);padding:14px;min-height:60px;font-size:13px;">
+      <div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>
+    </div>
+    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;">
+      <span style="color:var(--muted)">Total estimado:</span>
+      <span style="font-size:20px;font-weight:800;color:var(--green)" id="cotTotal">$0.00</span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCotizacion')">Cancelar</button>
+      <button class="btn btn-outline" onclick="showToast('📧 Enviando por email...','info')">📧 Email</button>
+      <button class="btn btn-outline" onclick="showToast('💬 Abriendo WhatsApp...','info')">💬 WhatsApp</button>
+      <button class="btn btn-primary" onclick="showToast('✅ Cotización guardada!','success'); closeModal('modalCotizacion')">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+/* =============================================
+   AMELIFE APP · JS | 2026-03-05 10:30 ARG
+   ============================================= */
+
+// ---- DATOS DE USUARIOS (en producción: Apps Script) ----
+const USERS = {
+  'german':   { pass: 'amelife2026', role: 'admin',   name: 'Germán',   initial:'G' },
+  'ezequiel': { pass: 'amelife2026', role: 'finanzas', name: 'Ezequiel', initial:'E' },
+  'staff':    { pass: 'staff2026',   role: 'staff',    name: 'Staff',    initial:'S' },
+  'subdist1': { pass: 'dist2026',    role: 'subdist',  name: 'Dist. Perú', initial:'P'},
+};
+const FIN_PIN = '1234';
+let currentUser = null;
+
+// ---- INVENTARIO (datos demo · en producción: Google Sheets) ----
+let INVENTARIO = [
+  { pn:'800-EMVP-01-23', desc:'Ventilador EMV+ 731 S.America Spanish', prov:'ZOLL', lista:11359, costo:9800, stock:2, wh:'WH-038', tracking:'TRK-2026-011', venc:'', estado:'ok' },
+  { pn:'8660-001401-23', desc:'Ventilador Z Vent S.America Spanish', prov:'ZOLL', lista:11165, costo:9200, stock:1, wh:'WH-037', tracking:'TRK-2026-010', venc:'', estado:'ok' },
+  { pn:'60x-xx2xxx1-XX', desc:'X Series Advanced SpO2 International', prov:'ZOLL', lista:12662, costo:10500, stock:0, wh:'—', tracking:'TRK-2026-012', venc:'', estado:'zero' },
+  { pn:'8501-001201-23', desc:'ZOLL AED 3 Semi-auto Spanish', prov:'ZOLL', lista:1325, costo:1100, stock:5, wh:'WH-033..037', tracking:'TRK-2026-009', venc:'2029-06-01', estado:'ok' },
+  { pn:'8700-001003-01', desc:'AutoPulse NXT EMS Starter Kit English', prov:'ZOLL', lista:19027, costo:15800, stock:1, wh:'WH-039', tracking:'TRK-2026-011', venc:'', estado:'low' },
+  { pn:'8900-000280', desc:'CPR Uni-padz III Adult/Ped 5yr Shelf', prov:'ZOLL', lista:151, costo:110, stock:12, wh:'BIN-A4', tracking:'', venc:'2030-01-01', estado:'ok' },
+  { pn:'8000-0580-01', desc:'SurePower II Rechargeable Lithium Battery', prov:'ZOLL', lista:618, costo:490, stock:3, wh:'BIN-B2', tracking:'', venc:'', estado:'low' },
+  { pn:'8900-4003', desc:'Stat-padz Multi-Function Electrodes 12 prs', prov:'ZOLL', lista:431, costo:320, stock:8, wh:'BIN-A1', tracking:'', venc:'2027-03-01', estado:'ok' },
+];
+
+// ---- CLIENTES (datos demo) ----
+let CLIENTES = [
+  { nombre:'Cdte. Héctor Lizano', empresa:'Cmd. Conjunto FFAA Ecuador', email:'lizano@ffaa.ec', tel:'+593 99 XXX XXXX', pais:'Ecuador', ciudad:'Quito', notas:'Proyecto ventiladores 2025' },
+  { nombre:'Dr. Ramirez', empresa:'Hospital San Martín, Lima', email:'ramirez@hsm.pe', tel:'+51 1 XXX XXXX', pais:'Perú', ciudad:'Lima', notas:'Ambulancia tipo II' },
+  { nombre:'Alejandro García', empresa:'Cruz Roja Colombiana', email:'garcia@cruzroja.co', tel:'+57 310 XXX XXXX', pais:'Colombia', ciudad:'Bogotá', notas:'AEDs para brigadas' },
+];
+
+// ---- PRICE BOOK ZOLL ----
+const PRICEBOOK = {
+  'X Series': [
+    { pn:'60x-xx2xxx1-XX', desc:'X Series SpO2 Masimo Rainbow', price:10470 },
+    { pn:'60x-xx3xxx1-XX', desc:'X Series SpO2 + SpCO', price:11755 },
+    { pn:'60x-xx4xxx1-XX', desc:'X Series SpO2 SpCO SpMet', price:13130 },
+    { pn:'60x-xx6xxx1-XX', desc:'X Series SpO2 SpCO SpHb SpOC PVI PI', price:15215 },
+    { pn:'8300-0800-01',   desc:'3-Lead ECG Cable AAMI', price:139 },
+    { pn:'8300-0801-01',   desc:'5-Lead ECG Cable AAMI', price:186 },
+    { pn:'8300-0802-01',   desc:'12-Lead one step ECG Cable AAMI', price:353 },
+    { pn:'8000-0580-01',   desc:'SurePower II Rechargeable Battery', price:618 },
+    { pn:'8050-0030-xx',   desc:'SurePower 4 Bay Charging Station', price:1744 },
+    { pn:'8707-000502-01', desc:'X Series Carry Case', price:542 },
+    { pn:'8000-000875-01', desc:'Thermal Paper BPA Free Box of 6', price:28 },
+  ],
+  'X Series Adv.': [
+    { pn:'60x-xx2xxx1-xx', desc:'X Series Advanced SpO2', price:12662 },
+    { pn:'60x-xx3xxx1-xx', desc:'X Series Advanced SpO2 + SpCO', price:540 },
+    { pn:'60x-xx4xxx1-xx', desc:'X Series Advanced SpO2 SpCO SpMet', price:15322 },
+    { pn:'60x-xx7xxx1-xx', desc:'X Series Advanced Full Masimo Rainbow', price:18781 },
+    { pn:'8000-000993',    desc:'AccuVent Cable (X Series Advanced only)', price:329 },
+    { pn:'8000-001128',    desc:'AccuVent Sensor Box of 10', price:561 },
+  ],
+  'AEDs / Powerheart': [
+    { pn:'20100000101011XX0', desc:'AED Plus Semi-auto Graphical Cover', price:1110 },
+    { pn:'8501-001201-XX',   desc:'ZOLL AED 3 Semi-automatic', price:1325 },
+    { pn:'8501-001202-XX',   desc:'ZOLL AED 3 Fully Automatic', price:1325 },
+    { pn:'G5A-xxC',          desc:'Powerheart G5 Fully Auto ICPR', price:1170 },
+    { pn:'G5S-xxC',          desc:'Powerheart G5 Semi Auto ICPR', price:1170 },
+    { pn:'8900-000280',      desc:'CPR Uni-padz III Adult/Ped', price:151 },
+    { pn:'8000-000696',      desc:'ZOLL AED 3 Battery Pack', price:124 },
+    { pn:'XELAED002C',       desc:'Powerheart G5 Intellisense ICPR Adult Pads', price:140 },
+    { pn:'XBTAED001A',       desc:'Intellisense Battery Powerheart G5', price:257 },
+  ],
+  'AutoPulse': [
+    { pn:'8700-0730-XX',  desc:'AutoPulse Pass Thru Resuscitation System', price:10489 },
+    { pn:'8700-0740-XX',  desc:'AutoPulse Plus Resuscitation System', price:10693 },
+    { pn:'8700-001003-01',desc:'AutoPulse NXT EMS Starter Kit English', price:19027 },
+    { pn:'8700-001002-01',desc:'AutoPulse NXT Hospital Starter Kit English', price:21696 },
+    { pn:'8700-001070-01',desc:'AutoPulse NXT Platform', price:14244 },
+    { pn:'8700-001012-01',desc:'AutoPulse NXT Lithium Battery', price:1387 },
+    { pn:'8700-0706-XX',  desc:'AutoPulse LifeBand 3 Pack', price:613 },
+  ],
+  'ZOLL M2': [
+    { pn:'8199-M20-23-100A', desc:'ZOLL M2 Base Unit Spanish', price:3622 },
+    { pn:'8199-M20-23-150A', desc:'ZOLL M2 Noninvasive Pacing Spanish', price:3901 },
+    { pn:'8199-M20-23-200A', desc:'ZOLL M2 Pacing SpO2 Spanish', price:4250 },
+    { pn:'8199-M20-23-300A', desc:'ZOLL M2 Pacing SpO2 NIBP Spanish', price:5699 },
+    { pn:'8199-M20-23-400B', desc:'ZOLL M2 Pacing SpO2 NIBP EtCO2 WiFi Spanish', price:7219 },
+    { pn:'8199-M20-23-500B', desc:'ZOLL M2 Full Config WiFi Spanish', price:9880 },
+    { pn:'8019-0535-01',     desc:'SurePower Rechargeable Li-ion Battery', price:597 },
+  ],
+  'R Series': [
+    { pn:'32720000001110xx2', desc:'R Series Basic Pacing', price:6667 },
+    { pn:'32720001001110xx2', desc:'R Series Basic Pacing SpO2', price:8026 },
+    { pn:'32120000001110xx2', desc:'R Series ALS Pacing', price:7627 },
+    { pn:'32120001001110xx2', desc:'R Series ALS Pacing SpO2', price:8988 },
+    { pn:'32120009001310xx2', desc:'R Series ALS Pacing SpO2 NIBP', price:10523 },
+    { pn:'32520000001110xx3', desc:'R Series PLUS Pacing', price:7884 },
+    { pn:'32520005201310xx3', desc:'R Series PLUS Pacing SpO2 NIBP EtCO2 M-stream', price:12100 },
+  ],
+  'Ventilación': [
+    { pn:'8660-001400-23', desc:'Z Vent Basic Spanish S.America', price:9041 },
+    { pn:'8660-001401-23', desc:'Z Vent Full Spanish S.America', price:11165 },
+    { pn:'8660-001402-23', desc:'Z Vent MRI Conditional S.America', price:11682 },
+    { pn:'800-EMVP-01-23', desc:'EMV+ 731 S.America Spanish v5.0', price:11359 },
+    { pn:'800-EMVP-05-01', desc:'EMV+ MRI 731 Commercial English v5.0', price:12506 },
+    { pn:'820-0106-15',    desc:'Ventilator Circuits EMV+ Adult 6ft Case/15', price:376 },
+    { pn:'820-0107-20',    desc:'Ventilator Circuits EMV+ Infant/Ped 6ft Case/20', price:497 },
+  ],
+  'AED Pro / AED3 BLS': [
+    { pn:'90210200499991XX0', desc:'AED Pro Semi-Auto/Manual', price:2448 },
+    { pn:'90210202499991XX0', desc:'AED Pro Semi-Auto/Manual Voice Recording', price:2613 },
+    { pn:'8502-001203-XX',   desc:'ZOLL AED 3 BLS Semi-automatic', price:2518 },
+    { pn:'8562-001206-XX',   desc:'ZOLL AED 3 BLS Aviation', price:2779 },
+    { pn:'8900-0800-01',     desc:'CPR-D-padz One Piece Real CPR Help', price:133 },
+    { pn:'8000-0860-01',     desc:'AED Pro Lithium Battery Pack', price:167 },
+  ],
+};
+
+// ============================================
+//  LOGIN
+// ============================================
+function doLogin() {
+  const user = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const role = document.getElementById('loginRole').value;
+  const err  = document.getElementById('loginError');
+
+  // En producción: google.script.run.validateUser(user, pass, callback)
+  // Demo: acepta cualquier usuario + contraseña, o los predefinidos
+  let found = USERS[user];
+  if (!found) {
+    // Modo demo: aceptar cualquier usuario/contraseña
+    found = { role, name: user || 'Usuario', initial: (user[0]||'U').toUpperCase() };
+  }
+
+  err.style.display = 'none';
+  currentUser = found;
+  document.getElementById('userName').textContent = found.name;
+  document.getElementById('userRole').textContent = found.role.charAt(0).toUpperCase()+found.role.slice(1);
+  document.getElementById('userAvatar').textContent = found.initial;
+
+  // Ocultar finanzas si no es admin/finanzas
+  if (!['admin','finanzas'].includes(found.role)) {
+    document.getElementById('navFinanzas').style.display = 'none';
+  }
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  renderInventario();
+  renderPriceBook();
+  renderClientes();
+  updateClock();
+  setInterval(updateClock, 60000);
+  showToast('¡Bienvenido, ' + found.name + '!', 'success');
+}
+
+function doLogout() {
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('finanzasContent').style.display = 'none';
+  document.getElementById('finanzasLocked').style.display = 'block';
+  currentUser = null;
+}
+
+// ============================================
+//  NAVIGATION
+// ============================================
+function showPanel(id, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const panel = document.getElementById('panel-'+id);
+  if (panel) panel.classList.add('active');
+  if (el) el.classList.add('active');
+  const titles = {
+    dashboard:'Dashboard', inventario:'Inventario', pricebook:'Price Book ZOLL',
+    clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
+    trackings:'Trackings', warehouse:'Warehouse', subdist:'Subdistribuidores',
+    goldway:'Goldway Inventory', finanzas:'Finanzas'
+  };
+  document.getElementById('topbarTitle').textContent = titles[id] || id;
+}
+
+function updateClock() {
+  const now = new Date();
+  const s = now.toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' +
+            now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('topbarDate').textContent = s;
+}
+
+// ============================================
+//  INVENTARIO
+// ============================================
+function renderInventario(data) {
+  const rows = data || INVENTARIO;
+  const tbody = document.getElementById('invBody');
+  tbody.innerHTML = '';
+  rows.forEach((item,i) => {
+    const statusMap = { ok:'badge-green', low:'badge-warning', zero:'badge-danger' };
+    const statusLabel = { ok:'OK', low:'Stock bajo', zero:'Sin stock' };
+    tbody.innerHTML += `
+      <tr>
+        <td class="pn">${item.pn}</td>
+        <td style="max-width:260px;white-space:normal">${item.desc}</td>
+        <td><span class="badge badge-muted">${item.prov}</span></td>
+        <td>$${item.lista.toLocaleString()}</td>
+        <td>$${item.costo.toLocaleString()}</td>
+        <td><b>${item.stock}</b></td>
+        <td class="pn">${item.wh||'—'}</td>
+        <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
+        <td style="font-size:12px">${item.venc||'—'}</td>
+        <td><span class="badge ${statusMap[item.estado]}">${statusLabel[item.estado]}</span></td>
+        <td>
+          <button class="tbl-action" onclick="editItem(${i})" title="Editar">✏️</button>
+          <button class="tbl-action" onclick="deleteItem(${i})" title="Eliminar">🗑</button>
+        </td>
+      </tr>`;
+  });
+  document.getElementById('invCount').textContent = rows.length + ' ítems';
+}
+
+function filterInventario() {
+  const q    = document.getElementById('invSearch').value.toLowerCase();
+  const prov = document.getElementById('invFilterProv').value;
+  const stk  = document.getElementById('invFilterStock').value;
+  const filtered = INVENTARIO.filter(i => {
+    const matchQ    = !q || i.pn.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q) || (i.wh||'').toLowerCase().includes(q);
+    const matchProv = !prov || i.prov === prov;
+    const matchStk  = !stk || i.estado === stk;
+    return matchQ && matchProv && matchStk;
+  });
+  renderInventario(filtered);
+}
+
+function editItem(idx) { showToast('Editando ítem ' + INVENTARIO[idx].pn, 'info'); }
+function deleteItem(idx) {
+  if (confirm('¿Eliminar ' + INVENTARIO[idx].pn + '?')) {
+    INVENTARIO.splice(idx,1);
+    renderInventario();
+    showToast('Ítem eliminado', 'success');
+    // En producción: google.script.run.deleteItem(idx)
+  }
+}
+function saveItem() {
+  showToast('✅ Ítem guardado en el inventario', 'success');
+  closeModal('modalItem');
+  // En producción: google.script.run.addItem(formData)
+}
+function exportInventario() { showToast('📥 Exportando inventario...', 'info'); }
+
+// ============================================
+//  PRICE BOOK
+// ============================================
+function renderPriceBook() {
+  const tabs = document.getElementById('pbTabs');
+  const contents = document.getElementById('pbContents');
+  tabs.innerHTML = '';
+  contents.innerHTML = '';
+  const keys = Object.keys(PRICEBOOK);
+  keys.forEach((k,i) => {
+    tabs.innerHTML += `<div class="pb-tab${i===0?' active':''}" onclick="switchPBTab('${k}',this)">${k}</div>`;
+    contents.innerHTML += `
+      <div class="pb-content${i===0?' active':''}" id="pbt-${k.replace(/\s|[^\w]/g,'_')}">
+        <div class="table-container">
+          <div class="pb-category">${k}</div>
+          <table class="data-table">
+            <thead><tr><th>Part Number</th><th>Descripción</th><th>Precio Lista (USD)</th><th></th></tr></thead>
+            <tbody>${PRICEBOOK[k].map(r=>`
+              <tr>
+                <td class="pn">${r.pn}</td>
+                <td>${r.desc}</td>
+                <td><b>$${r.price.toLocaleString()}</b></td>
+                <td>
+                  <button class="tbl-action" title="Agregar al inventario" onclick='addToInv(${JSON.stringify(r)})'>📦</button>
+                  <button class="tbl-action" title="Agregar a cotización" onclick='addToCot(${JSON.stringify(r)})'>📄</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="table-footer"><span>${PRICEBOOK[k].length} ítems · FY2025 LATAM/Caribbean/Israel</span></div>
+        </div>
+      </div>`;
+  });
+}
+
+function switchPBTab(key, el) {
+  document.querySelectorAll('.pb-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.pb-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const id = 'pbt-' + key.replace(/\s|[^\w]/g,'_');
+  const el2 = document.getElementById(id);
+  if (el2) el2.classList.add('active');
+}
+
+function filterPB() {
+  const q = document.getElementById('pbSearch').value.toLowerCase();
+  document.querySelectorAll('.data-table tbody tr').forEach(tr => {
+    const txt = tr.textContent.toLowerCase();
+    tr.style.display = (!q || txt.includes(q)) ? '' : 'none';
+  });
+}
+
+function addToInv(item) {
+  INVENTARIO.push({ pn:item.pn, desc:item.desc, prov:'ZOLL', lista:item.price, costo:0, stock:0, wh:'—', tracking:'', venc:'', estado:'zero' });
+  renderInventario();
+  showToast('📦 ' + item.pn + ' agregado al inventario', 'success');
+}
+
+function addToCot(item) { showToast('📄 ' + item.pn + ' agregado a la cotización', 'info'); }
+function addPBtoInventario() { showToast('Seleccioná un ítem con el botón 📦', 'info'); }
+function searchForQuote(q) { /* búsqueda en cotización */ }
+
+// ============================================
+//  CLIENTES
+// ============================================
+function renderClientes(data) {
+  const list = data || CLIENTES;
+  const grid = document.getElementById('clientGrid');
+  const initials = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  grid.innerHTML = list.map(c => `
+    <div class="client-card">
+      <div class="client-avatar">${(c.nombre[0]||'C').toUpperCase()}</div>
+      <div class="client-name">${c.nombre}</div>
+      <div class="client-company">${c.empresa}</div>
+      <div class="client-info">
+        📧 ${c.email}<br>
+        📞 ${c.tel}<br>
+        🌎 ${c.ciudad}, ${c.pais}<br>
+        ${c.notas ? '📝 '+c.notas : ''}
+      </div>
+    </div>`).join('');
+}
+
+function filterClientes() {
+  const q = document.getElementById('clientSearch').value.toLowerCase();
+  const filtered = CLIENTES.filter(c =>
+    c.nombre.toLowerCase().includes(q) || c.empresa.toLowerCase().includes(q) || c.pais.toLowerCase().includes(q)
+  );
+  renderClientes(filtered);
+}
+
+function saveCliente() {
+  showToast('✅ Cliente guardado', 'success');
+  closeModal('modalCliente');
+}
+
+// ============================================
+//  FINANZAS
+// ============================================
+function unlockFinanzas() {
+  const pin = document.getElementById('finPin').value;
+  if (pin === FIN_PIN || (currentUser && currentUser.role === 'admin')) {
+    document.getElementById('finanzasLocked').style.display = 'none';
+    document.getElementById('finanzasContent').style.display = 'block';
+    showToast('✅ Sección financiera desbloqueada', 'success');
+  } else {
+    showToast('❌ PIN incorrecto', 'error');
+  }
+}
+
+// ============================================
+//  MODALES
+// ============================================
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+// Cerrar modal al click fuera
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', function(e) {
+    if (e.target === o) o.classList.remove('open');
+  });
+});
+
+// ============================================
+//  TOAST
+// ============================================
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.className = 'show ' + type;
+  t.innerHTML = (type==='success'?'✅':type==='error'?'❌':'ℹ️') + ' ' + msg;
+  setTimeout(() => t.className = '', 3500);
+}
+
+// ============================================
+//  ENTER en login
+// ============================================
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('loginScreen').style.display !== 'none') {
+    doLogin();
+  }
+});
+
+// ============================================
+//  INIT
+// ============================================
+updateClock();
+
+/*
+ * ============================================================
+ * INTEGRACIÓN CON GOOGLE APPS SCRIPT
+ * Para conectar con la hoja de cálculo, reemplazá las 
+ * funciones de datos locales con llamadas a:
+ *
+ * google.script.run
+ *   .withSuccessHandler(callback)
+ *   .withFailureHandler(err => showToast(err.message,'error'))
+ *   .getInventario()         → carga inventario desde Sheet
+ *   .addItem(data)           → agrega ítem al Sheet
+ *   .deleteItem(pn)          → elimina ítem del Sheet
+ *   .getClientes()           → carga clientes
+ *   .addCliente(data)        → guarda cliente
+ *   .validateUser(u,p)       → login seguro
+ *   .saveCotizacion(data)    → guarda cotización
+ *   .sendEmail(to,subj,html) → envía email via Gmail
+ *   .getGoldwayData()        → lee el Sheet de Goldway
+ * ============================================================
+ */
+</script>
+</body>
+</html>
