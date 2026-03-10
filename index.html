@@ -1,0 +1,3623 @@
+<!DOCTYPE html>
+<!-- GastroCEDELU index.html · 2026-03-10 17:00 ARG -->
+<!-- ============================================================ -->
+<!-- Gastro CEDELU — 2026-03-09 23:55 ARG - index.html (Frontend SPA)                    -->
+<!-- 2026-03-07 16:00 ARG                                         -->
+<!-- Etapa 1: Auth + Pacientes + HC + Consultas                   -->
+<!-- ============================================================ -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gastro CEDELU</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ─── VARIABLES ─────────────────────────────────────────────── */
+:root {
+  --bg:       #edf7f0;
+  --surface:  #ffffff;
+  --card:     #ffffff;
+  --card2:    #f2faf5;
+  --border:   #c6e6d0;
+  --border2:  #9fd4b2;
+  --accent:   #1a9c5b;
+  --accent2:  #1565c0;
+  --gold:     #b06a10;
+  --text:     #12261a;
+  --muted:    #4a6e58;
+  --muted2:   #2d5040;
+  --danger:   #c62828;
+  --warn:     #bf6000;
+  --success:  #1b5e20;
+  --sidebar-w: 230px;
+  --radius:   6px;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-display: 'Cormorant Garamond', serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* ─── RESET ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+input, textarea, select, button { font-family: inherit; }
+a { color: var(--accent); text-decoration: none; }
+button { cursor: pointer; border: none; }
+
+/* ─── SCROLLBAR ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #e8edf2; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ─── LAYOUT ─────────────────────────────────────────────────── */
+#app { height: 100%; display: flex; }
+.screen { display: none; width: 100%; }
+.screen.active { display: flex; }
+
+/* ══════════════════════════════════════════════════════════════
+   LOGIN
+══════════════════════════════════════════════════════════════ */
+#screen-login {
+  background: radial-gradient(ellipse at 60% 40%, #c8ead6 0%, #edf7f0 70%);
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+#screen-login::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 168, 150, 0.15);
+  top: -150px; right: -200px;
+}
+#screen-login::after {
+  content: '';
+  position: absolute;
+  width: 400px; height: 400px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 119, 182, 0.12);
+  bottom: -100px; left: -100px;
+}
+.login-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 52px 48px;
+  width: 420px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 20px 60px rgba(0,100,60,0.12), 0 0 0 1px rgba(26,156,91,0.15);
+}
+.login-logo {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.login-logo-icon {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, #1a9c5b, #1565c0);
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  font-size: 26px;
+}
+.login-logo h1 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #12261a;
+}
+.login-logo p {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #1a9c5b;
+  margin-top: 4px;
+}
+.login-card h2 {
+  font-size: 17px;
+  font-weight: 500;
+  color: #4a6075;
+  margin-bottom: 28px;
+  text-align: center;
+}
+.login-error {
+  background: rgba(245, 101, 101, 0.12);
+  border: 1px solid rgba(245, 101, 101, 0.3);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  color: #fc8181;
+  font-size: 13px;
+  margin-bottom: 20px;
+  display: none;
+}
+.login-error.show { display: block; }
+
+/* ─── FORM ELEMENTS ─────────────────────────────────────────── */
+.field { margin-bottom: 18px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.field input, .field textarea, .field select {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: var(--text);
+  font-size: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: #1a9c5b;
+  box-shadow: 0 0 0 3px rgba(26, 156, 91, 0.12);
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.field select option { background: #ffffff; }
+.field input::placeholder, .field textarea::placeholder { color: var(--muted); opacity: 0.7; }
+.field-row { display: grid; gap: 14px; }
+.field-row.cols-2 { grid-template-columns: 1fr 1fr; }
+.field-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.field-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+/* ─── BUTTONS ───────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #1a9c5b, #1565c0);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(26, 156, 91, 0.25);
+}
+.btn-primary:hover { filter: brightness(1.1); box-shadow: 0 6px 20px rgba(26,156,91,0.35); }
+.btn-secondary {
+  background: #edf2f7;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-danger {
+  background: rgba(245,101,101,0.15);
+  color: #fc8181;
+  border: 1px solid rgba(245,101,101,0.3);
+}
+.btn-danger:hover { background: rgba(245,101,101,0.25); }
+.btn-ghost {
+  background: transparent;
+  color: var(--muted2);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); background: #f7fafc; }
+.btn-sm { padding: 8px 16px; font-size: 14px; }
+.btn-lg { padding: 15px 28px; font-size: 17px; width: 100%; justify-content: center; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-icon { padding: 8px; width: 34px; height: 34px; justify-content: center; }
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN APP LAYOUT
+══════════════════════════════════════════════════════════════ */
+#screen-app {
+  flex-direction: row;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── SIDEBAR ───────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: #155a32;
+  border-right: 1px solid #0d3d22;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  flex-shrink: 0;
+}
+.sidebar-brand {
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-brand-logo {
+  width: 52px; height: 52px;
+  background: linear-gradient(135deg, #1a9c5b, #1565c0);
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+.sidebar-brand h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.1;
+}
+.sidebar-brand p {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: #88d4a4;
+  margin-top: 2px;
+}
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 10px;
+  overflow-y: auto;
+}
+.nav-section {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #88b89a;
+  padding: 14px 10px 6px;
+  font-weight: 600;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  color: #a8d4bc;
+  font-size: 15px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 2px;
+  user-select: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.12); color: #ffffff; }
+.nav-item.active { background: rgba(100,220,140,0.2); color: #a8f0be; font-weight: 500; }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+.sidebar-user {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 14px 16px;
+}
+.sidebar-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.user-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a9c5b 0%, #1565c0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+.user-meta { flex: 1; min-width: 0; }
+.user-meta strong {
+  display: block;
+  font-size: 15px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-meta span {
+  font-size: 11px;
+  color: #88b89a;
+  text-transform: capitalize;
+}
+.btn-logout {
+  width: 100%;
+  background: transparent;
+  color: #88b89a;
+  font-size: 12px;
+  padding: 6px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+.btn-logout:hover { color: var(--danger); border-color: rgba(245,101,101,0.3); }
+
+/* ─── MAIN CONTENT ──────────────────────────────────────────── */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100vh;
+}
+.page { display: none; flex-direction: column; height: 100%; overflow: hidden; }
+.page.active { display: flex; }
+.page-header {
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0,80,40,0.07);
+}
+.page-header h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a2e3b;
+  flex: 1;
+}
+.page-header .subtitle {
+  font-size: 15px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.page-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+.btn-back {
+  background: transparent;
+  color: var(--muted2);
+  font-size: 18px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+}
+.btn-back:hover { color: var(--text); }
+
+/* ══════════════════════════════════════════════════════════════
+   DASHBOARD (lista de pacientes)
+══════════════════════════════════════════════════════════════ */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.search-input-wrap {
+  flex: 1;
+  position: relative;
+}
+.search-input-wrap .icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 15px;
+}
+.search-input-wrap input {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px 12px 42px;
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input-wrap input:focus { border-color: #1a9c5b; }
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.stat-chip {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  font-size: 14px;
+  color: var(--muted2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stat-chip strong { font-size: 22px; color: #1a2e3b; display: block; line-height: 1; }
+
+/* ─── PATIENT TABLE ─────────────────────────────────────────── */
+.table-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  background: #f2faf5;
+  padding: 11px 16px;
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+  color: var(--text);
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr { transition: background 0.15s; cursor: pointer; }
+.data-table tbody tr:hover td { background: #e8f5ee; }
+.td-name { font-weight: 500; }
+.td-dni { font-family: var(--font-mono); font-size: 13px; color: var(--muted2); }
+.td-os { font-size: 12px; color: var(--muted2); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.badge-green { background: rgba(72,187,120,0.15); color: #68d391; border: 1px solid rgba(72,187,120,0.2); }
+.badge-blue  { background: rgba(0,150,199,0.15);  color: #63b3ed; border: 1px solid rgba(0,150,199,0.2); }
+.badge-gold  { background: rgba(226,185,111,0.15); color: #f6d06e; border: 1px solid rgba(226,185,111,0.2); }
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+.empty-state h3 { font-size: 16px; color: var(--muted2); margin-bottom: 8px; }
+.empty-state p { font-size: 13px; }
+
+/* ══════════════════════════════════════════════════════════════
+   FORMULARIO PACIENTE
+══════════════════════════════════════════════════════════════ */
+.form-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.form-card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f2faf5;
+}
+.form-card-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted2);
+}
+.form-card-header .icon { color: var(--accent); }
+.form-card-body { padding: 20px; }
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 0;
+  position: sticky;
+  bottom: 0;
+  background: #f0f4f8;
+  border-top: 1px solid var(--border);
+  margin: 0 -28px;
+  padding: 16px 28px;
+}
+
+/* ─── SECTION DIVIDER ───────────────────────────────────────── */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 18px;
+}
+.section-divider span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #1a9c5b;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.section-divider::before, .section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ─── MEDICAMENTOS ──────────────────────────────────────────── */
+.med-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.med-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DETALLE PACIENTE
+══════════════════════════════════════════════════════════════ */
+.patient-header-card {
+  background: linear-gradient(135deg, #e8f8ee 0%, #d4f0e0 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.patient-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a9c5b, #1565c0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: white;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.patient-info { flex: 1; }
+.patient-info h2 {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  color: #1a2e3b;
+  margin-bottom: 6px;
+}
+.patient-chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.patient-chip {
+  font-size: 14px;
+  color: var(--muted2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.patient-chip::before { content: '•'; color: var(--border2); }
+.patient-chip:first-child::before { content: ''; }
+.patient-actions { display: flex; gap: 8px; }
+
+/* ─── TABS ──────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 22px;
+  gap: 2px;
+}
+.tab-item {
+  padding: 13px 22px;
+  font-size: 15px;
+  color: var(--muted2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 400;
+  user-select: none;
+}
+.tab-item:hover { color: var(--text); }
+.tab-item.active {
+  color: #1a9c5b;
+  border-bottom-color: #1a9c5b;
+  font-weight: 500;
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ─── HC VIEWER ─────────────────────────────────────────────── */
+.hc-viewer {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.hc-section {
+  border-bottom: 1px solid var(--border);
+  padding: 16px 20px;
+}
+.hc-section:last-child { border-bottom: none; }
+.hc-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #1a9c5b;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.hc-field { margin-bottom: 12px; }
+.hc-field:last-child { margin-bottom: 0; }
+.hc-field label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 5px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.hc-field p {
+  font-size: 16px;
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.hc-field p.empty { color: #a0aec0; font-style: italic; font-size: 13px; }
+.hc-meds-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+}
+.hc-med-item {
+  background: #f7fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.hc-med-item .med-name { font-weight: 500; font-size: 13.5px; }
+.hc-med-item .med-dos { font-size: 12px; color: var(--muted2); margin-top: 3px; }
+
+/* ─── CONSULTAS LIST ────────────────────────────────────────── */
+.consulta-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.consulta-header {
+  padding: 12px 18px;
+  background: #f7fafc;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.consulta-date {
+  font-size: 12px;
+  color: var(--muted2);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.consulta-body { padding: 16px 18px; }
+.consulta-field { margin-bottom: 12px; }
+.consulta-field:last-child { margin-bottom: 0; }
+.consulta-field label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 5px;
+}
+.consulta-field p { font-size: 16px; line-height: 1.5; }
+
+/* ─── ENDOSCOPIAS PLACEHOLDER ──────────────────────────────── */
+.endoscopias-placeholder {
+  text-align: center;
+  padding: 50px 20px;
+  background: var(--card);
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+}
+.endoscopias-placeholder .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+.endoscopias-placeholder h3 { font-size: 16px; color: var(--muted2); margin-bottom: 8px; }
+.endoscopias-placeholder p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+/* ══════════════════════════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(20,50,80,0.45);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  width: 500px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(0,80,120,0.15);
+}
+.modal-lg { width: 660px; }
+.modal h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 22px;
+  color: #1a2e3b;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* ─── TOAST ─────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  box-shadow: 0 8px 24px rgba(0,80,120,0.15);
+  min-width: 280px;
+  animation: slideIn 0.3s ease;
+}
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error   { border-left: 3px solid var(--danger); }
+.toast.info    { border-left: 3px solid var(--accent2); }
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ─── LOADING ───────────────────────────────────────────────── */
+.loading {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(20,50,80,0.35);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.loading-overlay.show { display: flex; }
+.loading-box {
+  background: #ffffff;
+  border: 1px solid #c0ddc9;
+  border-radius: 16px;
+  padding: 36px 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a7a4a;
+  box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  min-width: 240px;
+  text-align: center;
+  letter-spacing: .3px;
+}
+.loading-spinner {
+  width: 52px; height: 52px;
+  border: 5px solid #c0efd8;
+  border-top-color: #1a7a4a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.loading-sub {
+  font-size: 12px;
+  color: #888;
+  font-weight: 400;
+  margin-top: -12px;
+}
+
+/* ─── ADMIN PANEL ───────────────────────────────────────────── */
+.user-table { width: 100%; }
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.user-row:last-child { border-bottom: none; }
+.user-row-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1a9c5b, #1565c0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+.user-row-info { flex: 1; }
+.user-row-info strong { font-size: 13px; display: block; color: #1a2e3b; }
+.user-row-info span { font-size: 11px; color: var(--muted); }
+
+/* ══════════════════════════════════════════════════════════════
+   ENDOSCOPIAS
+══════════════════════════════════════════════════════════════ */
+.endo-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.endo-card:hover { box-shadow: 0 4px 16px rgba(0,100,150,0.1); }
+.endo-card-header {
+  padding: 13px 18px;
+  background: #f0f9f3;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.endo-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #0077b6;
+}
+.endo-tipo-veda   { color: #155a32; }
+.endo-tipo-colon  { color: #276749; }
+.endo-card-body { padding: 16px 18px; }
+.endo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.endo-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.endo-field label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+.endo-field p {
+  font-size: 16px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.endo-field p.empty { color: #a0aec0; font-style: italic; }
+.endo-fotos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.endo-foto-thumb {
+  width: 80px;
+  height: 80px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.endo-foto-thumb:hover { transform: scale(1.05); border-color: var(--accent2); }
+
+/* Chips de texto predefinido */
+.chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.chip-btn {
+  background: #e8f4fd;
+  border: 1px solid #bee3f8;
+  color: #2b6cb0;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: var(--font-body);
+}
+.chip-btn:hover { background: #c6e6d0; }
+.chip-btn.green { background: #e8f5ee; border-color: #9fd4b2; color: #155a32; }
+.chip-btn.green:hover { background: #c6e6d0; }
+
+/* Upload de fotos */
+.fotos-upload-area {
+  border: 2px dashed var(--border2);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  background: #f7fafc;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+.fotos-upload-area:hover { border-color: #1a9c5b; background: #edf7f0; }
+.fotos-upload-area p { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.fotos-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.foto-preview-item {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: #e2e8f0;
+}
+.foto-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.foto-preview-item .remove-foto {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(229,62,62,0.85);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.foto-uploading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--accent2);
+}
+
+/* Visor de foto ampliada */
+.foto-viewer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+.foto-viewer-overlay.show { display: flex; }
+.foto-viewer-overlay img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.foto-viewer-close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  color: white;
+  font-size: 28px;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+.seccion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.badge-veda  { background: #e8f5ee; color: #155a32; border: 1px solid #9fd4b2; }
+.badge-colon { background: #e6fffa; color: #276749; border: 1px solid #81e6d9; }
+
+
+
+/* ===== Informe Endoscopico estilo Clinica ===== */
+
+.informe-card{
+width:210mm;
+background:#ffffff;
+border-radius:14px;
+box-shadow:0 10px 30px rgba(0,0,0,.15);
+padding:28px;
+}
+
+.informe-header{
+background:linear-gradient(135deg,#1a9c5b,#6bc79e);
+color:white;
+padding:18px 22px;
+border-radius:12px 12px 0 0;
+margin:-28px -28px 20px -28px;
+}
+
+.informe-header h1{
+font-size:28px;
+font-weight:700;
+letter-spacing:.5px;
+margin:0;
+}
+
+.informe-sub{
+font-size:16px;
+opacity:.9;
+}
+
+.informe-section{
+background:#f7faf9;
+border:1px solid #cfe9da;
+border-radius:10px;
+padding:14px 16px;
+margin-bottom:10px;
+}
+
+.informe-title{
+font-weight:700;
+color:#17613a;
+margin-bottom:6px;
+}
+
+.informe-fotos{
+display:grid;
+grid-template-columns:repeat(4,4cm);
+grid-auto-rows:4cm;
+gap:8px;
+justify-content:center;
+margin-top:12px;
+}
+
+.informe-fotos img{
+width:4cm;
+height:4cm;
+object-fit:cover;
+border-radius:6px;
+border:1px solid #ddd;
+}
+
+.informe-firma{
+text-align:right;
+margin-top:14px;
+}
+
+.informe-footer{
+margin-top:16px;
+padding-top:8px;
+border-top:1px solid #ddd;
+font-size:12px;
+text-align:center;
+color:#555;
+}
+
+
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ════════════════════════════════ LOGIN ════════════════════════════════ -->
+  <div id="screen-login" class="screen active">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="login-logo-icon" style="width:72px;height:72px;background:linear-gradient(135deg,#1a9c5b,#1565c0);border-radius:18px;display:inline-flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg xmlns="http://www.w3.org/2000/svg" width="42" height="38" viewBox="0 0 48 42" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 C4 10, 8 3, 16 2 C22 1, 26 5, 28 9 C30 4, 36 1, 42 4 C47 7, 47 14, 44 20 C41 26, 35 30, 30 32 C26 34, 22 38, 18 40 C14 41, 10 39, 9 35 C7 31, 8 25, 6 18 Z"/><path d="M28 9 C28 16, 26 24, 22 30"/><path d="M16 22 C18 20, 22 20, 24 22"/></svg></div>
+        <h1>Gastro CEDELU</h1>
+        <p>Sistema de Gestión Médica</p>
+      </div>
+      <h2>Ingrese sus credenciales</h2>
+      <div class="login-error" id="login-error"></div>
+      <div class="field">
+        <label>Usuario</label>
+        <input type="text" id="login-user" placeholder="su usuario" autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-lg" id="btn-login" onclick="doLogin()">
+        Ingresar al Sistema
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ APP ════════════════════════════════ -->
+  <div id="screen-app" class="screen">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-logo" style="background:linear-gradient(135deg,#1a9c5b,#1565c0)"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="25" viewBox="0 0 48 42" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 18 C4 10, 8 3, 16 2 C22 1, 26 5, 28 9 C30 4, 36 1, 42 4 C47 7, 47 14, 44 20 C41 26, 35 30, 30 32 C26 34, 22 38, 18 40 C14 41, 10 39, 9 35 C7 31, 8 25, 6 18 Z"/><path d="M28 9 C28 16, 26 24, 22 30"/><path d="M16 22 C18 20, 22 20, 24 22"/></svg></div>
+        <h2>Gastro<br>CEDELU</h2>
+        <p>Sistema Médico</p>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section">Pacientes</div>
+        <div class="nav-item active" onclick="showPage('pacientes')" id="nav-pacientes">
+          <span class="icon">👥</span> Mis Pacientes
+        </div>
+        <div class="nav-item" onclick="showPage('nuevo-paciente')" id="nav-nuevo">
+          <span class="icon">➕</span> Nuevo Paciente
+        </div>
+        <div class="nav-section">Estudios</div>
+        <div class="nav-item" onclick="nuevaEndoscopiaDesdeNav()" id="nav-endoscopia">
+          <span class="icon">🔭</span> Nueva Endoscopía
+        </div>
+        <div class="nav-section" id="nav-admin-section" style="display:none">Panel Admin</div>
+        <div class="nav-item" onclick="showPage('admin')" id="nav-admin" style="display:none">
+          <span class="icon">⚙️</span> Usuarios
+        </div>
+        <div class="nav-section">Cuenta</div>
+        <div class="nav-item" onclick="showModal('modal-pass')">
+          <span class="icon">🔑</span> Cambiar Contraseña
+        </div>
+      </nav>
+      <div class="sidebar-user">
+        <div class="sidebar-user-info">
+          <div class="user-avatar" id="user-avatar-sidebar">M</div>
+          <div class="user-meta">
+            <strong id="user-nombre-sidebar">Médico</strong>
+            <span id="user-rol-sidebar">doctor</span>
+          </div>
+        </div>
+        <button class="btn-logout" onclick="doLogout()">
+          🚪 Cerrar sesión
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+
+      <!-- ─── PÁGINA: LISTA DE PACIENTES ─────────────────────── -->
+      <div class="page active" id="page-pacientes">
+        <div class="page-header">
+          <div>
+            <h1>Mis Pacientes</h1>
+            <div class="subtitle" id="pacientes-subtitle">Cargando...</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="showPage('nuevo-paciente')">
+            ➕ Nuevo Paciente
+          </button>
+        </div>
+        <div class="page-body">
+          <div class="stats-bar">
+            <div class="stat-chip">
+              <div><strong id="stat-total">0</strong>pacientes</div>
+            </div>
+          </div>
+          <div class="search-bar">
+            <div class="search-input-wrap">
+              <span class="icon">🔍</span>
+              <input type="text" id="search-input" placeholder="Buscar por apellido, nombre o DNI..." oninput="filterPacientes(this.value)">
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="loadPacientes()">↺ Actualizar</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Apellido y Nombre</th>
+                  <th>DNI</th>
+                  <th>Obra Social</th>
+                  <th>Teléfono</th>
+                  <th>Fecha Alta</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="pacientes-tbody">
+                <tr><td colspan="6"><div class="empty-state"><div class="icon">👥</div><h3>Cargando pacientes...</h3></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PÁGINA: NUEVO / EDITAR PACIENTE ──────────────────── -->
+      <div class="page" id="page-nuevo-paciente">
+        <div class="page-header">
+          <button class="btn-back" onclick="showPage('pacientes')">←</button>
+          <div>
+            <h1 id="form-paciente-titulo">Nuevo Paciente</h1>
+            <div class="subtitle">Complete los datos del paciente</div>
+          </div>
+          <button class="btn btn-primary" id="btn-guardar-pac" onclick="submitPaciente()">
+            💾 Guardar Paciente
+          </button>
+        </div>
+        <div class="page-body">
+          <input type="hidden" id="pac-id">
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <span class="icon">👤</span>
+              <h3>Datos Personales</h3>
+            </div>
+            <div class="form-card-body">
+              <div class="field-row cols-3">
+                <div class="field">
+                  <label>DNI / N° Documento *</label>
+                  <input type="text" id="pac-dni" placeholder="00000000">
+                </div>
+                <div class="field" style="grid-column: span 2">
+                  <label>Apellido y Nombre *</label>
+                  <input type="text" id="pac-nombre" placeholder="Apellido, Nombre Completo">
+                </div>
+              </div>
+              <div class="field-row cols-3">
+                <div class="field">
+                  <label>Sexo</label>
+                  <select id="pac-sexo">
+                    <option value="">— Seleccionar —</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Fecha de Nacimiento</label>
+                  <input type="text" id="pac-fnac" placeholder="DD/MM/AAAA" oninput="calcularEdad(this.value)" maxlength="10">
+                </div>
+                <div class="field">
+                  <label>Edad (años)</label>
+                  <input type="text" id="pac-edad" placeholder="Calculada automáticamente" readonly style="background:#f0f4f8;cursor:default">
+                </div>
+              </div>
+              <div class="field-row cols-2">
+                <div class="field">
+                  <label>Teléfono</label>
+                  <input type="text" id="pac-tel" placeholder="(03442) 000000">
+                </div>
+                <div class="field">
+                  <label>Email</label>
+                  <input type="email" id="pac-email" placeholder="paciente@mail.com">
+                </div>
+              </div>
+              <div class="field">
+                <label>Dirección</label>
+                <input type="text" id="pac-dir" placeholder="Calle y número, ciudad">
+              </div>
+              <div class="field-row cols-2">
+                <div class="field">
+                  <label>Lugar de Residencia</label>
+                  <input type="text" id="pac-residencia" placeholder="Ciudad / Localidad" list="pac-residencia-dl" onblur="autoguardarLocalidad(this.value)">
+                <datalist id="pac-residencia-dl"></datalist>
+                </div>
+                <div class="field">
+                  <label>Profesión</label>
+                  <input type="text" id="pac-profesion" placeholder="Ocupación">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <div class="form-card-header">
+              <span class="icon">🏥</span>
+              <h3>Cobertura Médica</h3>
+            </div>
+            <div class="form-card-body">
+              <div class="field-row cols-3">
+                <div class="field" style="grid-column: span 2">
+                  <label>Obra Social / Prepaga</label>
+                  <input type="text" id="pac-os" placeholder="Nombre de la cobertura" list="os-list" onblur="autoguardarOS(this.value)">
+                  <datalist id="os-list"></datalist>
+          <div class="field-hint">Si no está en la lista, escribila y se guardará automáticamente ✓</div>
+                </div>
+                <div class="field">
+                  <label>N° Afiliado</label>
+                  <input type="text" id="pac-afiliado" placeholder="00000000">
+                </div>
+              </div>
+              <div class="field">
+                <label>Derivado por</label>
+                <input type="text" id="pac-derivado" placeholder="Dr. / Dra. / Institución">
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;padding:16px 0 4px">
+            <button class="btn btn-primary" id="btn-guardar-pac-bottom" onclick="submitPaciente()">💾 Guardar Paciente</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PÁGINA: DETALLE PACIENTE ─────────────────────────── -->
+      <div class="page" id="page-detalle">
+        <div class="page-header">
+          <button class="btn-back" onclick="showPage('pacientes')">←</button>
+          <div style="flex:1">
+            <h1 id="detalle-nombre">Cargando...</h1>
+            <div class="subtitle" id="detalle-subtitle"></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="editarPaciente()">✏️ Editar Datos</button>
+        </div>
+        <div class="page-body">
+          <div class="patient-header-card">
+            <div class="patient-avatar" id="detalle-avatar">?</div>
+            <div class="patient-info">
+              <h2 id="detalle-nombre-card">—</h2>
+              <div class="patient-chips">
+                <span class="patient-chip" id="det-dni">—</span>
+                <span class="patient-chip" id="det-edad">—</span>
+                <span class="patient-chip" id="det-sexo">—</span>
+                <span class="patient-chip" id="det-os">—</span>
+                <span class="patient-chip" id="det-tel">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab-item active" onclick="showTab('hc')" id="tab-hc">
+              📋 Historia Clínica
+            </div>
+            <div class="tab-item" onclick="showTab('consultas')" id="tab-consultas">
+              📅 Consultas <span id="tab-consultas-count" class="badge badge-blue" style="margin-left:4px;font-size:10px;padding:2px 6px;"></span>
+            </div>
+            <div class="tab-item" onclick="showTab('endoscopias')" id="tab-endoscopias">
+              🔭 Endoscopias <span id="tab-endo-count" class="badge badge-gold" style="margin-left:4px;font-size:10px;padding:2px 6px;"></span>
+            </div>
+          </div>
+
+          <!-- Tab: HC -->
+          <div class="tab-content active" id="tab-content-hc">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:14px; gap:10px">
+              <button class="btn btn-secondary btn-sm" id="btn-ver-hc" onclick="showModal('modal-hc')">✏️ Editar Historia Clínica</button>
+            </div>
+            <div id="hc-viewer">
+              <div class="empty-state">
+                <div class="icon">📋</div>
+                <h3>Sin Historia Clínica</h3>
+                <p>Este paciente aún no tiene HC registrada.</p>
+                <button class="btn btn-primary" style="margin-top:16px" onclick="showModal('modal-hc')">➕ Crear Historia Clínica</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Consultas -->
+          <div class="tab-content" id="tab-content-consultas">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:14px">
+              <button class="btn btn-primary btn-sm" onclick="showModal('modal-consulta')">➕ Nueva Consulta</button>
+            </div>
+            <div id="consultas-list">
+              <div class="empty-state">
+                <div class="icon">📅</div>
+                <h3>Sin consultas registradas</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Endoscopias -->
+          <div class="tab-content" id="tab-content-endoscopias">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:14px; gap:10px">
+              <button class="btn btn-secondary btn-sm" onclick="nuevaEndoscopia('VEDA')">🔭 Nueva Colonoscopía</button>
+            </div>
+            <div id="endoscopias-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PÁGINA: ADMIN ─────────────────────────────────────── -->
+      <div class="page" id="page-admin">
+        <div class="page-header">
+          <div>
+            <h1>Panel de Administración</h1>
+            <div class="subtitle">Gestión de usuarios del sistema</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="showModal('modal-usuario')">➕ Nuevo Usuario</button>
+        </div>
+        <div class="page-body">
+          <div class="form-card">
+            <div class="form-card-header">
+              <span class="icon">👥</span>
+              <h3>Usuarios del Sistema</h3>
+            </div>
+            <div id="usuarios-list" class="user-table"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /screen-app -->
+
+  <!-- ════════ PÁGINA: NUEVA ENDOSCOPÍA ════════ -->
+  <div class="modal-overlay" id="modal-endoscopia">
+    <div class="modal" style="width:800px;max-width:97vw">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <h2 id="endo-modal-titulo" style="margin:0">🔭 Nueva Endoscopía</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-endoscopia')">✕ Cancelar</button>
+          <button class="btn btn-secondary btn-sm" onclick="submitEndoscopia(true)" id="btn-pdf-endo">📄 Guardar y Generar PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="submitEndoscopia()" id="btn-guardar-endo">💾 Guardar Estudio</button>
+        </div>
+      </div>
+
+      <input type="hidden" id="endo-id">
+      <input type="hidden" id="endo-paciente-id">
+      <input type="hidden" id="endo-tipo">
+      <!-- campos de compatibilidad con el Sheet -->
+      <input type="hidden" id="endo-esofago-hall">
+      <input type="hidden" id="endo-estomago">
+      <input type="hidden" id="endo-estomago-hall">
+      <input type="hidden" id="endo-duodeno">
+      <input type="hidden" id="endo-duodeno-hall">
+      <input type="hidden" id="endo-colon">
+      <input type="hidden" id="endo-colon-hall">
+      <input type="hidden" id="endo-region">
+      <input type="hidden" id="endo-calidad">
+      <input type="hidden" id="endo-calidad-veda">
+      <input type="hidden" id="endo-tolerancia">
+      <input type="hidden" id="endo-anatpat">
+      <input type="hidden" id="campo-calidad-veda">
+
+      <!-- Cabecera del paciente -->
+      <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Paciente</span><br><strong id="endo-pac-nombre" style="font-size:15px"></strong></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">DNI</span><br><span id="endo-pac-dni"></span></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Edad</span><br><span id="endo-pac-edad"></span></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Sexo</span><br><span id="endo-pac-sexo"></span></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Obra Social</span><br><span id="endo-pac-os"></span></div>
+        <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">N° Afiliado</span><br><span id="endo-pac-afil"></span></div>
+      </div>
+
+      <!-- Datos del estudio -->
+      <div class="section-divider"><span>Datos del Estudio</span></div>
+      <div class="field-row cols-3">
+        <div class="field">
+          <label>Fecha del Estudio</label>
+          <input type="text" id="endo-fecha" placeholder="DD/MM/AAAA" maxlength="10">
+        </div>
+        <div class="field">
+          <label>Lugar de Realización</label>
+          <input type="text" id="endo-lugar" placeholder="Clínica / Sanatorio" list="endo-lugares">
+          <datalist id="endo-lugares">
+            <option value="Clínica Uruguay SRL">
+            <option value="Consultorio">
+            <option value="Hospital San Martín">
+            <option value="Sanatorio CEDELU">
+          </datalist>
+        </div>
+        <div class="field">
+          <label>Pedido por</label>
+          <input type="text" id="endo-pedidopor" placeholder="Médico solicitante">
+        </div>
+      </div>
+
+      <div class="field-row cols-3">
+        <div class="field">
+          <label>Analgesia</label>
+          <select id="endo-analgesia" style="height:40px">
+            <option value="">— Seleccionar —</option>
+            <option value="Anestesia general">Anestesia general</option>
+            <option value="Anestesia tópica">Anestesia tópica</option>
+            <option value="Sedación consciente">Sedación consciente</option>
+            <option value="Sin analgesia">Sin analgesia</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Anestesiólogo</label>
+          <input type="text" id="endo-anestesista" placeholder="Dr/Dra." list="endo-anest-dl" onblur="autoguardarAnestesista(this.value)">
+          <datalist id="endo-anest-dl"></datalist>
+        </div>
+        <div class="field">
+          <label>Tipo de Endoscopía</label>
+          <select id="endo-endoscopia-tipo" style="height:40px">
+            <option value="">— Seleccionar —</option>
+            <option value="Diagnóstica">Diagnóstica</option>
+            <option value="Terapéutica">Terapéutica</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row cols-2">
+        <div class="field">
+          <label>Antecedentes</label>
+          <textarea id="endo-antec" rows="2" placeholder="Antecedentes relevantes para este estudio..."></textarea>
+        </div>
+        <div class="field">
+          <label>Motivo del Examen</label>
+          <textarea id="endo-motivo" rows="2" placeholder="Motivo por el cual se realiza el estudio..."></textarea>
+        </div>
+      </div>
+
+      <!-- Informe VEDA -->
+      <div id="seccion-veda">
+        <div class="section-divider" style="margin-top:20px"><span>📋 Informe Endoscópico</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Insertar plantilla:</span>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaVEDA(0)" style="font-size:12px">✅ VEDA Normal</button>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaVEDA(1)" style="font-size:12px">🔴 Gastropatía Crónica</button>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaVEDA(2)" style="font-size:12px">🟠 Esofagitis</button>
+        </div>
+        <div class="field">
+          <textarea id="endo-esofago" rows="14" placeholder="Completá el informe manualmente o seleccioná una plantilla arriba..." style="font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.7"></textarea>
+        </div>
+      </div>
+
+      <!-- Informe Colonoscopía -->
+      <div id="seccion-colon" style="display:none">
+        <div class="section-divider" style="margin-top:20px"><span>📋 Informe Colonoscopía</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Insertar plantilla:</span>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaColon(0)" style="font-size:12px">✅ VCC Normal</button>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaColon(1)" style="font-size:12px">🔴 Con Pólipo</button>
+          <button class="btn btn-ghost btn-sm" onclick="insertarPlantillaColon(2)" style="font-size:12px">🟡 Con Diverticulosis</button>
+        </div>
+        <div class="field">
+          <textarea id="endo-colon-informe" rows="14" placeholder="Completá el informe manualmente o seleccioná una plantilla..." style="font-family:'IBM Plex Mono',monospace;font-size:13px;line-height:1.7"></textarea>
+        </div>
+      </div>
+
+      <!-- Impresión diagnóstica y biopsia -->
+      <div class="field-row cols-2" style="margin-top:8px">
+        <div class="field">
+          <label>Impresión Diagnóstica</label>
+          <textarea id="endo-impresion" rows="3" placeholder="Diagnóstico endoscópico final..."></textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label>Comentarios / Recomendaciones</label>
+        <textarea id="endo-comentarios" rows="2" placeholder="Recomendaciones post-procedimiento..."></textarea>
+      </div>
+
+      <!-- Fotos -->
+      <div class="section-divider"><span>📷 Fotografías del Estudio</span></div>
+      <div class="fotos-upload-area" onclick="document.getElementById('fotos-input').click()">
+        <div style="font-size:28px">📷</div>
+        <p>Hacé click para agregar fotos (hasta 9 imágenes)</p>
+        <p style="font-size:11px;margin-top:4px">JPG, PNG — se guardan automáticamente en Drive</p>
+      </div>
+      <input type="file" id="fotos-input" accept="image/*" multiple style="display:none" onchange="previewFotos(this)">
+      <div class="fotos-preview-grid" id="fotos-preview"></div>
+      <div id="fotos-status" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+
+      <!-- Barra de acciones INFERIOR -->
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-endoscopia')">✕ Cancelar</button>
+        <button class="btn btn-secondary btn-sm" onclick="submitEndoscopia(true)" id="btn-pdf-endo-bottom">📄 Guardar y Generar PDF</button>
+        <button class="btn btn-primary btn-sm" onclick="submitEndoscopia()" id="btn-guardar-endo-bottom">💾 Guardar Estudio</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visor de foto ampliada -->
+  <div class="foto-viewer-overlay" id="foto-viewer" onclick="closeFotoViewer()">
+    <button class="foto-viewer-close" onclick="closeFotoViewer()">✕</button>
+    <img id="foto-viewer-img" src="" alt="Foto endoscopía">
+  </div>
+
+</div><!-- /app -->
+
+<!-- ════════════════════════ MODALES ════════════════════════ -->
+
+<!-- MODAL: HISTORIA CLÍNICA -->
+<div class="modal-overlay" id="modal-hc">
+  <div class="modal modal-lg">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="margin:0">📋 Historia Clínica</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-hc')">✕ Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="btn-guardar-hc" onclick="submitHC()">💾 Guardar Historia Clínica</button>
+      </div>
+    </div>
+    <input type="hidden" id="hc-id">
+    <input type="hidden" id="hc-paciente-id">
+
+    <div class="field">
+      <label>Fecha</label>
+      <input type="date" id="hc-fecha" style="max-width:200px">
+    </div>
+    <div class="field">
+      <label>Antecedentes Personales</label>
+      <textarea id="hc-antec" rows="3" placeholder="Antecedentes médicos, quirúrgicos, alergias, hábitos..."></textarea>
+    </div>
+    <div class="field">
+      <label>Antecedentes Familiares</label>
+      <textarea id="hc-rec1" rows="3" placeholder="Antecedentes de relevancia en familiares directos..."></textarea>
+    </div>
+    <div class="field">
+      <label>Motivo de Consulta</label>
+      <textarea id="hc-motivo" rows="3" placeholder="Motivo por el cual consulta..."></textarea>
+    </div>
+    <div class="field">
+      <label>Estudios Complementarios</label>
+      <textarea id="hc-rec2" rows="6" placeholder="Resultados de laboratorio, imágenes, endoscopias previas, otros estudios..."></textarea>
+    </div>
+    <div class="field">
+      <label>Examen Físico</label>
+      <textarea id="hc-exfisico" rows="3" placeholder="Hallazgos del examen físico..."></textarea>
+    </div>
+    <div class="field">
+      <label>Diagnóstico Presuntivo</label>
+      <textarea id="hc-diag" rows="2" placeholder="Diagnóstico principal..."></textarea>
+    </div>
+    <div class="field">
+      <label>Conducta / Tratamiento</label>
+      <textarea id="hc-tratamiento" rows="4" placeholder="Plan de tratamiento, indicaciones, conducta médica..."></textarea>
+    </div>
+
+    <!-- campos ocultos para compatibilidad con el Sheet -->
+    <input type="hidden" id="hc-diagoms">
+    <input type="hidden" id="med1"><input type="hidden" id="dos1">
+    <input type="hidden" id="med2"><input type="hidden" id="dos2">
+    <input type="hidden" id="med3"><input type="hidden" id="dos3">
+    <input type="hidden" id="med4"><input type="hidden" id="dos4">
+    <input type="hidden" id="med5"><input type="hidden" id="dos5">
+    <input type="hidden" id="med6"><input type="hidden" id="dos6">
+    <input type="hidden" id="hc-control">
+    <input type="hidden" id="hc-pendiente">
+
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-hc')">✕ Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="btn-guardar-hc-bottom" onclick="submitHC()">💾 Guardar Historia Clínica</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVA CONSULTA -->
+
+<div class="modal-overlay" id="modal-consulta">
+  <div class="modal modal-lg">
+    <h2>📅 Nueva Consulta / Evolución</h2>
+    <div class="field-row cols-2">
+      <div class="field">
+        <label>Fecha de Consulta</label>
+        <input type="date" id="cons-fecha">
+      </div>
+      <div class="field">
+        <label>Lugar de Atención</label>
+        <input type="text" id="cons-lugar" placeholder="Ciudad / Localidad" list="cons-lugar-dl" onblur="autoguardarLocalidad(this.value)">
+      <datalist id="cons-lugar-dl"></datalist>
+      </div>
+    </div>
+    <div class="field">
+      <label>Motivo de Consulta</label>
+      <textarea id="cons-motivo" rows="3" placeholder="Motivo de la consulta..."></textarea>
+    </div>
+    <div class="field">
+      <label>Evolución</label>
+      <textarea id="cons-exfisico" rows="4" placeholder="Evolución del cuadro clínico, examen físico, novedades..."></textarea>
+    </div>
+    <div class="field">
+      <label>Conducta</label>
+      <textarea id="cons-tratamiento" rows="4" placeholder="Conducta médica, indicaciones, ajuste de tratamiento..."></textarea>
+    </div>
+    <div class="field">
+      <label>Pendiente</label>
+      <input type="text" id="cons-pendiente" placeholder="Estudios pedidos, derivaciones...">
+    </div>
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-consulta')">✕ Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="btn-guardar-consulta-bottom" onclick="submitConsulta()">💾 Guardar Consulta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CAMBIAR CONTRASEÑA -->
+<div class="modal-overlay" id="modal-pass">
+  <div class="modal">
+    <h2>🔑 Cambiar Contraseña</h2>
+    <div class="field">
+      <label>Contraseña Actual</label>
+      <input type="password" id="pass-actual" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label>Nueva Contraseña</label>
+      <input type="password" id="pass-nueva" placeholder="••••••••">
+    </div>
+    <div class="field">
+      <label>Confirmar Nueva Contraseña</label>
+      <input type="password" id="pass-confirmar" placeholder="••••••••">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pass')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitCambiarPass()">Cambiar Contraseña</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVO USUARIO (admin) -->
+<div class="modal-overlay" id="modal-usuario">
+  <div class="modal">
+    <h2>👤 Nuevo Usuario</h2>
+    <input type="hidden" id="usr-id">
+    <div class="field">
+      <label>Nombre Completo</label>
+      <input type="text" id="usr-nombre" placeholder="Dr/Dra. Nombre Apellido">
+    </div>
+    <div class="field">
+      <label>Usuario (login)</label>
+      <input type="text" id="usr-usuario" placeholder="usuario.login">
+    </div>
+    <div class="field">
+      <label>Contraseña Inicial</label>
+      <input type="password" id="usr-pass" placeholder="Mínimo 6 caracteres">
+      <div class="field-hint">El usuario deberá cambiarla al ingresar.</div>
+    </div>
+    <div class="field">
+      <label>Rol</label>
+      <select id="usr-rol">
+        <option value="medico">Médico</option>
+        <option value="secretaria">Secretaria</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-usuario')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitUsuario()">💾 Guardar Usuario</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRMAR ELIMINACIÓN -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal">
+    <h2 style="color:var(--danger)">⚠️ Confirmar Eliminación</h2>
+    <p style="color:var(--muted2);margin-bottom:20px;line-height:1.6" id="confirm-msg">
+      ¿Está seguro que desea eliminar este registro? Esta acción no se puede deshacer.
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-confirm')">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <span id="loading-msg">Procesando...</span>
+    <span class="loading-sub" id="loading-sub"></span>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  GASTRO CEDELU - Frontend JavaScript
+//  2026-03-07 16:00 ARG
+// ════════════════════════════════════════════════════════════
+
+// ─── STATE ──────────────────────────────────────────────────
+const App = {
+  session:        null,  // { medicoId, nombre, rol }
+  pacientes:      [],
+  pacienteActual: null,
+  hcActual:       null,
+  consultaActual: null,
+  obrasSociales:  []
+};
+
+// ─── UTILS ──────────────────────────────────────────────────
+function toggleDetalle(uid) {
+  const el = document.getElementById(uid);
+  const ch = document.getElementById(uid + '-chevron');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if (ch) ch.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function fmtDate(val) {
+  if (!val) return '—';
+  try {
+    const d = val instanceof Date ? val : new Date(val);
+    if (isNaN(d)) return val;
+    return d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  } catch { return val; }
+}
+
+function todayInput() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function safe(v, fallback) {
+  return (v !== undefined && v !== null && v !== '') ? v : (fallback || '');
+}
+
+function initials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name[0].toUpperCase();
+}
+
+// ─── URL DEL APPS SCRIPT ── CAMBIAR POR TU URL ──────────────
+const API_URL = 'https://script.google.com/macros/s/AKfycbyFfrgfodWGzNVSRxU39X4zdyq_s6Qpm_CglMgADSxjW9umjrFHQsRjF6KcwkuBbzI/exec';
+// ─── ICONOS ENDOSCOPIA (texto, sin imágenes) ─────────────────
+const ICON_VEDA  = null;
+const ICON_COLON = null;
+
+
+async function serverCall(fn, ...args) {
+  try {
+    // Para uploadFoto usamos POST porque el base64 es demasiado grande para URL GET
+    if (fn === 'uploadFoto') {
+      const body = JSON.stringify({ action: fn, params: args });
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' }, // text/plain evita CORS preflight en Apps Script
+        body: body,
+        redirect: 'follow'
+      });
+      const text = await res.text();
+      try { return JSON.parse(text); }
+      catch { return { ok: false, error: 'Respuesta inválida: ' + text.substring(0, 100) }; }
+    }
+    // Para el resto, GET con data en URL
+    const payload = encodeURIComponent(JSON.stringify({ action: fn, params: args }));
+    const url = API_URL + '?data=' + payload;
+    const res = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      console.error('Respuesta no JSON:', text.substring(0, 300));
+      return { ok: false, error: 'Respuesta inválida del servidor: ' + text.substring(0, 100) };
+    }
+  } catch (e) {
+    console.error('serverCall error:', e);
+    throw e;
+  }
+}
+
+// ─── UI HELPERS ─────────────────────────────────────────────
+function showLoading(msg, sub) {
+  document.getElementById('loading-msg').textContent = msg || 'Procesando...';
+  const subEl = document.getElementById('loading-sub');
+  if (subEl) subEl.textContent = sub || '';
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.remove('show');
+}
+
+function toast(msg, type='info') {
+  const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]||'•'}</span> ${msg}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function showModal(id) {
+  document.getElementById(id).classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+}
+
+function confirm_(msg, onOk) {
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('btn-confirm-ok').onclick = () => { closeModal('modal-confirm'); onOk(); };
+  showModal('modal-confirm');
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.getElementById('nav-' + page)?.classList.add('active');
+  if (page === 'admin') loadUsuarios();
+}
+
+function showTab(tab) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab)?.classList.add('active');
+  document.getElementById('tab-content-' + tab)?.classList.add('active');
+}
+
+// ─── AUTH ────────────────────────────────────────────────────
+async function doLogin() {
+  const usuario = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('show');
+
+  if (!usuario || !password) {
+    errEl.textContent = 'Por favor complete todos los campos.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading"></span> Verificando...';
+
+  try {
+    const res = await serverCall('login', usuario, password);
+    if (res.ok) {
+      App.session = res;
+      initApp();
+    } else {
+      errEl.textContent = res.error;
+      errEl.classList.add('show');
+    }
+  } catch (e) {
+    errEl.textContent = 'Error de conexión: ' + e.message;
+    errEl.classList.add('show');
+    console.error('Login error:', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ingresar al Sistema';
+  }
+}
+
+function doLogout() {
+  App.session = null;
+  App.pacientes = [];
+  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+}
+
+// URL configurada OK
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('screen-login').classList.contains('active')) {
+    doLogin();
+  }
+});
+
+// ─── INIT APP ────────────────────────────────────────────────
+function initApp() {
+  const s = App.session;
+  document.getElementById('screen-login').classList.remove('active');
+  document.getElementById('screen-app').classList.add('active');
+
+  document.getElementById('user-nombre-sidebar').textContent = s.nombre;
+  document.getElementById('user-rol-sidebar').textContent = s.rol;
+  document.getElementById('user-avatar-sidebar').textContent = initials(s.nombre);
+
+  if (s.rol === 'admin') {
+    document.getElementById('nav-admin').style.display = 'flex';
+    document.getElementById('nav-admin-section').style.display = 'block';
+  }
+
+  cargarObrasSociales();
+  cargarLocalidades();
+  cargarAnestesistas();
+  loadPacientes();
+}
+
+// loadObrasSociales reemplazado por cargarObrasSociales()
+
+// ─── PACIENTES ───────────────────────────────────────────────
+async function loadPacientes() {
+  showLoading('Cargando pacientes...');
+  try {
+    const res = await serverCall('getPacientes',
+      App.session.medicoId, App.session.rol,
+      document.getElementById('search-input').value
+    );
+    if (res.ok) {
+      App.pacientes = res.data;
+      renderPacientes(res.data);
+    } else {
+      toast('Error cargando pacientes: ' + res.error, 'error');
+    }
+  } catch (e) {
+    toast('Error de conexión', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function filterPacientes(q) {
+  const filtered = App.pacientes.filter(p => {
+    const nom = (p.apellidoNombre || '').toLowerCase();
+    const dni = (p.dni || '').toString();
+    return nom.includes(q.toLowerCase()) || dni.includes(q);
+  });
+  renderPacientes(filtered);
+}
+
+function renderPacientes(list) {
+  const tbody = document.getElementById('pacientes-tbody');
+  document.getElementById('stat-total').textContent = list.length;
+  document.getElementById('pacientes-subtitle').textContent =
+    `${list.length} paciente${list.length !== 1 ? 's' : ''} encontrado${list.length !== 1 ? 's' : ''}`;
+
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+      <div class="icon">👥</div>
+      <h3>No se encontraron pacientes</h3>
+      <p>Pruebe otra búsqueda o agregue un nuevo paciente.</p>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(p => `
+    <tr onclick="abrirPaciente('${p.id}')">
+      <td class="td-name">${safe(p.apellidoNombre, '—')}</td>
+      <td class="td-dni">${safe(p.dni, '—')}</td>
+      <td class="td-os">${safe(p.obraSocial, '—')}</td>
+      <td>${safe(p.telefono, '—')}</td>
+      <td>${fmtDate(p.fechaAlta)}</td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm btn-icon"
+          title="Eliminar"
+          onclick="confirmarEliminarPaciente('${p.id}', '${(p.apellidoNombre||'').replace(/'/g,'\\\'')}')"
+        >🗑️</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function confirmarEliminarPaciente(id, nombre) {
+  confirm_(`¿Eliminar al paciente "${nombre}"? Esta acción no puede deshacerse.`, async () => {
+    showLoading('Eliminando...');
+    try {
+      const res = await serverCall('deletePaciente', id, App.session.medicoId, App.session.rol);
+      if (res.ok) { toast('Paciente eliminado', 'success'); loadPacientes(); }
+      else toast('Error: ' + res.error, 'error');
+    } catch { toast('Error de conexión', 'error'); }
+    finally { hideLoading(); }
+  });
+}
+
+// ─── FORMULARIO PACIENTE ─────────────────────────────────────
+function resetFormPaciente() {
+  document.getElementById('pac-id').value = '';
+  ['dni','nombre','sexo','fnac','edad','tel','email','dir',
+   'residencia','profesion','os','afiliado','derivado'].forEach(f => {
+    document.getElementById('pac-' + f).value = '';
+  });
+  document.getElementById('form-paciente-titulo').textContent = 'Nuevo Paciente';
+}
+
+function editarPaciente() {
+  const p = App.pacienteActual;
+  if (!p) return;
+  document.getElementById('pac-id').value = safe(p.id);
+  document.getElementById('pac-dni').value = safe(p.dni);
+  document.getElementById('pac-nombre').value = safe(p.apellidoNombre);
+  document.getElementById('pac-sexo').value = safe(p.sexo);
+  document.getElementById('pac-fnac').value = p.fechaNac ? (p.fechaNac.toString().split('T')[0] || '') : '';
+  document.getElementById('pac-edad').value = safe(p.edad);
+  document.getElementById('pac-tel').value = safe(p.telefono);
+  document.getElementById('pac-email').value = safe(p.email);
+  document.getElementById('pac-dir').value = safe(p.direccion);
+  document.getElementById('pac-residencia').value = safe(p.lugarResidencia);
+  document.getElementById('pac-profesion').value = safe(p.profesion);
+  document.getElementById('pac-os').value = safe(p.obraSocial);
+  document.getElementById('pac-afiliado').value = safe(p.nroAfiliado);
+  document.getElementById('pac-derivado').value = safe(p.derivadoPor);
+  document.getElementById('form-paciente-titulo').textContent = 'Editar Paciente';
+  showPage('nuevo-paciente');
+}
+
+async function submitPaciente() {
+  const nombre = document.getElementById('pac-nombre').value.trim();
+  const dni    = document.getElementById('pac-dni').value.trim();
+  if (!nombre) { toast('El nombre del paciente es obligatorio', 'error'); return; }
+
+  const spinnerSVG = `<svg style="width:14px;height:14px;vertical-align:-2px;animation:spin 0.8s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`;
+  const btns = ['btn-guardar-pac','btn-guardar-pac-bottom'].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.innerHTML = `${spinnerSVG} Guardando...`; });
+  const restore = () => btns.forEach(b => { b.disabled = false; b.innerHTML = '💾 Guardar Paciente'; });
+
+  showLoading('Guardando paciente...');
+  const data = {
+    id:             document.getElementById('pac-id').value,
+    dni:            dni,
+    apellidoNombre: nombre,
+    sexo:           document.getElementById('pac-sexo').value,
+    fechaNac:       document.getElementById('pac-fnac').value,
+    edad:           document.getElementById('pac-edad').value,
+    telefono:       document.getElementById('pac-tel').value,
+    email:          document.getElementById('pac-email').value,
+    direccion:      document.getElementById('pac-dir').value,
+    lugarResidencia:document.getElementById('pac-residencia').value,
+    profesion:      document.getElementById('pac-profesion').value,
+    obraSocial:     document.getElementById('pac-os').value,
+    nroAfiliado:    document.getElementById('pac-afiliado').value,
+    derivadoPor:    document.getElementById('pac-derivado').value
+  };
+
+  try {
+    const res = await serverCall('savePaciente', data, App.session.medicoId);
+    if (res.ok) {
+      toast('Paciente guardado correctamente', 'success');
+      resetFormPaciente();
+      await loadPacientes();
+      showPage('pacientes');
+    } else {
+      toast('Error: ' + res.error, 'error');
+      restore();
+    }
+  } catch (e) {
+    toast('Error de conexión', 'error');
+    restore();
+  } finally {
+    hideLoading();
+  }
+}
+
+// ─── DETALLE PACIENTE ────────────────────────────────────────
+async function abrirPaciente(id) {
+  showLoading('Cargando paciente...');
+  try {
+    const [resPac, resHC, resCons, resEndo] = await Promise.all([
+      serverCall('getPaciente', id),
+      serverCall('getHC', id),
+      serverCall('getConsultas', id),
+      serverCall('getEndoscopias', id)
+    ]);
+
+    if (!resPac.ok) { toast('Paciente no encontrado', 'error'); return; }
+
+    App.pacienteActual = resPac.data;
+    App.hcActual = resHC.ok ? resHC.data : null;
+
+    renderDetalleHeader(resPac.data);
+    renderHC(resHC.ok ? resHC.data : null);
+    renderConsultas(resCons.ok ? resCons.data : []);
+    renderEndoscopias(resEndo.ok ? resEndo.data : []);
+
+    showPage('detalle');
+    showTab('hc');
+  } catch (e) {
+    toast('Error al cargar el paciente', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderDetalleHeader(p) {
+  const nom = safe(p.apellidoNombre, 'Sin nombre');
+  document.getElementById('detalle-nombre').textContent = nom;
+  document.getElementById('detalle-nombre-card').textContent = nom;
+  document.getElementById('detalle-subtitle').textContent =
+    `DNI: ${safe(p.dni,'—')} · ${safe(p.obraSocial,'Sin OS')}`;
+  document.getElementById('detalle-avatar').textContent = initials(nom);
+
+  document.getElementById('det-dni').textContent = 'DNI: ' + safe(p.dni,'—');
+  document.getElementById('det-edad').textContent = safe(p.edad,'—') + (p.edad ? ' años' : '');
+  document.getElementById('det-sexo').textContent = safe(p.sexo,'—');
+  document.getElementById('det-os').textContent = safe(p.obraSocial,'Sin OS');
+  document.getElementById('det-tel').textContent = safe(p.telefono,'Sin tel.');
+}
+
+// ─── HC RENDER ───────────────────────────────────────────────
+function renderHC(hc) {
+  const container = document.getElementById('hc-viewer');
+  if (!hc) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="icon">📋</div>
+      <h3>Sin Historia Clínica</h3>
+      <p>Este paciente aún no tiene HC registrada.</p>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="prepModalHC()">➕ Crear Historia Clínica</button>
+    </div>`;
+    return;
+  }
+  const meds = [];
+  for (let i = 1; i <= 6; i++) {
+    if (hc['med'+i]) meds.push({ med: hc['med'+i], dos: hc['dos'+i] });
+  }
+
+  container.innerHTML = `
+    <div class="hc-viewer">
+      <div class="hc-section">
+        <div class="hc-section-title">Consulta Inicial · ${fmtDate(hc.fechaConsulta)}</div>
+        ${hcField('Antecedentes Personales', hc.antecGrales)}
+        ${hcField('Antecedentes Familiares', hc.recomendaciones)}
+        ${hcField('Motivo de Consulta', hc.motivoConsulta)}
+        ${hcField('Estudios Complementarios', hc.recomendaciones2)}
+        ${hcField('Examen Físico', hc.exFisico)}
+      </div>
+      <div class="hc-section">
+        <div class="hc-section-title">Diagnóstico</div>
+        ${hcField('Diagnóstico Presuntivo', hc.diagPresuntivo)}
+        ${hcField('Código OMS', hc.diagOMS)}
+      </div>
+      <div class="hc-section">
+        <div class="hc-section-title">Conducta / Tratamiento</div>
+        ${hcField('Conducta / Tratamiento', hc.tratamiento)}
+      </div>
+      ${meds.length ? `
+      <div class="hc-section">
+        <div class="hc-section-title">Medicamentos</div>
+        <div class="hc-meds-grid">
+          ${meds.map(m => `<div class="hc-med-item">
+            <div class="med-name">${m.med}</div>
+            ${m.dos ? `<div class="med-dos">${m.dos}</div>` : ''}
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
+      <div class="hc-section">
+        <div class="hc-section-title">Seguimiento</div>
+        ${hcField('Control', hc.control)}
+        ${hcField('Pendiente', hc.pendiente)}
+      </div>
+    </div>`;
+}
+
+function hcField(label, val) {
+  const v = val && val.toString().trim();
+  return `<div class="hc-field">
+    <label>${label}</label>
+    <p class="${v ? '' : 'empty'}">${v || 'No registrado'}</p>
+  </div>`;
+}
+
+function prepModalHC() {
+  const hc = App.hcActual;
+  const pac = App.pacienteActual;
+  if (hc) {
+    document.getElementById('hc-id').value = safe(hc.id);
+    document.getElementById('hc-fecha').value = hc.fechaConsulta ? hc.fechaConsulta.toString().split('T')[0] : '';
+    document.getElementById('hc-antec').value = safe(hc.antecGrales);
+    document.getElementById('hc-rec1').value = safe(hc.recomendaciones);
+    document.getElementById('hc-motivo').value = safe(hc.motivoConsulta);
+    document.getElementById('hc-rec2').value = safe(hc.recomendaciones2);
+    document.getElementById('hc-exfisico').value = safe(hc.exFisico);
+    document.getElementById('hc-diag').value = safe(hc.diagPresuntivo);
+    document.getElementById('hc-diagoms').value = safe(hc.diagOMS);
+    document.getElementById('hc-tratamiento').value = safe(hc.tratamiento);
+    for (let i = 1; i <= 6; i++) {
+      document.getElementById('med'+i).value = safe(hc['med'+i]);
+      document.getElementById('dos'+i).value = safe(hc['dos'+i]);
+    }
+    document.getElementById('hc-control').value = safe(hc.control);
+    document.getElementById('hc-pendiente').value = safe(hc.pendiente);
+  } else {
+    document.getElementById('hc-id').value = '';
+    document.getElementById('hc-fecha').value = todayInput();
+    ['motivo','antec','exfisico','diag','diagoms','tratamiento','rec1','rec2','control','pendiente'].forEach(f => {
+      document.getElementById('hc-'+f).value = '';
+    });
+    for (let i = 1; i <= 6; i++) {
+      document.getElementById('med'+i).value = '';
+      document.getElementById('dos'+i).value = '';
+    }
+  }
+  document.getElementById('hc-paciente-id').value = pac.id;
+  showModal('modal-hc');
+}
+
+// Override modal-hc open button to prep data
+document.getElementById('btn-ver-hc').onclick = prepModalHC;
+
+async function submitHC() {
+  const pac = App.pacienteActual;
+  if (!pac) { toast('No hay paciente activo', 'error'); return; }
+
+  const spinnerSVG = `<svg style="width:14px;height:14px;vertical-align:-2px;animation:spin 0.8s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`;
+  const btns = ['btn-guardar-hc','btn-guardar-hc-bottom'].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.innerHTML = `${spinnerSVG} Guardando...`; });
+  const restore = () => btns.forEach(b => { b.disabled = false; b.innerHTML = '💾 Guardar Historia Clínica'; });
+
+  showLoading('Guardando Historia Clínica...');
+
+  const data = {
+    id:               document.getElementById('hc-id').value,
+    pacienteId:       pac.id,
+    apellidoNombre:   pac.apellidoNombre,
+    fechaConsulta:    document.getElementById('hc-fecha').value,
+    motivoConsulta:   document.getElementById('hc-motivo').value,
+    antecGrales:      document.getElementById('hc-antec').value,
+    exFisico:         document.getElementById('hc-exfisico').value,
+    diagPresuntivo:   document.getElementById('hc-diag').value,
+    diagOMS:          document.getElementById('hc-diagoms').value,
+    tratamiento:      document.getElementById('hc-tratamiento').value,
+    recomendaciones:  document.getElementById('hc-rec1').value,
+    recomendaciones2: document.getElementById('hc-rec2').value,
+    control:          document.getElementById('hc-control').value,
+    pendiente:        document.getElementById('hc-pendiente').value
+  };
+  for (let i = 1; i <= 6; i++) {
+    data['med'+i] = document.getElementById('med'+i).value;
+    data['dos'+i] = document.getElementById('dos'+i).value;
+  }
+  try {
+    const res = await serverCall('saveHC', data, App.session.medicoId);
+    if (res.ok) {
+      // Actualizar el id en el form por si era nueva (para futuros guardados en la misma sesión)
+      if (res.id) document.getElementById('hc-id').value = res.id;
+      toast('Historia Clínica guardada', 'success');
+      closeModal('modal-hc');
+      const r = await serverCall('getHC', pac.id);
+      App.hcActual = r.ok ? r.data : null;
+      renderHC(App.hcActual);
+    } else {
+      toast('Error: ' + res.error, 'error');
+      restore();
+    }
+  } catch (e) { toast('Error de conexión: ' + e.message, 'error'); restore(); }
+  finally { hideLoading(); }
+}
+
+// ─── CONSULTAS ───────────────────────────────────────────────
+function renderConsultas(list) {
+  const cnt = document.getElementById('tab-consultas-count');
+  cnt.textContent = list.length || '';
+
+  const container = document.getElementById('consultas-list');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="icon">📅</div>
+      <h3>Sin consultas registradas</h3>
+      <p>Registre la primera consulta con el botón "Nueva Consulta".</p>
+    </div>`;
+    return;
+  }
+
+  // Orden descendente (más reciente primero)
+  const sorted = [...list].sort((a, b) => {
+    const da = a.fechaConsulta || '';
+    const db = b.fechaConsulta || '';
+    return db.localeCompare(da);
+  });
+
+  container.innerHTML = sorted.map((c, i) => {
+    const uid = 'cons-detail-' + i;
+    const motivo = c.motivoConsulta || '—';
+    const motivoResumen = motivo.length > 80 ? motivo.substring(0, 80) + '…' : motivo;
+    return `
+    <div class="consulta-card" style="cursor:pointer;padding:0">
+      <div class="consulta-header" onclick="toggleDetalle('${uid}')"
+           style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+          <span style="font-weight:600;color:var(--primary);white-space:nowrap">📅 ${fmtDate(c.fechaConsulta)}</span>
+          <span style="color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${motivoResumen}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span id="${uid}-chevron" style="color:var(--muted);font-size:12px;transition:transform 0.2s">▼</span>
+          <button class="btn btn-danger btn-sm btn-icon" title="Eliminar consulta"
+            onclick="event.stopPropagation();confirmarEliminarConsulta('${c.id}', ${i})">🗑️</button>
+        </div>
+      </div>
+      <div id="${uid}" style="display:none;padding:0 14px 12px 14px;border-top:1px solid var(--border)">
+        <div style="height:10px"></div>
+        ${c.motivoConsulta ? `<div class="consulta-field"><label>Motivo</label><p>${c.motivoConsulta}</p></div>` : ''}
+        ${c.exFisico ? `<div class="consulta-field"><label>Evolución</label><p>${c.exFisico}</p></div>` : ''}
+        ${c.impresionDiagnostica ? `<div class="consulta-field"><label>Diagnóstico</label><p>${c.impresionDiagnostica}</p></div>` : ''}
+        ${c.tratamiento ? `<div class="consulta-field"><label>Conducta</label><p>${c.tratamiento}</p></div>` : ''}
+        ${c.pendiente ? `<div class="consulta-field"><label>Pendiente</label><p style="color:var(--warn)">${c.pendiente}</p></div>` : ''}
+        ${c.lugarAtencion ? `<div class="consulta-field"><label>Lugar</label><p>${c.lugarAtencion}</p></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function confirmarEliminarConsulta(id, idx) {
+  confirm_('¿Eliminar esta consulta?', async () => {
+    showLoading('Eliminando...');
+    try {
+      const res = await serverCall('deleteConsulta', id);
+      if (res.ok) {
+        toast('Consulta eliminada', 'success');
+        const r = await serverCall('getConsultas', App.pacienteActual.id);
+        renderConsultas(r.ok ? r.data : []);
+      } else toast('Error: ' + res.error, 'error');
+    } catch { toast('Error de conexión', 'error'); }
+    finally { hideLoading(); }
+  });
+}
+
+function prepModalConsulta() {
+  document.getElementById('cons-fecha').value = todayInput();
+  ['lugar','motivo','exfisico','tratamiento','pendiente'].forEach(f => {
+    document.getElementById('cons-'+f).value = '';
+  });
+}
+
+async function submitConsulta() {
+  const pac = App.pacienteActual;
+  if (!pac) { toast('No hay paciente activo', 'error'); return; }
+
+  const spinnerSVG = `<svg style="width:14px;height:14px;vertical-align:-2px;animation:spin 0.8s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`;
+  const btns = ['btn-guardar-consulta','btn-guardar-consulta-bottom'].map(id => document.getElementById(id)).filter(Boolean);
+  btns.forEach(b => { b.disabled = true; b.innerHTML = `${spinnerSVG} Guardando...`; });
+  const restore = () => btns.forEach(b => { b.disabled = false; b.innerHTML = '💾 Guardar Consulta'; });
+
+  showLoading('Guardando consulta...');
+  const data = {
+    pacienteId:          pac.id,
+    apellidoNombre:      pac.apellidoNombre,
+    fechaConsulta:       document.getElementById('cons-fecha').value,
+    lugarAtencion:       document.getElementById('cons-lugar').value,
+    motivoConsulta:      document.getElementById('cons-motivo').value,
+    exFisico:            document.getElementById('cons-exfisico').value,
+    impresionDiagnostica:'',
+    tratamiento:         document.getElementById('cons-tratamiento').value,
+    pendiente:           document.getElementById('cons-pendiente').value
+  };
+  try {
+    const res = await serverCall('saveConsulta', data, App.session.medicoId);
+    if (res.ok) {
+      toast('Consulta guardada', 'success');
+      closeModal('modal-consulta');
+      const r = await serverCall('getConsultas', pac.id);
+      renderConsultas(r.ok ? r.data : []);
+    } else { toast('Error: ' + res.error, 'error'); restore(); }
+  } catch (e) { toast('Error de conexión: ' + e.message, 'error'); restore(); }
+  finally { hideLoading(); }
+}
+
+// Override modal-consulta open to prep
+document.querySelector('[onclick="showModal(\'modal-consulta\')"]').onclick = () => {
+  prepModalConsulta();
+  showModal('modal-consulta');
+};
+
+// ─── ENDOSCOPIAS ─────────────────────────────────────────────
+// ─── CAMBIAR CONTRASEÑA ──────────────────────────────────────
+async function submitCambiarPass() {
+  const actual    = document.getElementById('pass-actual').value;
+  const nueva     = document.getElementById('pass-nueva').value;
+  const confirmar = document.getElementById('pass-confirmar').value;
+  if (!actual || !nueva) { toast('Complete todos los campos', 'error'); return; }
+  if (nueva !== confirmar) { toast('Las contraseñas no coinciden', 'error'); return; }
+  if (nueva.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'error'); return; }
+
+  showLoading('Cambiando contraseña...');
+  try {
+    const res = await serverCall('cambiarPassword', App.session.medicoId, actual, nueva);
+    if (res.ok) {
+      toast('Contraseña cambiada correctamente', 'success');
+      closeModal('modal-pass');
+      document.getElementById('pass-actual').value = '';
+      document.getElementById('pass-nueva').value = '';
+      document.getElementById('pass-confirmar').value = '';
+    } else toast('Error: ' + res.error, 'error');
+  } catch { toast('Error de conexión', 'error'); }
+  finally { hideLoading(); }
+}
+
+// ─── ADMIN: USUARIOS ─────────────────────────────────────────
+async function loadUsuarios() {
+  if (App.session.rol !== 'admin') return;
+  showLoading('Cargando usuarios...');
+  try {
+    const res = await serverCall('getUsuarios');
+    if (res.ok) renderUsuarios(res.data);
+  } catch {} finally { hideLoading(); }
+}
+
+function renderUsuarios(list) {
+  const container = document.getElementById('usuarios-list');
+  container.innerHTML = list.map(u => `
+    <div class="user-row">
+      <div class="user-row-avatar">${initials(u.nombre)}</div>
+      <div class="user-row-info">
+        <strong>${u.nombre}</strong>
+        <span>${u.usuario} · ${u.rol}</span>
+      </div>
+      <span class="badge ${u.activo ? 'badge-green' : 'badge-gold'}" style="margin-right:8px">
+        ${u.activo ? 'Activo' : 'Inactivo'}
+      </span>
+      <button class="btn btn-secondary btn-sm" onclick="editarUsuario('${u.id}')">Editar</button>
+    </div>
+  `).join('');
+}
+
+function editarUsuario(id) {
+  // stub - load and fill modal
+  toast('Función de edición próximamente', 'info');
+}
+
+function prepModalUsuario() {
+  document.getElementById('usr-id').value = '';
+  ['nombre','usuario','pass'].forEach(f => document.getElementById('usr-'+f).value = '');
+  document.getElementById('usr-rol').value = 'medico';
+  showModal('modal-usuario');
+}
+
+async function submitUsuario() {
+  const nombre  = document.getElementById('usr-nombre').value.trim();
+  const usuario = document.getElementById('usr-usuario').value.trim();
+  const pass    = document.getElementById('usr-pass').value;
+  const rol     = document.getElementById('usr-rol').value;
+  if (!nombre || !usuario || !pass) { toast('Complete todos los campos', 'error'); return; }
+
+  showLoading('Guardando usuario...');
+  const data = { id: document.getElementById('usr-id').value, nombre, usuario, password: pass, rol };
+  try {
+    const res = await serverCall('saveUsuario', data, App.session.rol);
+    if (res.ok) {
+      toast('Usuario guardado', 'success');
+      closeModal('modal-usuario');
+      loadUsuarios();
+    } else toast('Error: ' + res.error, 'error');
+  } catch { toast('Error de conexión', 'error'); }
+  finally { hideLoading(); }
+}
+
+// Init nuevo paciente button
+document.getElementById('nav-nuevo').addEventListener('click', () => {
+  resetFormPaciente();
+  showPage('nuevo-paciente');
+});
+
+// ─── AUTO-CALCULAR EDAD ──────────────────────────────────────
+function calcularEdad(val) {
+  const edadInput = document.getElementById('pac-edad');
+  if (!val || val.length < 10) { edadInput.value = ''; return; }
+  
+  // Formato DD/MM/AAAA
+  const parts = val.split('/');
+  if (parts.length !== 3) { edadInput.value = ''; return; }
+  
+  const dia  = parseInt(parts[0], 10);
+  const mes  = parseInt(parts[1], 10) - 1; // 0-indexed
+  const anio = parseInt(parts[2], 10);
+  
+  if (isNaN(dia) || isNaN(mes) || isNaN(anio)) { edadInput.value = ''; return; }
+  if (anio < 1900 || anio > new Date().getFullYear()) { edadInput.value = ''; return; }
+  
+  const nacimiento = new Date(anio, mes, dia);
+  const hoy = new Date();
+  
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const m = hoy.getMonth() - nacimiento.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
+  
+  if (edad >= 0 && edad < 130) {
+    edadInput.value = edad + ' años';
+  } else {
+    edadInput.value = '';
+  }
+}
+
+// Auto-format DD/MM/AAAA while typing
+document.addEventListener('DOMContentLoaded', () => {
+  const fnacInput = document.getElementById('pac-fnac');
+  if (fnacInput) {
+    fnacInput.addEventListener('keydown', function(e) {
+      const allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight'];
+      if (allowed.includes(e.key)) return;
+      if (!/[0-9]/.test(e.key)) { e.preventDefault(); return; }
+      const val = this.value.replace(/\D/g,'');
+      if (val.length === 2 || val.length === 4) {
+        this.value = this.value + '/';
+      }
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  ETAPA 2 — ENDOSCOPIAS
+//  2026-03-07 18:00 ARG
+// ════════════════════════════════════════════════════════════
+
+// ─── TEXTOS PREDEFINIDOS ────────────────────────────────────
+const TEXTOS = {
+  motivo: [
+    'Dolor epigástrico', 'Pirosis / RGE', 'Disfagia', 'Náuseas y vómitos',
+    'Hemorragia digestiva alta', 'Control evolutivo', 'Anemia', 'Screening'
+  ],
+  esofago: [
+    'Normal', 'Esofagitis grado A (LA)', 'Esofagitis grado B (LA)',
+    'Esofagitis grado C (LA)', 'Esofagitis grado D (LA)',
+    'Hernia hiatal', 'Várices esofágicas', 'Barrett', 'Estenosis esofágica'
+  ],
+  estomago: [
+    'Normal', 'Gastritis crónica', 'Gastritis erosiva', 'Gastropatía',
+    'Úlcera gástrica', 'Pólipos gástricos', 'H. pylori (+)',
+    'Metaplasia intestinal', 'Atrofia gástrica'
+  ],
+  duodeno: [
+    'Normal', 'Duodenitis', 'Bulboduodenitis', 'Úlcera duodenal',
+    'Divertículo duodenal', 'Compresión extrínseca'
+  ],
+  colon: [
+    'Colon normal', 'Sin lesiones', 'Pólipos (polipectomía realizada)',
+    'Diverticulosis', 'Colitis', 'Hemorroides internas',
+    'Lesión neoplásica', 'Melanosis coli', 'Apéndice cecal visible'
+  ],
+  diagnostico: [
+    'VEDA normal', 'Colonoscopía normal',
+    'Enfermedad por reflujo gastroesofágico', 'Gastritis crónica',
+    'Úlcera péptica', 'Hernia hiatal', 'Pólipos colónicos',
+    'Diverticulosis colónica', 'Sin hallazgos patológicos'
+  ]
+};
+
+function initChips() {
+  const map = {
+    'chips-motivo':      { field: 'endo-motivo',      list: TEXTOS.motivo },
+    'chips-esofago':     { field: 'endo-esofago',     list: TEXTOS.esofago },
+    'chips-estomago':    { field: 'endo-estomago',    list: TEXTOS.estomago },
+    'chips-duodeno':     { field: 'endo-duodeno',     list: TEXTOS.duodeno },
+    'chips-colon':       { field: 'endo-colon',       list: TEXTOS.colon },
+    'chips-diagnostico': { field: 'endo-impresion',   list: TEXTOS.diagnostico }
+  };
+  for (const [chipId, cfg] of Object.entries(map)) {
+    const wrap = document.getElementById(chipId);
+    if (!wrap) continue;
+    wrap.innerHTML = cfg.list.map(t =>
+      `<button type="button" class="chip-btn" onclick="appendChip('${cfg.field}', '${t.replace(/'/g, "\'")}')">${t}</button>`
+    ).join('');
+  }
+}
+
+function appendChip(fieldId, text) {
+  const el = document.getElementById(fieldId);
+  if (!el) return;
+  const cur = el.value.trim();
+  el.value = cur ? cur + '. ' + text : text;
+  el.focus();
+}
+
+// ─── ABRIR MODAL ENDOSCOPÍA ──────────────────────────────────
+let fotosData = []; // Array de { file, base64, mimeType, nombre, url (si ya subida) }
+
+function nuevaEndoscopia(tipo) {
+  const pac = App.pacienteActual;
+  if (!pac) { toast('Seleccioná un paciente primero', 'error'); return; }
+  resetFormEndoscopia();
+  document.getElementById('endo-tipo').value = tipo;
+  document.getElementById('endo-paciente-id').value = pac.id;
+  document.getElementById('endo-modal-titulo').textContent =
+    '🔭 Nueva ' + tipo + ' — ' + pac.apellidoNombre;
+
+  // Auto-llenar datos del paciente en la cabecera
+  document.getElementById('endo-pac-nombre').textContent = pac.apellidoNombre || '';
+  document.getElementById('endo-pac-dni').textContent    = pac.dni || '—';
+  document.getElementById('endo-pac-edad').textContent   = pac.edad ? pac.edad + ' años' : '—';
+  document.getElementById('endo-pac-sexo').textContent   = pac.sexo || '—';
+  document.getElementById('endo-pac-os').textContent     = pac.obraSocial || '—';
+  document.getElementById('endo-pac-afil').textContent   = pac.nroAfiliado || '—';
+
+  // Auto-llenar antecedentes y motivo desde HC si existe
+  if (App.hcActual) {
+    document.getElementById('endo-antec').value  = App.hcActual.antecGrales || '';
+    document.getElementById('endo-motivo').value = App.hcActual.motivoConsulta || '';
+  }
+
+  // Mostrar/ocultar secciones según tipo
+  const esVeda = tipo === 'VEDA';
+  document.getElementById('seccion-veda').style.display  = esVeda ? '' : 'none';
+  document.getElementById('seccion-colon').style.display = esVeda ? 'none' : '';
+
+  // Fecha hoy
+  document.getElementById('endo-fecha').value = todayInputDMY();
+
+  // Cargar datalist anestesistas
+  actualizarDatalistAnestesistas();
+
+  showModal('modal-endoscopia');
+}
+
+function nuevaEndoscopiaDesdeNav() {
+  if (!App.pacienteActual) {
+    toast('Primero abrí un paciente para agregar una endoscopía', 'info');
+    showPage('pacientes');
+    return;
+  }
+  nuevaEndoscopia('VEDA');
+}
+
+function resetFormEndoscopia() {
+  fotosData = [];
+  document.getElementById('fotos-preview').innerHTML = '';
+  document.getElementById('fotos-status').textContent = '';
+  document.getElementById('fotos-input').value = '';
+  document.getElementById('endo-id').value = '';
+  ['fecha','lugar','pedidopor','anestesista','antec','motivo',
+   'esofago','colon-informe','impresion','comentarios'].forEach(f => {
+    const el = document.getElementById('endo-' + f);
+    if (el) el.value = '';
+  });
+  const anlg = document.getElementById('endo-analgesia');
+  if (anlg) anlg.value = '';
+  const etipo = document.getElementById('endo-endoscopia-tipo');
+  if (etipo) etipo.value = '';
+}
+
+function todayInputDMY() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = d.getFullYear();
+  return dd + '/' + mm + '/' + yy;
+}
+
+// ─── FOTOS ───────────────────────────────────────────────────
+function previewFotos(input) {
+  const files = Array.from(input.files);
+  const remaining = 9 - fotosData.length;
+  if (files.length > remaining) {
+    toast(`Máximo 9 fotos por estudio. Podés agregar ${remaining} más.`, 'warn');
+  }
+  const toAdd = files.slice(0, remaining);
+  toAdd.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      fotosData.push({
+        file,
+        base64: e.target.result.split(',')[1],
+        mimeType: file.type,
+        nombre: file.name,
+        url: null,
+        fileId: null,
+        preview: e.target.result
+      });
+      renderFotosPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderFotosPreviews() {
+  const grid = document.getElementById('fotos-preview');
+  const status = document.getElementById('fotos-status');
+  grid.innerHTML = fotosData.map((f, i) => `
+    <div class="foto-preview-item" id="foto-item-${i}">
+      <img src="${f.preview}" alt="Foto ${i+1}" onclick="openFotoViewer('${f.preview}')">
+      ${f.url ? '<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,128,0,0.7);color:white;font-size:10px;text-align:center;padding:2px">✓ Guardada</div>' : ''}
+      <button class="remove-foto" onclick="removeFoto(${i})">✕</button>
+    </div>
+  `).join('');
+  status.textContent = fotosData.length > 0 ? `${fotosData.length} foto${fotosData.length > 1 ? 's' : ''} seleccionada${fotosData.length > 1 ? 's' : ''}` : '';
+}
+
+function removeFoto(idx) {
+  fotosData.splice(idx, 1);
+  renderFotosPreviews();
+}
+
+function openFotoViewer(src) {
+  document.getElementById('foto-viewer-img').src = src;
+  document.getElementById('foto-viewer').classList.add('show');
+}
+function closeFotoViewer() {
+  document.getElementById('foto-viewer').classList.remove('show');
+}
+
+// ─── SUBIR FOTOS A DRIVE ────────────────────────────────────
+async function uploadFotosADrive(pacienteId, endoscopiaId) {
+  const status = document.getElementById('fotos-status');
+  const pendientes = fotosData.filter(f => !f.fileId);
+
+  for (let i = 0; i < fotosData.length; i++) {
+    const f = fotosData[i];
+    if (f.fileId) continue; // ya subida
+    status.textContent = `Subiendo foto ${i+1} de ${fotosData.length}...`;
+    try {
+      const res = await serverCall('uploadFoto',
+        f.base64, f.mimeType, f.nombre, pacienteId, endoscopiaId
+      );
+      if (res.ok) {
+        fotosData[i].fileId = res.fileId;
+        fotosData[i].url    = res.url;
+        renderFotosPreviews();
+      } else {
+        toast('Error subiendo foto ' + (i+1) + ': ' + res.error, 'error');
+      }
+    } catch (e) {
+      toast('Error de red subiendo foto ' + (i+1), 'error');
+    }
+  }
+  status.textContent = pendientes.length > 0 ? `${fotosData.filter(f=>f.fileId).length} fotos guardadas en Drive` : '';
+}
+
+// ─── GUARDAR ENDOSCOPÍA ──────────────────────────────────────
+async function submitEndoscopia(generarPDF = false) {
+  const pac  = App.pacienteActual;
+  const tipo = document.getElementById('endo-tipo').value;
+  const esVeda = tipo === 'VEDA';
+  const informeTexto = esVeda
+    ? document.getElementById('endo-esofago').value
+    : document.getElementById('endo-colon-informe').value;
+
+  // Feedback inmediato en todos los botones guardar
+  const btnsGuardar = [
+    document.getElementById('btn-guardar-endo'),
+    document.getElementById('btn-guardar-endo-bottom')
+  ];
+  const btnsPDF = [
+    document.getElementById('btn-pdf-endo'),
+    document.getElementById('btn-pdf-endo-bottom')
+  ];
+  const spinnerSVG = `<svg style="width:14px;height:14px;vertical-align:-2px;animation:spin 0.8s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`;
+  btnsGuardar.forEach(b => { if (b) { b.disabled = true; b.innerHTML = `${spinnerSVG} Guardando...`; } });
+  btnsPDF.forEach(b => { if (b) { b.disabled = true; } });
+
+  const restoreButtons = () => {
+    btnsGuardar.forEach(b => { if (b) { b.disabled = false; b.innerHTML = '💾 Guardar Estudio'; } });
+    btnsPDF.forEach(b => { if (b) { b.disabled = false; } });
+  };
+
+  showLoading('GUARDANDO ESTUDIO', 'Por favor esperá...');
+
+  const endoId = document.getElementById('endo-id').value || null;
+
+  const data = {
+    id:              endoId || '',
+    pacienteId:      pac.id,
+    apellidoNombre:  pac.apellidoNombre,
+    dni:             pac.dni,
+    tipoEstudio:     tipo,
+    fecha:           document.getElementById('endo-fecha').value,
+    lugarRealizacion:document.getElementById('endo-lugar').value,
+    pedidoPor:       document.getElementById('endo-pedidopor').value,
+    anestesista:     document.getElementById('endo-anestesista').value,
+    antecedentes:    document.getElementById('endo-antec').value,
+    motivoExamen:    document.getElementById('endo-motivo').value,
+    esofago:         informeTexto,
+    esofagoHallazgos:'',
+    estomago:        document.getElementById('endo-endoscopia-tipo').value,
+    estomagoHallazgos:'',
+    duodeno:         '',
+    duodenoHallazgos:'',
+    colon:           '',
+    colonHallazgos:  '',
+    impresionDiagnostica: document.getElementById('endo-impresion').value,
+    analgesia:       document.getElementById('endo-analgesia').value,
+    tolerancia:      '',
+    calidadPrep:     '',
+    anatPatologica:  '',
+    comentarios:     document.getElementById('endo-comentarios').value,
+  };
+
+  try {
+    // 1. Guardar datos
+    const res = await serverCall('saveEndoscopia', data, App.session.medicoId);
+    if (!res.ok) { toast('Error: ' + res.error, 'error'); hideLoading(); restoreButtons(); return; }
+
+    const savedId = res.id;
+    document.getElementById('endo-id').value = savedId;
+
+    // 2. Subir fotos si hay
+    if (fotosData.length > 0) {
+      hideLoading();
+      showLoading('GUARDANDO ESTUDIO', 'Subiendo fotos a Drive...');
+      await uploadFotosADrive(pac.id, savedId);
+
+      // 3. Guardar URLs de fotos en el estudio
+      const fotoUrls = {};
+      fotosData.forEach((f, i) => {
+        if (f.url) fotoUrls['foto' + (i+1)] = f.url;
+      });
+      if (Object.keys(fotoUrls).length > 0) {
+        await serverCall('saveEndoscopia',
+          { ...data, id: savedId, ...fotoUrls },
+          App.session.medicoId
+        );
+      }
+    }
+
+    toast('Estudio guardado correctamente' + (fotosData.length > 0 ? ' con fotos en Drive' : ''), 'success');
+    closeModal('modal-endoscopia');
+
+    // Recargar endoscopías del paciente
+    const rEndo = await serverCall('getEndoscopias', pac.id);
+    renderEndoscopias(rEndo.ok ? rEndo.data : []);
+    showTab('endoscopias');
+
+    // Si se pidió PDF, imprimir el estudio recién guardado
+    if (generarPDF) {
+      await new Promise(r => setTimeout(r, 400));
+      imprimirEndoscopia(savedId);
+    }
+
+  } catch (e) {
+    toast('Error de conexión: ' + e.message, 'error');
+    restoreButtons();
+  } finally {
+    hideLoading();
+  }
+}
+
+// ─── RENDER ENDOSCOPÍAS ─────────────────────────────────────
+function renderEndoscopias(list) {
+  const cnt = document.getElementById('tab-endo-count');
+  cnt.textContent = list.length || '';
+
+  const container = document.getElementById('endoscopias-list');
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="icon">🔭</div>
+      <h3>Sin estudios endoscópicos</h3>
+      <p>Usá los botones de arriba para cargar una VEDA o Colonoscopía.</p>
+    </div>`;
+    return;
+  }
+
+  App.endoscopiasList = list;
+
+  // Separar y ordenar descendente
+  const sortDesc = arr => [...arr].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  const vedas   = sortDesc(list.filter(e => (e.tipoEstudio||'').toLowerCase().includes('veda') || (e.tipoEstudio||'').toLowerCase().includes('gda')));
+  const colons  = sortDesc(list.filter(e => !((e.tipoEstudio||'').toLowerCase().includes('veda') || (e.tipoEstudio||'').toLowerCase().includes('gda'))));
+
+  function renderGrupo(arr, tipo) {
+    if (!arr.length) return '';
+    const colorHead = tipo === 'veda' ? '#155a32' : '#276749';
+    const bgSection = tipo === 'veda' ? '#f0f9f4' : '#edfaf7';
+    const borderCol = tipo === 'veda' ? '#9fd4b2' : '#81e6d9';
+    const titulo = tipo === 'veda' ? 'VEDA' : 'Colonoscopía';
+
+    const items = arr.map((e, i) => {
+      const uid = 'endo-detail-' + tipo + '-' + i;
+      const fotos = [1,2,3,4,5,6,7,8].map(n => e['foto'+n]).filter(Boolean);
+      const informe = e.esofago || '';
+      return `
+      <div class="endo-card" style="margin-bottom:6px;cursor:pointer;padding:0">
+        <div class="endo-card-header" onclick="toggleDetalle('${uid}')"
+             style="padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;background:transparent;border-radius:10px">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <span style="font-weight:600;color:${colorHead};white-space:nowrap">📆 ${fmtDate(e.fecha)}</span>
+            ${e.lugarRealizacion ? `<span style="color:var(--muted);font-size:12px">${e.lugarRealizacion}</span>` : ''}
+            ${e.pedidoPor ? `<span style="color:var(--muted);font-size:12px">· Solicitado por: ${e.pedidoPor}</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span id="${uid}-chevron" style="color:var(--muted);font-size:12px;transition:transform 0.2s">▼</span>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();imprimirEndoscopia('${e.id}')">📄 PDF</button>
+            <button class="btn btn-danger btn-sm btn-icon" title="Eliminar" onclick="event.stopPropagation();confirmarEliminarEndoscopia('${e.id}')">🗑️</button>
+          </div>
+        </div>
+        <div id="${uid}" style="display:none;padding:0 16px 14px 16px;border-top:1px solid var(--border)">
+          <div style="height:10px"></div>
+          <div class="endo-grid">
+            ${e.motivoExamen  ? `<div class="endo-field"><label>Motivo del Examen</label><p>${e.motivoExamen}</p></div>` : ''}
+            ${e.antecedentes  ? `<div class="endo-field"><label>Antecedentes</label><p>${e.antecedentes}</p></div>` : ''}
+          </div>
+          ${informe ? `
+          <div class="endo-field" style="margin-top:10px">
+            <label>Informe Endoscópico</label>
+            <div style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.8;background:#f7fcf9;border:1px solid #c0d9c8;border-radius:6px;padding:12px 14px">${informe}</div>
+          </div>` : ''}
+          ${e.impresionDiagnostica ? `
+          <div class="endo-field" style="margin-top:10px;padding:10px 14px;background:#edf7f0;border-radius:6px;border-left:3px solid #1a9c5b">
+            <label>Impresión Diagnóstica</label>
+            <p style="font-weight:500;white-space:pre-wrap">${e.impresionDiagnostica}</p>
+          </div>` : ''}
+          ${e.comentarios ? `
+          <div class="endo-field" style="margin-top:8px">
+            <label>Comentarios</label><p>${e.comentarios}</p>
+          </div>` : ''}
+          <div style="display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap">
+            ${e.analgesia   ? `<span style="font-size:12px;color:var(--muted)">💉 ${e.analgesia}</span>` : ''}
+            ${e.estomago    ? `<span style="font-size:12px;color:var(--muted)">🏥 ${e.estomago}</span>` : ''}
+            ${e.anestesista ? `<span style="font-size:12px;color:var(--muted)">👨‍⚕️ ${e.anestesista}</span>` : ''}
+          </div>
+          ${fotos.length > 0 ? `
+          <div class="endo-fotos" style="margin-top:12px">
+            ${fotos.map((url, fi) => {
+              const thumb = driveThumb(url);
+              return `<img class="endo-foto-thumb" src="${thumb}" alt="Foto ${fi+1}"
+                onerror="this.onerror=null;this.src='';this.style.background='#f0f9f4';this.style.display='flex'"
+                onclick="openFotoViewer('${thumb}')" title="Foto ${fi+1}">`;
+            }).join('')}
+          </div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 12px;background:${bgSection};border-radius:8px;border:1px solid ${borderCol}">
+        <span style="font-size:20px">${tipo === 'veda' ? '🔭' : '🩺'}</span>
+        <span style="font-weight:700;color:${colorHead};font-size:14px">${titulo}</span>
+        <span style="background:${colorHead};color:#fff;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">${arr.length}</span>
+      </div>
+      ${items}
+    </div>`;
+  }
+
+  container.innerHTML = renderGrupo(vedas, 'veda') + renderGrupo(colons, 'colon');
+}
+function fmtFechaPDF(raw) {
+  if (!raw) return '—';
+  if (raw.includes('T')) raw = raw.split('T')[0];
+  if (raw.includes('-')) {
+    const [y, m, d] = raw.split('-');
+    return d + '/' + m + '/' + y;
+  }
+  return raw;
+}
+
+function driveThumb(url) {
+  // Convierte URL de Drive a thumbnail que funciona embebida
+  if (!url) return '';
+  const m = url.match(/[?&]id=([^&]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300-h250';
+  return url;
+}
+
+function imprimirEndoscopia(endoId) {
+  const pac  = App.pacienteActual;
+  const list = App.endoscopiasList || [];
+  const e    = list.find(x => x.id == endoId);
+  if (!e || !pac) { toast('No se encontró el estudio', 'error'); return; }
+
+  const fotos = [1,2,3,4,5,6,7,8].map(n => e['foto'+n]).filter(Boolean);
+  const fotoImgs = fotos.map(url =>
+    `<img src="${driveThumb(url)}" style="width:4cm;height:4cm;object-fit:cover;border-radius:6px;border:1px solid #ddd;display:block">`
+  ).join('');
+
+  const informe     = e.esofago || e.colonInforme || '';
+  const tipoEndo    = e.estomago || '—';
+  const fecha       = fmtFechaPDF(e.fecha);
+
+  // ── FIRMA: URL pública de Drive configurada en el sistema ──────────────
+  // Para usar: subí la imagen de firma a Google Drive, cambiala a "público",
+  // copiá el ID del archivo y reemplazalo en FIRMA_DRIVE_ID.
+  // URL resultado: https://drive.google.com/uc?export=view&id=TU_ID
+  // Dejá FIRMA_DRIVE_ID = '' para que no muestre imagen (solo texto).
+  const FIRMA_DRIVE_ID = ''; // ← Poner acá el ID del archivo de Drive
+  const firmaImgHtml = FIRMA_DRIVE_ID
+    ? `<img class="firma-img" src="https://drive.google.com/uc?export=view&id=${FIRMA_DRIVE_ID}" alt="Firma" crossorigin="anonymous">`
+    : `<div style="width:165px;height:50px;border-bottom:2px solid #1a7a4a;margin:0 auto 4px"></div>`;
+
+
+  const htmlPDF = `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe ${e.tipoEstudio||'VEDA'} — ${pac.apellidoNombre}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;600;700;800;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',Arial,sans-serif; font-size:10.5px; color:#1a1a1a; background:#fff; }
+  .page { padding:0; max-width:794px; margin:0 auto; position:relative; min-height:calc(297mm - 22mm); padding-bottom:32mm; }
+
+  /* ── HEADER ── */
+  .header {
+    background:#fff;
+    padding:14px 24px 10px; position:relative; overflow:hidden;
+    border-bottom:3px solid #e0ece6;
+    min-height:82px;
+  }
+  /* Círculos grandes con border-radius:50% — solo asoma el arco desde top-right */
+  .hdr-circle { position:absolute; border-radius:50%; }
+  .hdr-c1 { width:380px; height:380px; background:#c0efd8; top:-120px; right:-120px; }
+  .hdr-c2 { width:290px; height:290px; background:#60cc98; top:-90px;  right:-90px;  }
+  .hdr-c3 { width:200px; height:200px; background:#2a9d6e; top:-60px;  right:-60px;  }
+  .hdr-row { display:flex; align-items:center; gap:14px; position:relative; z-index:10; }
+  .hdr-texts { flex:1; color:#111; }
+  .hdr-clinica { font-size:20px; font-weight:900; letter-spacing:.4px; line-height:1.1; color:#111; }
+  .hdr-sub { font-size:12px; font-weight:400; color:#666; margin-top:1px; }
+  .hdr-unidad { margin-top:5px; font-size:13px; font-weight:700; color:#1a7a4a; }
+  .hdr-dra { font-size:12px; color:#555; }
+
+  /* ── TÍTULO CENTRAL ── */
+  .titulo-wrap { text-align:center; padding:12px 20px 6px; }
+  .titulo-main { font-size:19px; font-weight:900; color:#1a7a4a; letter-spacing:1.2px; text-transform:uppercase; line-height:1; }
+  .titulo-sub  { font-size:10px; color:#555; margin-top:3px; font-weight:400; letter-spacing:.25px; }
+
+  /* ── CARD CONTENIDO ── */
+  .card { margin:0 16px 10px; border:1px solid #e0ece6; border-radius:10px; overflow:hidden; }
+
+  /* ── SECCIÓN BADGE ── */
+  .sec-badge { display:inline-block; background:#1a7a4a; color:#fff; font-size:13px; font-weight:800; letter-spacing:1.2px; text-transform:uppercase; padding:3px 10px; border-radius:4px; margin:10px 14px 6px; }
+
+  /* ── TABLA PACIENTE ── */
+  .pac-nombre { font-size:15px; font-weight:900; color:#111; padding:0 14px 4px; }
+  .pac-row    { display:flex; gap:0; border-top:1px solid #e8f2ec; }
+  .pac-cell   { flex:1; padding:5px 14px; border-right:1px solid #e8f2ec; }
+  .pac-cell:last-child { border-right:none; }
+  .pac-lbl { font-size:12.5px; font-weight:700; color:#1a7a4a; text-transform:uppercase; letter-spacing:.5px; }
+  .pac-val { font-size:13px; font-weight:600; margin-top:1px; }
+  .pac-row-full { padding:5px 14px; border-top:1px solid #e8f2ec; display:flex; gap:24px; }
+
+  /* ── INFORME ── */
+  .informe-text { font-size:12.5px; line-height:1.08; white-space:pre-wrap; padding:8px 14px 10px; color:#222; font-family:'IBM Plex Sans','Inter',system-ui,sans-serif; }
+
+  /* ── DIAGNÓSTICO ── */
+  .diag-wrap { margin:0 14px 10px; }
+  .diag-inner { background:#f0f9f4; border:1px solid #c0ddc9; border-radius:6px; padding:8px 14px; }
+  .diag-row { display:flex; gap:20px; }
+  .diag-bullets { flex:1; }
+  .diag-bullet { display:flex; align-items:flex-start; gap:6px; margin-bottom:3px; font-size:13px; font-weight:600; }
+  .diag-bullet::before { content:'•'; color:#1a7a4a; font-size:14px; line-height:1; margin-top:-1px; }
+  .diag-anest { font-size:10px; color:#555; text-align:right; white-space:nowrap; padding-top:2px; }
+  .diag-anest b { color:#111; }
+
+  /* ── FOTOS + FIRMA ── */
+  .bottom-row { display:flex; align-items:flex-end; gap:16px; padding:6px 14px 12px; break-inside:avoid; page-break-inside:avoid; }
+  .fotos-wrap { display:flex; gap:8px; flex-wrap:wrap; flex:1; align-content:flex-start; }
+  .firma-wrap { text-align:center; min-width:170px; }
+  .firma-img { width:165px; max-height:70px; object-fit:contain; display:block; margin:0 auto 2px; }
+  .firma-name { font-size:11px; font-weight:800; }
+  .firma-mp, .firma-mn { font-size:9.5px; color:#555; }
+
+  /* ── FOOTER ── */
+  .footer { border-top:2px solid #1a7a4a; padding:8px 20px; text-align:center; font-size:9.5px; color:#555; line-height:1.5; position:fixed; bottom:0; left:0; right:0; background:#fff; }
+  .footer b { color:#1a7a4a; }
+  .footer-dots { color:#1a7a4a; margin:0 6px; }
+
+  @media print {
+    html,body{margin:0;padding:0}
+    .page{max-width:100%}
+    * { -webkit-print-color-adjust:exact!important; print-color-adjust:exact!important; }
+    .footer { position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:2px solid #1a7a4a; }
+    .page { padding-bottom:32mm; }
+  }
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 10mm 10mm;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="hdr-circle hdr-c1"></div>
+    <div class="hdr-circle hdr-c2"></div>
+    <div class="hdr-circle hdr-c3"></div>
+    <div class="hdr-row">
+      <div class="hdr-texts">
+        <div class="hdr-clinica">CLÍNICA URUGUAY SRL</div>
+        <div class="hdr-sub">Galarza 574 – Concepción del Uruguay – Entre Ríos</div>
+        <div class="hdr-unidad">Unidad de Endoscopía Digestiva</div>
+        <div class="hdr-dra">Dra. Lorena Notari</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TÍTULO -->
+  <div class="titulo-wrap">
+    <div class="titulo-main">Informe Endoscópico</div>
+    <div class="titulo-sub">Videoesofagogastroduodenoscopia — ${(e.tipoEstudio||'VEDA').toUpperCase()}</div>
+  </div>
+
+  <!-- CARD PACIENTE -->
+  <div class="card">
+    <span class="sec-badge">Paciente</span>
+    <div class="pac-nombre">${pac.apellidoNombre||''}</div>
+    <div class="pac-row">
+      <div class="pac-cell"><div class="pac-lbl">DNI</div><div class="pac-val">${pac.dni||'—'}</div></div>
+      <div class="pac-cell"><div class="pac-lbl">Edad</div><div class="pac-val">${pac.edad ? pac.edad+' años' : '—'}</div></div>
+      <div class="pac-cell"><div class="pac-lbl">Sexo</div><div class="pac-val">${pac.sexo||'—'}</div></div>
+      <div class="pac-cell"><div class="pac-lbl">Fecha del Estudio</div><div class="pac-val">${fecha}</div></div>
+    </div>
+    <div class="pac-row">
+      <div class="pac-cell"><div class="pac-lbl">Obra Social</div><div class="pac-val">${pac.obraSocial||'—'}</div></div>
+      <div class="pac-cell" style="flex:2"><div class="pac-lbl">Nº Afiliado</div><div class="pac-val">${pac.nroAfiliado||'—'}</div></div>
+      <div class="pac-cell"><div class="pac-lbl">Pedido por</div><div class="pac-val">${e.pedidoPor||'—'}</div></div>
+    </div>
+    <div class="pac-row-full">
+      <div><span style="font-size:12.5px;font-weight:700;color:#1a7a4a;text-transform:uppercase">Motivo:</span> <span style="font-size:12.5px">${e.motivoExamen||'—'}</span></div>
+      <div><span style="font-size:12.5px;font-weight:700;color:#1a7a4a;text-transform:uppercase">Analgesia:</span> <span style="font-size:12.5px">${e.analgesia||'—'}</span></div>
+      <div><span style="font-size:12.5px;font-weight:700;color:#1a7a4a;text-transform:uppercase">Endoscopia:</span> <span style="font-size:12.5px">${tipoEndo}</span></div>
+    </div>
+  </div>
+
+  <!-- INFORME ENDOSCÓPICO -->
+  <div class="card" style="margin-bottom:8px">
+    <span class="sec-badge">Informe Endoscópico</span>
+    <div class="informe-text">${informe||'Sin informe registrado.'}</div>
+  </div>
+
+  <!-- DIAGNÓSTICO -->
+  <div class="card" style="margin-bottom:8px">
+    <span class="sec-badge">Impresión Diagnóstica</span>
+    <div class="diag-wrap" style="margin-top:0">
+      <div class="diag-inner">
+        <div class="diag-row">
+          <div class="diag-bullets">
+            ${(e.impresionDiagnostica||'—').split('\\n').map(l=>l.trim()).filter(Boolean).map(l=>
+              `<div class="diag-bullet">${l.replace(/^[•·-]\s*/,'')}</div>`
+            ).join('')}
+          </div>
+          ${e.anestesista ? `<div class="diag-anest">ANESTESISTA:<br><b>${e.anestesista}</b></div>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  ${e.comentarios    ? `<div class="card" style="margin-bottom:8px"><span class="sec-badge">Comentarios</span><div class="informe-text" style="font-family:'Inter',Arial;font-size:12.5px">${e.comentarios}</div></div>` : ''}
+
+  <!-- FOTOS + FIRMA -->
+  <div class="bottom-row">
+    <div class="fotos-wrap">
+      ${fotoImgs}
+    </div>
+    <div class="firma-wrap">
+      ${firmaImgHtml}
+      <div class="firma-name">Dra. Lorena Notari</div>
+      <div class="firma-mp">MP 12.710</div>
+      <div class="firma-mn">MN 126.095</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <b>Clínica Uruguay SRL</b>
+    <span class="footer-dots">•</span>
+    Tel: (03442) 421105
+    <span class="footer-dots">•</span>
+    Gastroenterología – Interno 115
+    <br>
+    Instrumental utilizado: Videoendoscopio Olympus XQ-140 <span class="footer-dots">•</span> Procesador Olympus CV-160
+  </div>
+
+</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body>
+</html>`;
+
+  const printWin = window.open('', '_blank', 'width=900,height=700');
+  if (!printWin) { toast('Permití ventanas emergentes para generar el PDF', 'warn'); return; }
+  printWin.document.open();
+  printWin.document.write(htmlPDF);
+  printWin.document.close();
+}
+
+function confirmarEliminarEndoscopia(id) {
+  confirm_('¿Eliminar este estudio endoscópico? Esta acción no se puede deshacer.', async () => {
+    showLoading('Eliminando...');
+    try {
+      const res = await serverCall('deleteEndoscopia', id);
+      if (res.ok) {
+        toast('Estudio eliminado', 'success');
+        const r = await serverCall('getEndoscopias', App.pacienteActual.id);
+        renderEndoscopias(r.ok ? r.data : []);
+      } else toast('Error: ' + res.error, 'error');
+    } catch { toast('Error de conexión', 'error'); }
+    finally { hideLoading(); }
+  });
+}
+
+// Auto-format fecha DD/MM/AAAA en campo endo-fecha
+document.addEventListener('DOMContentLoaded', () => {
+  const endoFecha = document.getElementById('endo-fecha');
+  if (endoFecha) {
+    endoFecha.addEventListener('keydown', function(e) {
+      if (['Backspace','Delete','Tab','ArrowLeft','ArrowRight'].includes(e.key)) return;
+      if (!/[0-9]/.test(e.key)) { e.preventDefault(); return; }
+      const digits = this.value.replace(/\D/g,'');
+      if (digits.length === 2 || digits.length === 4) this.value += '/';
+    });
+  }
+});
+
+// ════════════════════════════════════════════════════════════
+//  OBRAS SOCIALES Y LOCALIDADES — con autoguardado en Drive
+// ════════════════════════════════════════════════════════════
+
+const OBRAS_SOCIALES_DEFAULT = [
+  // Nacionales
+  'OSDE','Swiss Medical','Galeno','Medifé','OMINT','Sancor Salud',
+  'Accord Salud','Jerárquicos Salud','OSECAC','OSPEDYC','OSDEPYM',
+  'OSPECOM','OSPIA','OSPAT','OSTEP','OSEF','OSFE','OSPOCE',
+  'OSPRERA','OSPEDYC','OSSPERA','OSMATA','OSDIPP',
+  'PAMI','Hospital Italiano','Hospital Alemán','Hospital Británico',
+  // Entre Ríos
+  'IOSPER','Círculo Médico de Concepción del Uruguay',
+  'Círculo Médico de Paraná','Círculo Médico de Gualeguaychú',
+  'FEMER','Mutual Policial Entre Ríos','APRES',
+  'Caja de Previsión Social Entre Ríos',
+  // Sindicales
+  'Luz y Fuerza','UPCN','ATE','SMATA','UOCRA','CAMIONEROS',
+  'SUPEH','FATSA','OSAM','OSPIM',
+  // Mutuales
+  'ASE','Federada Salud','Prevención Salud','La Segunda Salud',
+  // Prepagas chicas
+  'AMFFA','DOSPU','OSPLYF','OSPPRA',
+  // Otras frecuentes
+  'Particular (sin OS)','A determinar'
+];
+
+const LOCALIDADES_ENTRE_RIOS = [
+  'Concepción del Uruguay','Gualeguaychú','Paraná','Concordia',
+  'Colón','Federación','Chajarí','La Paz','Villaguay','Gualeguay',
+  'Victoria','Rosario del Tala','Nogoyá','San Salvador','Federal',
+  'Basavilbaso','Maciá','Crespo','Diamante','Hernandarias',
+  'Bovril','Aranguren','Gobernador Mansilla','Urdinarrain',
+  'Ibicuy','Piedras Blancas','San Jaime de la Frontera',
+  'Capitán Sarmiento','Viale','María Grande','Tabossi',
+  'Caseros','Larroque','San José','Liebig\'s','San Gustavo',
+  'Lucas González','Sauce de Luna','Colón','Santa Elena',
+  'Pueblo General Belgrano','Strobel','Paso de la Laguna',
+  'Los Conquistadores','Pronunciamiento','San Justo',
+  'Conscripto Bernardi','Aldea San Antonio','Aldea San Rafael'
+];
+
+const LOCALIDADES_CABA = [
+  'Balvanera','Barracas','Belgrano','Boedo','Caballito',
+  'Chacarita','Coghlan','Colegiales','Constitución','Flores',
+  'Floresta','La Boca','La Paternal','Liniers','Mataderos',
+  'Monte Castro','Monserrat','Nueva Pompeya','Núñez','Palermo',
+  'Parque Avellaneda','Parque Chacabuco','Parque Chas',
+  'Parque Patricios','Puerto Madero','Recoleta','Retiro',
+  'Saavedra','San Cristóbal','San Nicolás','San Telmo',
+  'Versalles','Villa Crespo','Villa del Parque','Villa Devoto',
+  'Villa General Mitre','Villa Lugano','Villa Luro',
+  'Villa Ortúzar','Villa Pueyrredón','Villa Real','Villa Riachuelo',
+  'Villa Santa Rita','Villa Soldati','Villa Urquiza','Vélez Sársfield'
+];
+
+const LOCALIDADES_OTRAS = [
+  'Buenos Aires (GBA Norte)','Buenos Aires (GBA Sur)',
+  'Buenos Aires (GBA Oeste)','Córdoba Capital',
+  'Rosario','Santa Fe','Mendoza','San Juan','Tucumán',
+  'Salta','Corrientes','Misiones','Chaco','Formosa',
+  'Santiago del Estero','Jujuy','La Rioja','Catamarca',
+  'San Luis','La Pampa','Neuquén','Río Negro','Chubut',
+  'Santa Cruz','Tierra del Fuego'
+];
+
+// Estado en memoria
+let obrasState    = [...OBRAS_SOCIALES_DEFAULT];
+let localidadesState = [
+  ...LOCALIDADES_ENTRE_RIOS,
+  ...LOCALIDADES_CABA,
+  ...LOCALIDADES_OTRAS
+];
+
+// ─── CARGAR DESDE SHEET ─────────────────────────────────────
+async function cargarObrasSociales() {
+  try {
+    const res = await serverCall('getListaPersonalizada', 'obras_sociales');
+    if (res.ok && res.data && res.data.length > 0) {
+      // Merge: defaults + extras guardados
+      const extras = res.data.filter(x => !obrasState.includes(x));
+      obrasState = [...OBRAS_SOCIALES_DEFAULT, ...extras];
+    }
+  } catch {}
+  actualizarDatalistOS();
+}
+
+async function cargarLocalidades() {
+  try {
+    const res = await serverCall('getListaPersonalizada', 'localidades');
+    if (res.ok && res.data && res.data.length > 0) {
+      const base = [...LOCALIDADES_ENTRE_RIOS, ...LOCALIDADES_CABA, ...LOCALIDADES_OTRAS];
+      const extras = res.data.filter(x => !base.includes(x));
+      localidadesState = [...base, ...extras];
+    }
+  } catch {}
+  actualizarDatalistLocalidades();
+}
+
+function actualizarDatalistOS() {
+  const dl = document.getElementById('os-list');
+  if (dl) dl.innerHTML = obrasState.sort().map(os => `<option value="${os}">`).join('');
+}
+
+function actualizarDatalistLocalidades() {
+  ['pac-residencia-dl','cons-lugar-dl'].forEach(id => {
+    const dl = document.getElementById(id);
+    if (dl) dl.innerHTML = localidadesState.sort().map(l => `<option value="${l}">`).join('');
+  });
+}
+
+// ─── AUTOGUARDADO AL SALIR DEL CAMPO ────────────────────────
+async function autoguardarOS(valor) {
+  if (!valor || valor.trim() === '') return;
+  const v = valor.trim();
+  if (!obrasState.includes(v)) {
+    obrasState.push(v);
+    actualizarDatalistOS();
+    // Guardar solo los extras (los que no están en el default)
+    const extras = obrasState.filter(x => !OBRAS_SOCIALES_DEFAULT.includes(x));
+    try {
+      await serverCall('saveListaPersonalizada', 'obras_sociales', extras);
+    } catch {}
+  }
+}
+
+async function autoguardarLocalidad(valor) {
+  if (!valor || valor.trim() === '') return;
+  const v = valor.trim();
+  const base = [...LOCALIDADES_ENTRE_RIOS, ...LOCALIDADES_CABA, ...LOCALIDADES_OTRAS];
+  if (!localidadesState.includes(v)) {
+    localidadesState.push(v);
+    actualizarDatalistLocalidades();
+    const extras = localidadesState.filter(x => !base.includes(x));
+    try {
+      await serverCall('saveListaPersonalizada', 'localidades', extras);
+    } catch {}
+  }
+}
+
+// ─── ANESTESISTAS ───────────────────────────────────────────────────────────
+let anestesistasState = [];
+
+async function cargarAnestesistas() {
+  try {
+    const res = await serverCall('getListaPersonalizada', 'anestesistas');
+    anestesistasState = res.ok && Array.isArray(res.data) ? res.data : [];
+  } catch { anestesistasState = []; }
+  actualizarDatalistAnestesistas();
+}
+
+function actualizarDatalistAnestesistas() {
+  const dl = document.getElementById('endo-anest-dl');
+  if (!dl) return;
+  dl.innerHTML = anestesistasState.map(a => `<option value="${a}">`).join('');
+}
+
+async function autoguardarAnestesista(valor) {
+  if (!valor || valor.trim() === '') return;
+  const v = valor.trim();
+  if (!anestesistasState.includes(v)) {
+    anestesistasState.push(v);
+    actualizarDatalistAnestesistas();
+    try {
+      await serverCall('saveListaPersonalizada', 'anestesistas', anestesistasState);
+    } catch {}
+  }
+}
+
+// ─── PLANTILLAS VEDA ────────────────────────────────────────────────────────
+const PLANTILLAS_VEDA = [
+  {
+    nombre: 'VEDA Normal',
+    texto: `Esófago: línea Z a ___ cm de la arcada dentaria superior, coincidente con el inicio de los pliegues gástricos. Mucosa esofágica sin lesiones.
+
+Estómago: cardias continente. Mucosa de fundus, cuerpo y antro sin lesiones. Píloro céntrico y permeable.
+
+Duodeno: bulbo y segunda porción duodenal sin lesiones.`,
+    diagnostico: '• Endoscopía digestiva alta sin lesiones.'
+  },
+  {
+    nombre: 'VEDA con Gastropatía Crónica',
+    texto: `Esófago: línea Z a ___ cm de la arcada dentaria superior. Mucosa esofágica sin lesiones.
+
+Estómago: cardias continente. Mucosa gástrica con eritema y aspecto congestivo predominante en antro, compatible con gastropatía crónica.
+Se toman biopsias de antro y cuerpo para estudio histológico y búsqueda de Helicobacter pylori (Fco).
+Píloro céntrico y permeable.
+
+Duodeno: bulbo y segunda porción duodenal sin lesiones.`,
+    diagnostico: '• Gastropatía crónica.\n• Biopsias gástricas para Helicobacter pylori.'
+  },
+  {
+    nombre: 'VEDA con Esofagitis',
+    texto: `Esófago: línea Z a ___ cm de la arcada dentaria superior.
+En esófago distal se observan erosiones mucosas mayores de 5 mm, no confluentes.
+
+Estómago: cardias continente. Mucosa de fundus, cuerpo y antro sin lesiones.
+
+Duodeno: bulbo y segunda porción duodenal sin lesiones.`,
+    diagnostico: '• Esofagitis erosiva grado ___ según clasificación de Los Ángeles.'
+  }
+];
+
+const PLANTILLAS_COLON = [
+  {
+    nombre: 'VCC Normal',
+    texto: `Inspección anal: sin particularidades.
+Tacto rectal: esfínter normotónico. Sin lesiones palpables en ampolla rectal.
+Se progresa hasta ciego, identificándose válvula ileocecal e implante apendicular.
+Mucosa colónica con patrón vascular conservado, sin lesiones en los segmentos explorados.
+Hemorroides internas.`,
+    diagnostico: '• Colonoscopía sin lesiones.\n• Hemorroides internas.'
+  },
+  {
+    nombre: 'VCC con Pólipo',
+    texto: `Inspección anal: sin particularidades.
+Tacto rectal: esfínter normotónico.
+Se progresa el colonoscopio hasta ciego, identificándose válvula ileocecal e implante apendicular.
+En ____ se observa lesión polipoidea de aproximadamente _ mm, la cual se reseca mediante polipectomía con asa fría / asa diatérmica. La pieza se recupera para estudio anatomopatológico (Fco)
+Resto de la mucosa colónica sin lesiones.`,
+    diagnostico: '• Lesión polipoidea en __, resecada.\n• Clasificación de París:'
+  },
+  {
+    nombre: 'VCC con Diverticulosis',
+    texto: `Inspección anal: sin particularidades.
+Tacto rectal: esfínter normotónico.
+Se progresa el colonoscopio hasta ciego, identificándose válvula ileocecal e implante apendicular.
+Mucosa colónica con patrón vascular conservado.
+Se observan múltiples divertículos en colon ____, sin signos inflamatorios asociados.
+Hemorroides internas.`,
+    diagnostico: '• Diverticulosis colónica.'
+  }
+];
+
+function insertarPlantillaVEDA(idx) {
+  const p = PLANTILLAS_VEDA[idx];
+  if (!p) return;
+  const ta = document.getElementById('endo-esofago');
+  const actual = ta.value.trim();
+  if (actual && !confirm('¿Reemplazar el informe actual con la plantilla "' + p.nombre + '"?')) return;
+  ta.value = p.texto;
+  const diag = document.getElementById('endo-impresion');
+  if (!diag.value.trim()) diag.value = p.diagnostico;
+  ta.focus();
+}
+
+function insertarPlantillaColon(idx) {
+  const p = PLANTILLAS_COLON[idx];
+  if (!p) return;
+  const ta = document.getElementById('endo-colon-informe');
+  const actual = ta.value.trim();
+  if (actual && !confirm('¿Reemplazar el informe actual con la plantilla "' + p.nombre + '"?')) return;
+  ta.value = p.texto;
+  const diag = document.getElementById('endo-impresion');
+  if (!diag.value.trim()) diag.value = p.diagnostico;
+  ta.focus();
+}
+
+// ─── GENERAR PDF ────────────────────────────────────────────────────────────
+
+</script>
+</body>
+</html>
