@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v1.0 | 2026-03-05 10:30 ARG -->
+<!-- AMELIFE EMS Technologies - Web App v2.0 | 2026-03-05 15:30 ARG - GitHub Pages + Apps Script API -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -11,24 +11,24 @@
      AMELIFE APP v1.0 | 2026-03-05 10:30 ARG
      ============================================= */
   :root {
-    --green:       #6CB33F;
-    --green-light: #8DD05A;
-    --green-dark:  #4A8A28;
-    --green-glow:  rgba(108,179,63,0.18);
-    --bg:          #0C1520;
-    --sidebar:     #111D2B;
-    --card:        #162030;
-    --card2:       #1C2A3D;
-    --border:      rgba(108,179,63,0.15);
-    --border2:     rgba(255,255,255,0.07);
-    --text:        #E2EBF5;
-    --muted:       #7A90AA;
-    --danger:      #E05252;
-    --warning:     #E0A030;
-    --info:        #4A9FD5;
+    --green:       #4A9A2A;
+    --green-light: #5DB535;
+    --green-dark:  #357A1A;
+    --green-glow:  rgba(74,154,42,0.10);
+    --bg:          #F0F4F8;
+    --sidebar:     #FFFFFF;
+    --card:        #FFFFFF;
+    --card2:       #F5F8FA;
+    --border:      rgba(74,154,42,0.20);
+    --border2:     rgba(0,0,0,0.08);
+    --text:        #1A2533;
+    --muted:       #6B7E94;
+    --danger:      #D94040;
+    --warning:     #C07A10;
+    --info:        #2980B9;
     --radius:      10px;
     --radius-lg:   16px;
-    --shadow:      0 4px 24px rgba(0,0,0,0.4);
+    --shadow:      0 2px 16px rgba(0,0,0,0.08);
     --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,23 +36,23 @@
 
   /* ---- SCROLLBAR ---- */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  ::-webkit-scrollbar-track { background: #E8EDF2; }
+  ::-webkit-scrollbar-thumb { background: #C5D0DA; border-radius: 99px; }
 
   /* ===================== LOGIN ===================== */
   #loginScreen {
     position: fixed; inset: 0; z-index: 999;
     display: flex; align-items: center; justify-content: center;
-    background: var(--bg);
-    background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108,179,63,0.08) 0%, transparent 70%);
+    background: #EDF2F7;
+    background-image: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(74,154,42,0.08) 0%, transparent 70%);
   }
   .login-box {
     width: 100%; max-width: 420px;
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: #FFFFFF;
+    border: 1px solid rgba(0,0,0,0.08);
     border-radius: var(--radius-lg);
     padding: 44px 40px 36px;
-    box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(108,179,63,0.08);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.10);
     animation: fadeUp 0.5s ease;
   }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:none;} }
@@ -67,13 +67,13 @@
   .field label { display:block; font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:7px; }
   .field input, .field select {
     width:100%; padding:12px 14px;
-    background:var(--bg); border:1px solid var(--border2);
+    background:#F7FAFC; border:1px solid #D1DCE5;
     border-radius:var(--radius); color:var(--text);
     font-family:'Outfit',sans-serif; font-size:14px;
     outline:none; transition:border var(--transition);
   }
-  .field input:focus, .field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
-  .field select option { background: var(--card2); }
+  .field input:focus, .field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(74,154,42,0.10); }
+  .field select option { background: #FFFFFF; }
   .btn-login {
     width:100%; padding:13px; margin-top:8px;
     background: var(--green); color:#fff;
@@ -96,6 +96,7 @@
     width: 230px; min-width:230px;
     background: var(--sidebar);
     border-right: 1px solid var(--border2);
+    box-shadow: 2px 0 12px rgba(0,0,0,0.06);
     display: flex; flex-direction:column;
     padding: 0;
     transition: width var(--transition);
@@ -120,7 +121,7 @@
     transition: all var(--transition); margin-bottom:2px;
     white-space:nowrap;
   }
-  .nav-item:hover { background:var(--border2); color:var(--text); }
+  .nav-item:hover { background:#EEF3F8; color:var(--text); }
   .nav-item.active { background:var(--green-glow); color:var(--green); }
   .nav-item .icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
   .nav-badge { margin-left:auto; background:var(--green); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; }
@@ -129,7 +130,7 @@
   .user-pill {
     display:flex; align-items:center; gap:10px;
     padding:10px 12px; border-radius:var(--radius);
-    background:var(--card); cursor:pointer;
+    background:#F0F4F8; cursor:pointer;
   }
   .user-avatar {
     width:32px; height:32px; border-radius:50%;
@@ -147,13 +148,15 @@
     height:60px; padding:0 28px;
     border-bottom:1px solid var(--border2);
     display:flex; align-items:center; gap:16px;
-    background:var(--sidebar); flex-shrink:0;
+    background:#FFFFFF;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    flex-shrink:0;
   }
   .topbar-title { font-size:16px; font-weight:700; }
   .topbar-sub { font-size:12px; color:var(--muted); }
   .topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
   .topbar-date { font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
-  .notif-btn { width:34px; height:34px; border-radius:var(--radius); background:var(--card2); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; transition:background var(--transition); }
+  .notif-btn { width:34px; height:34px; border-radius:var(--radius); background:#F5F8FA; border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; transition:background var(--transition); }
   .notif-btn:hover { background:var(--border); }
 
   #content { flex:1; overflow-y:auto; padding:28px; }
@@ -168,6 +171,7 @@
   .stat-card {
     background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
     padding:20px 22px; position:relative; overflow:hidden;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.05);
   }
   .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--green); border-radius:3px 3px 0 0; }
   .stat-card.warning::before { background:var(--warning); }
@@ -176,7 +180,7 @@
   .stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; font-weight:600; margin-bottom:10px; }
   .stat-value { font-size:32px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1; }
   .stat-sub { font-size:12px; color:var(--muted); margin-top:8px; }
-  .stat-icon { position:absolute; right:18px; top:18px; font-size:28px; opacity:0.12; }
+  .stat-icon { position:absolute; right:18px; top:18px; font-size:28px; opacity:0.15; }
 
   .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .card { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:22px; }
@@ -188,9 +192,9 @@
   .activity-item { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--border2); }
   .activity-item:last-child { border-bottom:none; }
   .act-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; margin-top:2px; }
-  .act-icon.g { background:var(--green-glow); color:var(--green); }
-  .act-icon.i { background:rgba(74,159,213,0.15); color:var(--info); }
-  .act-icon.w { background:rgba(224,160,48,0.15); color:var(--warning); }
+  .act-icon.g { background:rgba(74,154,42,0.12); color:var(--green); }
+  .act-icon.i { background:rgba(43,126,193,0.12); color:var(--info); }
+  .act-icon.w { background:rgba(196,125,16,0.12); color:var(--warning); }
   .act-text { flex:1; }
   .act-text b { font-size:13px; font-weight:600; display:block; }
   .act-text span { font-size:12px; color:var(--muted); }
@@ -198,11 +202,11 @@
 
   .quick-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .qa-btn {
-    padding:14px 12px; border-radius:var(--radius); background:var(--card2);
-    border:1px solid var(--border2); cursor:pointer; text-align:left;
+    padding:14px 12px; border-radius:var(--radius); background:#F7FAFA;
+    border:1px solid rgba(0,0,0,0.08); cursor:pointer; text-align:left;
     transition:all var(--transition);
   }
-  .qa-btn:hover { border-color:var(--green); background:var(--green-glow); }
+  .qa-btn:hover { border-color:var(--green); background:rgba(74,154,42,0.06); }
   .qa-btn .qa-icon { font-size:22px; margin-bottom:8px; }
   .qa-btn b { display:block; font-size:13px; font-weight:600; }
   .qa-btn span { font-size:11px; color:var(--muted); }
@@ -214,16 +218,17 @@
   }
   .search-box input {
     width:100%; padding:10px 14px 10px 38px;
-    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius);
+    background:#FFFFFF; border:1px solid #D1DCE5; border-radius:var(--radius);
     color:var(--text); font-family:'Outfit',sans-serif; font-size:13.5px;
     outline:none; transition:border var(--transition);
   }
-  .search-box input:focus { border-color:var(--green); }
+  .search-box input:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(74,154,42,0.08); }
   .search-box::before { content:'🔍'; position:absolute; left:12px; top:50%; transform:translateY(-50%); font-size:14px; pointer-events:none; }
   .filter-select {
-    padding:10px 12px; background:var(--card); border:1px solid var(--border2); border-radius:var(--radius);
+    padding:10px 12px; background:#FFFFFF; border:1px solid #D1DCE5; border-radius:var(--radius);
     color:var(--text); font-family:'Outfit',sans-serif; font-size:13px; outline:none; cursor:pointer;
   }
+  .btn-outline { background:transparent; border:1px solid #D1DCE5; color:var(--text); }
   .btn { padding:10px 18px; border-radius:var(--radius); border:none; font-family:'Outfit',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
   .btn-primary { background:var(--green); color:#fff; }
   .btn-primary:hover { background:var(--green-light); }
@@ -232,17 +237,17 @@
   .btn-danger { background:var(--danger); color:#fff; }
 
   .data-table { width:100%; border-collapse:collapse; font-size:13px; }
-  .data-table thead tr { background:var(--card2); }
-  .data-table th { padding:11px 14px; text-align:left; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.8px; white-space:nowrap; }
-  .data-table td { padding:12px 14px; border-bottom:1px solid var(--border2); vertical-align:middle; }
-  .data-table tbody tr:hover { background:rgba(255,255,255,0.025); }
+  .data-table thead tr { background:#EDF2F7; }
+  .data-table th { padding:11px 14px; text-align:left; font-size:11px; font-weight:700; color:#5A7080; text-transform:uppercase; letter-spacing:0.8px; white-space:nowrap; }
+  .data-table td { padding:12px 14px; border-bottom:1px solid #EDF2F7; vertical-align:middle; }
+  .data-table tbody tr:hover { background:#F7FAFC; }
   .data-table .pn { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--green); }
   .badge { display:inline-block; padding:3px 9px; border-radius:99px; font-size:11px; font-weight:600; }
-  .badge-green { background:rgba(108,179,63,0.15); color:var(--green); }
-  .badge-warning { background:rgba(224,160,48,0.15); color:var(--warning); }
-  .badge-danger { background:rgba(224,82,82,0.15); color:var(--danger); }
-  .badge-info { background:rgba(74,159,213,0.15); color:var(--info); }
-  .badge-muted { background:rgba(255,255,255,0.07); color:var(--muted); }
+  .badge-green   { background:rgba(74,154,42,0.12);  color:#357A1A; }
+  .badge-warning { background:rgba(192,122,16,0.12); color:#A06010; }
+  .badge-danger  { background:rgba(217,64,64,0.12);  color:#B03030; }
+  .badge-info    { background:rgba(41,128,185,0.12); color:#1F6FA0; }
+  .badge-muted   { background:rgba(0,0,0,0.06);      color:#5A7080; }
   .tbl-action { background:none; border:none; cursor:pointer; font-size:15px; padding:4px; transition:opacity 0.2s; }
   .tbl-action:hover { opacity:0.7; }
   .table-container { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); overflow:hidden; }
@@ -253,7 +258,7 @@
   .pb-tab {
     padding:8px 16px; border-radius:99px; font-size:12.5px; font-weight:600;
     cursor:pointer; transition:all var(--transition);
-    background:var(--card); border:1px solid var(--border2); color:var(--muted);
+    background:#FFFFFF; border:1px solid rgba(0,0,0,0.10); color:var(--muted);
   }
   .pb-tab:hover { color:var(--text); border-color:var(--border); }
   .pb-tab.active { background:var(--green-glow); border-color:var(--green); color:var(--green); }
@@ -268,9 +273,9 @@
   }
   .modal-overlay.open { display:flex; }
   .modal {
-    background:var(--card); border:1px solid var(--border); border-radius:var(--radius-lg);
+    background:#FFFFFF; border:1px solid #D1DCE5; border-radius:var(--radius-lg);
     padding:28px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto;
-    animation: fadeUp 0.3s ease;
+    animation: fadeUp 0.3s ease; box-shadow:0 8px 40px rgba(0,0,0,0.12);
   }
   .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
   .modal-title { font-size:17px; font-weight:700; }
@@ -281,18 +286,18 @@
 
   /* ===================== EMPTY STATE ===================== */
   .empty { text-align:center; padding:60px 20px; color:var(--muted); }
-  .empty .empty-icon { font-size:48px; margin-bottom:14px; opacity:0.5; }
+  .empty .empty-icon { font-size:48px; margin-bottom:14px; opacity:0.4; }
   .empty h3 { font-size:16px; font-weight:600; color:var(--text); margin-bottom:8px; }
   .empty p { font-size:13px; }
 
   /* ===================== CLIENTES ===================== */
   .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
   .client-card {
-    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:18px;
-    transition:border-color var(--transition), transform var(--transition);
-    cursor:pointer;
+    background:#FFFFFF; border:1px solid rgba(0,0,0,0.08); border-radius:var(--radius-lg); padding:18px;
+    transition:border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+    cursor:pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   }
-  .client-card:hover { border-color:var(--green); transform:translateY(-2px); }
+  .client-card:hover { border-color:var(--green); transform:translateY(-2px); box-shadow: 0 6px 20px rgba(74,154,42,0.10); }
   .client-avatar { width:44px; height:44px; border-radius:50%; background:var(--green-dark); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; margin-bottom:12px; }
   .client-name { font-size:15px; font-weight:700; margin-bottom:4px; }
   .client-company { font-size:12px; color:var(--green); font-weight:600; margin-bottom:8px; }
@@ -323,9 +328,9 @@
   /* ---- TOAST ---- */
   #toast {
     position:fixed; bottom:24px; right:24px; z-index:9999;
-    background:var(--card2); border:1px solid var(--border); border-radius:var(--radius);
+    background:#FFFFFF; border:1px solid #D1DCE5; border-radius:var(--radius);
     padding:14px 20px; font-size:14px; font-weight:500;
-    box-shadow:var(--shadow); transform:translateY(100px); opacity:0;
+    box-shadow:0 4px 20px rgba(0,0,0,0.12); transform:translateY(100px); opacity:0;
     transition:all 0.35s cubic-bezier(0.34,1.56,0.64,1);
     display:flex; align-items:center; gap:10px;
   }
@@ -422,6 +427,9 @@
       </div>
       <div class="nav-item" onclick="showPanel('warehouse',this)">
         <span class="icon">🏭</span><span>Warehouse</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('facturas',this)">
+        <span class="icon">📥</span><span>Importar Factura</span>
       </div>
     </div>
 
@@ -702,62 +710,126 @@
         </div>
       </div>
 
+      <!-- ===== IMPORTAR FACTURA ZOLL ===== -->
+      <div class="panel" id="panel-facturas">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div id="dropZone" style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:48px 24px;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--card)"
+              onclick="document.getElementById('pdfInput').click()"
+              ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">
+              <div style="font-size:48px;margin-bottom:12px">📄</div>
+              <div style="font-size:16px;font-weight:700;margin-bottom:6px">Arrastrar factura ZOLL aquí</div>
+              <div style="font-size:13px;color:var(--muted);margin-bottom:16px">o hacé clic para seleccionar</div>
+              <div style="font-size:11px;color:var(--muted)">Formato: PDF · Facturas ZOLL Medical</div>
+              <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="handlePDFSelect(event)">
+            </div>
+            <div class="card" style="margin-top:14px">
+              <div class="card-header"><div class="card-title">✈️ Tracking asociado (opcional)</div></div>
+              <div class="field" style="margin-bottom:0">
+                <label>Número de tracking</label>
+                <input type="text" id="facturaTracking" placeholder="Ej: 774899513289" style="width:100%;padding:10px 14px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none">
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="facturaTitle">📋 Ítems de la factura</div>
+              <span id="facturaBadge" style="display:none" class="badge badge-green"></span>
+            </div>
+            <div id="facturaLoading" style="display:none;text-align:center;padding:40px;color:var(--muted)">
+              <div style="font-size:32px;margin-bottom:10px">⏳</div>
+              <div>Procesando PDF con OCR...</div>
+              <div style="font-size:12px;margin-top:6px">Puede tardar 10-20 segundos</div>
+            </div>
+            <div id="facturaItemsWrap" style="overflow-y:auto;max-height:320px">
+              <div id="facturaEmpty" style="text-align:center;padding:40px;color:var(--muted)">
+                <div style="font-size:36px;margin-bottom:10px;opacity:0.4">📂</div>
+                <div>Subí una factura para ver los ítems</div>
+              </div>
+              <table class="data-table" id="facturaTable" style="display:none">
+                <thead><tr>
+                  <th><input type="checkbox" id="chkAll" onchange="toggleAllFactura(this)"></th>
+                  <th>PN</th><th>Descripción</th><th>Cant</th><th>Precio Costo</th>
+                </tr></thead>
+                <tbody id="facturaBody"></tbody>
+              </table>
+            </div>
+            <div id="facturaActions" style="display:none;margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
+              <button class="btn btn-outline" onclick="resetFactura()">✕ Cancelar</button>
+              <button class="btn btn-primary" onclick="confirmarImportacion()">✅ Importar al inventario</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:20px">
+          <div class="card-header"><div class="card-title">📜 Últimas importaciones</div></div>
+          <div id="historialFacturas" style="font-size:13px;color:var(--muted);padding:20px;text-align:center">Sin importaciones registradas</div>
+        </div>
+      </div>
+
       <!-- ===== TRACKINGS ===== -->
       <div class="panel" id="panel-trackings">
         <div class="toolbar">
           <div class="search-box">
-            <input type="text" placeholder="Buscar tracking..." />
+            <input type="text" id="trkSearch" placeholder="Buscar tracking..." oninput="filterTrackings()">
           </div>
-          <button class="btn btn-primary">+ Nuevo Tracking</button>
+          <select class="filter-select" id="trkFilterEstado" onchange="filterTrackings()">
+            <option value="">Todos los estados</option>
+            <option>En tránsito</option><option>Recibido</option><option>Pendiente</option>
+          </select>
+          <button class="btn btn-primary" onclick="openModal('modalTracking')">+ Nuevo tracking</button>
         </div>
         <div class="table-container">
           <table class="data-table">
-            <thead><tr><th>Tracking ID</th><th>Carrier</th><th>Items</th><th>Origen</th><th>Destino</th><th>Estado</th><th>ETA</th><th>WH asignado</th></tr></thead>
-            <tbody>
-              <tr>
-                <td class="pn">TRK-2026-012</td>
-                <td>FedEx</td>
-                <td>X Series Adv. x1, Z Vent x1</td>
-                <td>Boston, MA</td>
-                <td>Miami, FL</td>
-                <td><span class="badge badge-warning">En tránsito</span></td>
-                <td>07 MAR 2026</td>
-                <td>—</td>
-              </tr>
-              <tr>
-                <td class="pn">TRK-2026-011</td>
-                <td>DHL</td>
-                <td>AutoPulse NXT x2</td>
-                <td>Boston, MA</td>
-                <td>Miami, FL</td>
-                <td><span class="badge badge-green">Recibido</span></td>
-                <td>28 FEB 2026</td>
-                <td>WH-039, WH-040</td>
-              </tr>
-              <tr>
-                <td class="pn">TRK-2026-010</td>
-                <td>UPS</td>
-                <td>AED 3 BLS x5</td>
-                <td>Chelmsford, MA</td>
-                <td>Miami, FL</td>
-                <td><span class="badge badge-green">Recibido</span></td>
-                <td>20 FEB 2026</td>
-                <td>WH-034..038</td>
-              </tr>
-            </tbody>
+            <thead><tr><th>Tracking #</th><th>Carrier</th><th>Ítems</th><th>Origen</th><th>Destino</th><th>ETA</th><th>Estado</th><th>WH</th><th></th></tr></thead>
+            <tbody id="trkBody"><tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr></tbody>
           </table>
-          <div class="table-footer"><span>3 trackings</span></div>
+          <div class="table-footer"><span id="trkCount">—</span></div>
+        </div>
+        <div id="trkDetalle" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="trkDetalleTitle">Ítems del tracking</div>
+              <span class="card-action" onclick="document.getElementById('trkDetalle').style.display='none'">✕ Cerrar</span>
+            </div>
+            <div id="trkDetalleBody"></div>
+          </div>
         </div>
       </div>
 
       <!-- ===== WAREHOUSE ===== -->
       <div class="panel" id="panel-warehouse">
-        <div class="empty">
-          <div class="empty-icon">🏭</div>
-          <h3>Módulo Warehouse</h3>
-          <p>Gestión de números de warehouse, series, lotes y vencimientos. En construcción.</p>
-          <br>
-          <button class="btn btn-primary" onclick="showToast('📧 Template de email al WH próximamente!','info')">📧 Template Email WH</button>
+        <div class="toolbar">
+          <div class="search-box" style="max-width:320px">
+            <input type="text" id="whSearch" placeholder="Buscar por PN o descripción..." oninput="filterWH()">
+          </div>
+          <select class="filter-select" id="whFilterTracking" onchange="filterWH()">
+            <option value="">Todos los trackings</option>
+          </select>
+          <button class="btn btn-primary" onclick="guardarWHBulk()">💾 Guardar asignaciones</button>
+          <button class="btn btn-outline" onclick="emailWarehouseModal()">📧 Email al Warehouse</button>
+        </div>
+        <div style="margin-bottom:14px;display:flex;gap:16px">
+          <div class="card" style="flex:1;padding:14px 18px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:28px">📦</div>
+            <div><div style="font-size:22px;font-weight:800;color:var(--warning)" id="whSinContar">—</div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">Sin WH asignado</div></div>
+          </div>
+          <div class="card" style="flex:1;padding:14px 18px;display:flex;align-items:center;gap:12px">
+            <div style="font-size:28px">✅</div>
+            <div><div style="font-size:22px;font-weight:800;color:var(--green)" id="whConContador">—</div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px">WH asignado</div></div>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr>
+              <th>PN</th><th>Descripción</th><th>Tracking</th><th>Stock</th>
+              <th style="min-width:110px">WH # <span style="color:var(--green);font-size:10px">← asignar</span></th>
+              <th style="min-width:120px">Lote</th>
+              <th style="min-width:120px">Vencimiento</th>
+              <th style="min-width:120px">N° Serie</th>
+            </tr></thead>
+            <tbody id="whBody"><tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr></tbody>
+          </table>
+          <div class="table-footer"><span id="whCount">—</span></div>
         </div>
       </div>
 
@@ -776,7 +848,7 @@
               <tr>
                 <td><b>Dist. Perú S.A.</b></td>
                 <td>🇵🇪 Perú</td>
-                <td>peru@dist.com</td>
+                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="afdfcadddaefcbc6dcdb81ccc0c2">[email&#160;protected]</a></td>
                 <td>12 items</td>
                 <td>R Series ALS x2</td>
                 <td>04 MAR 2026</td>
@@ -785,7 +857,7 @@
               <tr>
                 <td><b>MedTech Colombia</b></td>
                 <td>🇨🇴 Colombia</td>
-                <td>medtech@col.com</td>
+                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cda0a8a9b9a8aea58daea2a1e3aea2a0">[email&#160;protected]</a></td>
                 <td>5 items</td>
                 <td>—</td>
                 <td>01 MAR 2026</td>
@@ -794,7 +866,7 @@
               <tr>
                 <td><b>Emergency Pro ARG</b></td>
                 <td>🇦🇷 Argentina</td>
-                <td>info@emergpro.ar</td>
+                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5e373038311e3b333b2c392e2c31703f2c">[email&#160;protected]</a></td>
                 <td>8 items</td>
                 <td>AED Plus x5</td>
                 <td>28 FEB 2026</td>
@@ -871,16 +943,16 @@
       <button class="modal-close" onclick="closeModal('modalItem')">✕</button>
     </div>
     <div class="modal-grid">
-      <div class="field"><label>Part Number</label><input type="text" placeholder="8000-000XXX" /></div>
-      <div class="field"><label>Proveedor</label><select><option>ZOLL</option><option>Goldway</option><option>Otro</option></select></div>
-      <div class="field" style="grid-column:1/-1"><label>Descripción</label><input type="text" placeholder="Descripción completa del ítem" /></div>
-      <div class="field"><label>Precio Lista (USD)</label><input type="number" placeholder="0.00" /></div>
-      <div class="field"><label>Precio Costo (USD)</label><input type="number" placeholder="0.00" /></div>
-      <div class="field"><label>Stock (unidades)</label><input type="number" placeholder="0" /></div>
-      <div class="field"><label>WH #</label><input type="text" placeholder="WH-041" /></div>
-      <div class="field"><label>Número de tracking</label><input type="text" placeholder="TRK-2026-XXX" /></div>
-      <div class="field"><label>Lote</label><input type="text" placeholder="LOT-XXXX" /></div>
-      <div class="field"><label>Vencimiento</label><input type="date" /></div>
+      <div class="field"><label>Part Number</label><input type="text" id="invPN" placeholder="8000-000XXX" /></div>
+      <div class="field"><label>Proveedor</label><select id="invProv"><option>ZOLL</option><option>Goldway</option><option>Otro</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label>Descripción</label><input type="text" id="invDesc" placeholder="Descripción completa del ítem" /></div>
+      <div class="field"><label>Precio Lista (USD)</label><input type="number" id="invLista" placeholder="0.00" /></div>
+      <div class="field"><label>Precio Costo (USD)</label><input type="number" id="invCosto" placeholder="0.00" /></div>
+      <div class="field"><label>Stock (unidades)</label><input type="number" id="invStock" placeholder="0" /></div>
+      <div class="field"><label>WH #</label><input type="text" id="invWH" placeholder="WH-041" /></div>
+      <div class="field"><label>Número de tracking</label><input type="text" id="invTracking" placeholder="TRK-2026-XXX" /></div>
+      <div class="field"><label>Lote</label><input type="text" id="invLote" placeholder="LOT-XXXX" /></div>
+      <div class="field"><label>Vencimiento</label><input type="date" id="invVenc" /></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalItem')">Cancelar</button>
@@ -897,13 +969,13 @@
       <button class="modal-close" onclick="closeModal('modalCliente')">✕</button>
     </div>
     <div class="modal-grid">
-      <div class="field"><label>Nombre</label><input type="text" placeholder="Nombre completo" /></div>
-      <div class="field"><label>Empresa / Institución</label><input type="text" placeholder="Nombre de la organización" /></div>
-      <div class="field"><label>Email</label><input type="email" placeholder="email@cliente.com" /></div>
-      <div class="field"><label>Teléfono / WhatsApp</label><input type="text" placeholder="+1 305 XXX XXXX" /></div>
-      <div class="field"><label>País</label><select><option>Ecuador</option><option>Perú</option><option>Colombia</option><option>Argentina</option><option>EEUU</option><option>México</option><option>Otro</option></select></div>
-      <div class="field"><label>Ciudad</label><input type="text" placeholder="Ciudad" /></div>
-      <div class="field" style="grid-column:1/-1"><label>Notas</label><input type="text" placeholder="Notas adicionales sobre el cliente" /></div>
+      <div class="field"><label>Nombre</label><input type="text" id="cliNombre" placeholder="Nombre completo" /></div>
+      <div class="field"><label>Empresa / Institución</label><input type="text" id="cliEmpresa" placeholder="Nombre de la organización" /></div>
+      <div class="field"><label>Email</label><input type="email" id="cliEmail" placeholder="email@cliente.com" /></div>
+      <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="cliTel" placeholder="+1 305 XXX XXXX" /></div>
+      <div class="field"><label>País</label><select id="cliPais"><option>Ecuador</option><option>Perú</option><option>Colombia</option><option>Argentina</option><option>EEUU</option><option>México</option><option>Otro</option></select></div>
+      <div class="field"><label>Ciudad</label><input type="text" id="cliCiudad" placeholder="Ciudad" /></div>
+      <div class="field" style="grid-column:1/-1"><label>Notas</label><input type="text" id="cliNotas" placeholder="Notas adicionales sobre el cliente" /></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
@@ -934,7 +1006,7 @@
       </div>
     </div>
     <div style="margin:14px 0;font-size:13px;color:var(--muted)">Items en la cotización:</div>
-    <div id="cotItems" style="background:var(--bg);border-radius:var(--radius);padding:14px;min-height:60px;font-size:13px;">
+    <div id="cotItems" style="background:#F7FAFA;border-radius:var(--radius);padding:14px;min-height:60px;font-size:13px;">
       <div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>
     </div>
     <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;">
@@ -954,156 +1026,102 @@
 <div id="toast"></div>
 
 <!-- ===================== SCRIPTS ===================== -->
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 /* =============================================
-   AMELIFE APP · JS | 2026-03-05 10:30 ARG
+   AMELIFE APP v2.0 LIGHT · JS | 2026-03-05 15:00 ARG
+   Conectado a Google Apps Script
    ============================================= */
 
-// ---- DATOS DE USUARIOS (en producción: Apps Script) ----
-const USERS = {
-  'german':   { pass: 'amelife2026', role: 'admin',   name: 'Germán',   initial:'G' },
-  'ezequiel': { pass: 'amelife2026', role: 'finanzas', name: 'Ezequiel', initial:'E' },
-  'staff':    { pass: 'staff2026',   role: 'staff',    name: 'Staff',    initial:'S' },
-  'subdist1': { pass: 'dist2026',    role: 'subdist',  name: 'Dist. Perú', initial:'P'},
-};
-const FIN_PIN = '1234';
-let currentUser = null;
+// ── URL del Apps Script ────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw577_aLhl42DkpN7or4ejTC7XyxCCWLGBjXxsLNfQTPNlaRJ2cL3ViOGV0KR_TaRY/exec';
 
-// ---- INVENTARIO (datos demo · en producción: Google Sheets) ----
-let INVENTARIO = [
-  { pn:'800-EMVP-01-23', desc:'Ventilador EMV+ 731 S.America Spanish', prov:'ZOLL', lista:11359, costo:9800, stock:2, wh:'WH-038', tracking:'TRK-2026-011', venc:'', estado:'ok' },
-  { pn:'8660-001401-23', desc:'Ventilador Z Vent S.America Spanish', prov:'ZOLL', lista:11165, costo:9200, stock:1, wh:'WH-037', tracking:'TRK-2026-010', venc:'', estado:'ok' },
-  { pn:'60x-xx2xxx1-XX', desc:'X Series Advanced SpO2 International', prov:'ZOLL', lista:12662, costo:10500, stock:0, wh:'—', tracking:'TRK-2026-012', venc:'', estado:'zero' },
-  { pn:'8501-001201-23', desc:'ZOLL AED 3 Semi-auto Spanish', prov:'ZOLL', lista:1325, costo:1100, stock:5, wh:'WH-033..037', tracking:'TRK-2026-009', venc:'2029-06-01', estado:'ok' },
-  { pn:'8700-001003-01', desc:'AutoPulse NXT EMS Starter Kit English', prov:'ZOLL', lista:19027, costo:15800, stock:1, wh:'WH-039', tracking:'TRK-2026-011', venc:'', estado:'low' },
-  { pn:'8900-000280', desc:'CPR Uni-padz III Adult/Ped 5yr Shelf', prov:'ZOLL', lista:151, costo:110, stock:12, wh:'BIN-A4', tracking:'', venc:'2030-01-01', estado:'ok' },
-  { pn:'8000-0580-01', desc:'SurePower II Rechargeable Lithium Battery', prov:'ZOLL', lista:618, costo:490, stock:3, wh:'BIN-B2', tracking:'', venc:'', estado:'low' },
-  { pn:'8900-4003', desc:'Stat-padz Multi-Function Electrodes 12 prs', prov:'ZOLL', lista:431, costo:320, stock:8, wh:'BIN-A1', tracking:'', venc:'2027-03-01', estado:'ok' },
-];
+// ── Estado global ──────────────────────────────────────────
+let currentUser    = null;
+let INVENTARIO     = [];
+let CLIENTES       = [];
+let PRICEBOOK_DATA = [];
 
-// ---- CLIENTES (datos demo) ----
-let CLIENTES = [
-  { nombre:'Cdte. Héctor Lizano', empresa:'Cmd. Conjunto FFAA Ecuador', email:'lizano@ffaa.ec', tel:'+593 99 XXX XXXX', pais:'Ecuador', ciudad:'Quito', notas:'Proyecto ventiladores 2025' },
-  { nombre:'Dr. Ramirez', empresa:'Hospital San Martín, Lima', email:'ramirez@hsm.pe', tel:'+51 1 XXX XXXX', pais:'Perú', ciudad:'Lima', notas:'Ambulancia tipo II' },
-  { nombre:'Alejandro García', empresa:'Cruz Roja Colombiana', email:'garcia@cruzroja.co', tel:'+57 310 XXX XXXX', pais:'Colombia', ciudad:'Bogotá', notas:'AEDs para brigadas' },
-];
-
-// ---- PRICE BOOK ZOLL ----
-const PRICEBOOK = {
-  'X Series': [
-    { pn:'60x-xx2xxx1-XX', desc:'X Series SpO2 Masimo Rainbow', price:10470 },
-    { pn:'60x-xx3xxx1-XX', desc:'X Series SpO2 + SpCO', price:11755 },
-    { pn:'60x-xx4xxx1-XX', desc:'X Series SpO2 SpCO SpMet', price:13130 },
-    { pn:'60x-xx6xxx1-XX', desc:'X Series SpO2 SpCO SpHb SpOC PVI PI', price:15215 },
-    { pn:'8300-0800-01',   desc:'3-Lead ECG Cable AAMI', price:139 },
-    { pn:'8300-0801-01',   desc:'5-Lead ECG Cable AAMI', price:186 },
-    { pn:'8300-0802-01',   desc:'12-Lead one step ECG Cable AAMI', price:353 },
-    { pn:'8000-0580-01',   desc:'SurePower II Rechargeable Battery', price:618 },
-    { pn:'8050-0030-xx',   desc:'SurePower 4 Bay Charging Station', price:1744 },
-    { pn:'8707-000502-01', desc:'X Series Carry Case', price:542 },
-    { pn:'8000-000875-01', desc:'Thermal Paper BPA Free Box of 6', price:28 },
-  ],
-  'X Series Adv.': [
-    { pn:'60x-xx2xxx1-xx', desc:'X Series Advanced SpO2', price:12662 },
-    { pn:'60x-xx3xxx1-xx', desc:'X Series Advanced SpO2 + SpCO', price:540 },
-    { pn:'60x-xx4xxx1-xx', desc:'X Series Advanced SpO2 SpCO SpMet', price:15322 },
-    { pn:'60x-xx7xxx1-xx', desc:'X Series Advanced Full Masimo Rainbow', price:18781 },
-    { pn:'8000-000993',    desc:'AccuVent Cable (X Series Advanced only)', price:329 },
-    { pn:'8000-001128',    desc:'AccuVent Sensor Box of 10', price:561 },
-  ],
-  'AEDs / Powerheart': [
-    { pn:'20100000101011XX0', desc:'AED Plus Semi-auto Graphical Cover', price:1110 },
-    { pn:'8501-001201-XX',   desc:'ZOLL AED 3 Semi-automatic', price:1325 },
-    { pn:'8501-001202-XX',   desc:'ZOLL AED 3 Fully Automatic', price:1325 },
-    { pn:'G5A-xxC',          desc:'Powerheart G5 Fully Auto ICPR', price:1170 },
-    { pn:'G5S-xxC',          desc:'Powerheart G5 Semi Auto ICPR', price:1170 },
-    { pn:'8900-000280',      desc:'CPR Uni-padz III Adult/Ped', price:151 },
-    { pn:'8000-000696',      desc:'ZOLL AED 3 Battery Pack', price:124 },
-    { pn:'XELAED002C',       desc:'Powerheart G5 Intellisense ICPR Adult Pads', price:140 },
-    { pn:'XBTAED001A',       desc:'Intellisense Battery Powerheart G5', price:257 },
-  ],
-  'AutoPulse': [
-    { pn:'8700-0730-XX',  desc:'AutoPulse Pass Thru Resuscitation System', price:10489 },
-    { pn:'8700-0740-XX',  desc:'AutoPulse Plus Resuscitation System', price:10693 },
-    { pn:'8700-001003-01',desc:'AutoPulse NXT EMS Starter Kit English', price:19027 },
-    { pn:'8700-001002-01',desc:'AutoPulse NXT Hospital Starter Kit English', price:21696 },
-    { pn:'8700-001070-01',desc:'AutoPulse NXT Platform', price:14244 },
-    { pn:'8700-001012-01',desc:'AutoPulse NXT Lithium Battery', price:1387 },
-    { pn:'8700-0706-XX',  desc:'AutoPulse LifeBand 3 Pack', price:613 },
-  ],
-  'ZOLL M2': [
-    { pn:'8199-M20-23-100A', desc:'ZOLL M2 Base Unit Spanish', price:3622 },
-    { pn:'8199-M20-23-150A', desc:'ZOLL M2 Noninvasive Pacing Spanish', price:3901 },
-    { pn:'8199-M20-23-200A', desc:'ZOLL M2 Pacing SpO2 Spanish', price:4250 },
-    { pn:'8199-M20-23-300A', desc:'ZOLL M2 Pacing SpO2 NIBP Spanish', price:5699 },
-    { pn:'8199-M20-23-400B', desc:'ZOLL M2 Pacing SpO2 NIBP EtCO2 WiFi Spanish', price:7219 },
-    { pn:'8199-M20-23-500B', desc:'ZOLL M2 Full Config WiFi Spanish', price:9880 },
-    { pn:'8019-0535-01',     desc:'SurePower Rechargeable Li-ion Battery', price:597 },
-  ],
-  'R Series': [
-    { pn:'32720000001110xx2', desc:'R Series Basic Pacing', price:6667 },
-    { pn:'32720001001110xx2', desc:'R Series Basic Pacing SpO2', price:8026 },
-    { pn:'32120000001110xx2', desc:'R Series ALS Pacing', price:7627 },
-    { pn:'32120001001110xx2', desc:'R Series ALS Pacing SpO2', price:8988 },
-    { pn:'32120009001310xx2', desc:'R Series ALS Pacing SpO2 NIBP', price:10523 },
-    { pn:'32520000001110xx3', desc:'R Series PLUS Pacing', price:7884 },
-    { pn:'32520005201310xx3', desc:'R Series PLUS Pacing SpO2 NIBP EtCO2 M-stream', price:12100 },
-  ],
-  'Ventilación': [
-    { pn:'8660-001400-23', desc:'Z Vent Basic Spanish S.America', price:9041 },
-    { pn:'8660-001401-23', desc:'Z Vent Full Spanish S.America', price:11165 },
-    { pn:'8660-001402-23', desc:'Z Vent MRI Conditional S.America', price:11682 },
-    { pn:'800-EMVP-01-23', desc:'EMV+ 731 S.America Spanish v5.0', price:11359 },
-    { pn:'800-EMVP-05-01', desc:'EMV+ MRI 731 Commercial English v5.0', price:12506 },
-    { pn:'820-0106-15',    desc:'Ventilator Circuits EMV+ Adult 6ft Case/15', price:376 },
-    { pn:'820-0107-20',    desc:'Ventilator Circuits EMV+ Infant/Ped 6ft Case/20', price:497 },
-  ],
-  'AED Pro / AED3 BLS': [
-    { pn:'90210200499991XX0', desc:'AED Pro Semi-Auto/Manual', price:2448 },
-    { pn:'90210202499991XX0', desc:'AED Pro Semi-Auto/Manual Voice Recording', price:2613 },
-    { pn:'8502-001203-XX',   desc:'ZOLL AED 3 BLS Semi-automatic', price:2518 },
-    { pn:'8562-001206-XX',   desc:'ZOLL AED 3 BLS Aviation', price:2779 },
-    { pn:'8900-0800-01',     desc:'CPR-D-padz One Piece Real CPR Help', price:133 },
-    { pn:'8000-0860-01',     desc:'AED Pro Lithium Battery Pack', price:167 },
-  ],
-};
+// ── Helper universal para llamar al backend ────────────────
+async function api(action, params = {}) {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method:  'POST',
+      body:    JSON.stringify({ action, params }),
+    });
+    return await res.json();
+  } catch(e) {
+    return { ok: false, error: 'Error de red: ' + e.message };
+  }
+}
 
 // ============================================
 //  LOGIN
 // ============================================
-function doLogin() {
-  const user = document.getElementById('loginUser').value.trim().toLowerCase();
-  const pass = document.getElementById('loginPass').value;
-  const role = document.getElementById('loginRole').value;
-  const err  = document.getElementById('loginError');
+async function doLogin() {
+  const user  = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass  = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn   = document.querySelector('.btn-login');
 
-  // En producción: google.script.run.validateUser(user, pass, callback)
-  // Demo: acepta cualquier usuario + contraseña, o los predefinidos
-  let found = USERS[user];
-  if (!found) {
-    // Modo demo: aceptar cualquier usuario/contraseña
-    found = { role, name: user || 'Usuario', initial: (user[0]||'U').toUpperCase() };
+  if (!user || !pass) {
+    errEl.textContent = 'Ingresá usuario y contraseña';
+    errEl.style.display = 'block';
+    return;
+  }
+  btn.textContent = 'Verificando...';
+  btn.disabled    = true;
+  errEl.style.display = 'none';
+
+  const res = await api('validateUser', { usuario: user, password: pass });
+
+  btn.textContent = 'Ingresar al sistema →';
+  btn.disabled    = false;
+
+  if (!res.ok) {
+    errEl.textContent   = res.error || 'Credenciales incorrectas';
+    errEl.style.display = 'block';
+    return;
   }
 
-  err.style.display = 'none';
+  const found = res.data;
   currentUser = found;
-  document.getElementById('userName').textContent = found.name;
-  document.getElementById('userRole').textContent = found.role.charAt(0).toUpperCase()+found.role.slice(1);
-  document.getElementById('userAvatar').textContent = found.initial;
+  document.getElementById('userName').textContent = found.nombre;
+  document.getElementById('userRole').textContent = found.rol.charAt(0).toUpperCase() + found.rol.slice(1);
+  document.getElementById('userAvatar').textContent = (found.nombre[0] || 'U').toUpperCase();
 
-  // Ocultar finanzas si no es admin/finanzas
-  if (!['admin','finanzas'].includes(found.role)) {
+  if (!['admin','finanzas'].includes(found.rol)) {
     document.getElementById('navFinanzas').style.display = 'none';
   }
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
-  renderInventario();
-  renderPriceBook();
-  renderClientes();
   updateClock();
   setInterval(updateClock, 60000);
-  showToast('¡Bienvenido, ' + found.name + '!', 'success');
+  loadAllData();
+  showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
+}
+
+// ── Cargar todos los datos al iniciar sesión ───────────────
+async function loadAllData() {
+  setLoading('invBody', true);
+  setLoading('clientGrid', true);
+
+  const [rInv, rCli, rPB] = await Promise.all([
+    api('getInventario'),
+    api('getClientes'),
+    api('getPriceBook'),
+  ]);
+
+  if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
+  if (rCli.ok) { CLIENTES       = rCli.data; renderClientes();   }
+  if (rPB.ok)  { PRICEBOOK_DATA = rPB.data;  renderPriceBook();  }
+}
+
+// ── Indicador de carga ─────────────────────────────────────
+function setLoading(elId, on) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (on) el.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>';
 }
 
 function doLogout() {
@@ -1143,30 +1161,27 @@ function updateClock() {
 //  INVENTARIO
 // ============================================
 function renderInventario(data) {
-  const rows = data || INVENTARIO;
+  const rows  = data || INVENTARIO;
   const tbody = document.getElementById('invBody');
-  tbody.innerHTML = '';
-  rows.forEach((item,i) => {
-    const statusMap = { ok:'badge-green', low:'badge-warning', zero:'badge-danger' };
-    const statusLabel = { ok:'OK', low:'Stock bajo', zero:'Sin stock' };
-    tbody.innerHTML += `
-      <tr>
-        <td class="pn">${item.pn}</td>
-        <td style="max-width:260px;white-space:normal">${item.desc}</td>
-        <td><span class="badge badge-muted">${item.prov}</span></td>
-        <td>$${item.lista.toLocaleString()}</td>
-        <td>$${item.costo.toLocaleString()}</td>
-        <td><b>${item.stock}</b></td>
-        <td class="pn">${item.wh||'—'}</td>
-        <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
-        <td style="font-size:12px">${item.venc||'—'}</td>
-        <td><span class="badge ${statusMap[item.estado]}">${statusLabel[item.estado]}</span></td>
-        <td>
-          <button class="tbl-action" onclick="editItem(${i})" title="Editar">✏️</button>
-          <button class="tbl-action" onclick="deleteItem(${i})" title="Eliminar">🗑</button>
-        </td>
-      </tr>`;
-  });
+  const statusMap   = { ok:'badge-green', low:'badge-warning', zero:'badge-danger' };
+  const statusLabel = { ok:'OK', low:'Stock bajo', zero:'Sin stock' };
+  tbody.innerHTML = rows.map((item, i) => `
+    <tr>
+      <td class="pn">${item.pn}</td>
+      <td style="max-width:260px;white-space:normal">${item.desc}</td>
+      <td><span class="badge badge-muted">${item.prov}</span></td>
+      <td>$${Number(item.lista||0).toLocaleString()}</td>
+      <td>$${Number(item.costo||0).toLocaleString()}</td>
+      <td><b>${item.stock}</b></td>
+      <td class="pn">${item.wh||'—'}</td>
+      <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
+      <td style="font-size:12px">${item.venc||'—'}</td>
+      <td><span class="badge ${statusMap[item.estado]||'badge-muted'}">${statusLabel[item.estado]||item.estado}</span></td>
+      <td>
+        <button class="tbl-action" onclick="openEditItem('${item.id}')" title="Editar">✏️</button>
+        <button class="tbl-action" onclick="confirmDeleteItem('${item.id}','${item.pn}')" title="Eliminar">🗑</button>
+      </td>
+    </tr>`).join('');
   document.getElementById('invCount').textContent = rows.length + ' ítems';
 }
 
@@ -1175,7 +1190,7 @@ function filterInventario() {
   const prov = document.getElementById('invFilterProv').value;
   const stk  = document.getElementById('invFilterStock').value;
   const filtered = INVENTARIO.filter(i => {
-    const matchQ    = !q || i.pn.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q) || (i.wh||'').toLowerCase().includes(q);
+    const matchQ    = !q || String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q) || String(i.wh||'').toLowerCase().includes(q);
     const matchProv = !prov || i.prov === prov;
     const matchStk  = !stk || i.estado === stk;
     return matchQ && matchProv && matchStk;
@@ -1183,83 +1198,150 @@ function filterInventario() {
   renderInventario(filtered);
 }
 
-function editItem(idx) { showToast('Editando ítem ' + INVENTARIO[idx].pn, 'info'); }
-function deleteItem(idx) {
-  if (confirm('¿Eliminar ' + INVENTARIO[idx].pn + '?')) {
-    INVENTARIO.splice(idx,1);
+function saveItem() {
+  const data = {
+    pn:    document.getElementById('invPN').value.trim(),
+    desc:  document.getElementById('invDesc').value.trim(),
+    prov:  document.getElementById('invProv').value,
+    lista: document.getElementById('invLista').value,
+    costo: document.getElementById('invCosto').value,
+    stock: document.getElementById('invStock').value,
+    wh:    document.getElementById('invWH').value.trim(),
+    tracking: document.getElementById('invTracking').value.trim(),
+    lote:  document.getElementById('invLote').value.trim(),
+    venc:  document.getElementById('invVenc').value,
+  };
+  if (!data.pn || !data.desc) {
+    showToast('PN y descripción son requeridos', 'error');
+    return;
+  }
+  const editId = document.getElementById('modalItem').dataset.editId;
+  const fn     = editId ? 'updateItem' : 'addItem';
+  const args   = editId ? [editId, data] : [data];
+
+  showToast('Guardando...', 'info');
+  api(fn === 'updateItem' ? 'updateItem' : 'addItem',
+      fn === 'updateItem' ? { id: args[0], data: args[1] } : { data: args[0] }
+  ).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    closeModal('modalItem');
+    document.getElementById('modalItem').dataset.editId = '';
+    api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+    showToast('✅ Ítem guardado', 'success');
+  });
+}
+
+function openEditItem(id) {
+  const item = INVENTARIO.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('invPN').value      = item.pn;
+  document.getElementById('invDesc').value    = item.desc;
+  document.getElementById('invProv').value    = item.prov;
+  document.getElementById('invLista').value   = item.lista;
+  document.getElementById('invCosto').value   = item.costo;
+  document.getElementById('invStock').value   = item.stock;
+  document.getElementById('invWH').value      = item.wh || '';
+  document.getElementById('invTracking').value= item.tracking || '';
+  document.getElementById('invLote').value    = item.lote || '';
+  document.getElementById('invVenc').value    = item.venc || '';
+  document.getElementById('modalItem').dataset.editId = id;
+  openModal('modalItem');
+}
+
+function confirmDeleteItem(id, pn) {
+  if (!confirm('¿Eliminar ' + pn + '?')) return;
+  api('deleteItem', { id }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    INVENTARIO = INVENTARIO.filter(i => i.id !== id);
     renderInventario();
     showToast('Ítem eliminado', 'success');
-    // En producción: google.script.run.deleteItem(idx)
-  }
+  });
 }
-function saveItem() {
-  showToast('✅ Ítem guardado en el inventario', 'success');
-  closeModal('modalItem');
-  // En producción: google.script.run.addItem(formData)
-}
-function exportInventario() { showToast('📥 Exportando inventario...', 'info'); }
+
+function exportInventario() { showToast('📥 Exportando... (próximamente)', 'info'); }
 
 // ============================================
-//  PRICE BOOK
+//  PRICE BOOK (datos desde Sheet)
 // ============================================
 function renderPriceBook() {
-  const tabs = document.getElementById('pbTabs');
+  const tabs     = document.getElementById('pbTabs');
   const contents = document.getElementById('pbContents');
   tabs.innerHTML = '';
   contents.innerHTML = '';
-  const keys = Object.keys(PRICEBOOK);
-  keys.forEach((k,i) => {
-    tabs.innerHTML += `<div class="pb-tab${i===0?' active':''}" onclick="switchPBTab('${k}',this)">${k}</div>`;
+
+  // Agrupar por categoría
+  const grouped = {};
+  PRICEBOOK_DATA.forEach(item => {
+    if (!grouped[item.categoria]) grouped[item.categoria] = [];
+    grouped[item.categoria].push(item);
+  });
+
+  const keys = Object.keys(grouped);
+  if (!keys.length) {
+    contents.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><h3>Price Book vacío</h3><p>Ejecutá loadPriceBookZOLL() en Apps Script para cargar los ítems.</p></div>';
+    return;
+  }
+
+  keys.forEach((k, i) => {
+    const safeId = 'pbt_' + i;
+    tabs.innerHTML += `<div class="pb-tab${i===0?' active':''}" onclick="switchPBTab('${safeId}',this)">${k}</div>`;
+    const rows = grouped[k].map(r => `
+      <tr>
+        <td class="pn">${r.pn}</td>
+        <td>${r.desc}</td>
+        <td><b>$${Number(r.price).toLocaleString()}</b></td>
+        <td>
+          <button class="tbl-action" title="Al inventario" onclick='addToInv(${JSON.stringify(r).replace(/'/g,"&#39;")})'>📦</button>
+          <button class="tbl-action" title="A cotización"  onclick='addToCot(${JSON.stringify(r).replace(/'/g,"&#39;")})'>📄</button>
+        </td>
+      </tr>`).join('');
     contents.innerHTML += `
-      <div class="pb-content${i===0?' active':''}" id="pbt-${k.replace(/\s|[^\w]/g,'_')}">
+      <div class="pb-content${i===0?' active':''}" id="${safeId}">
         <div class="table-container">
           <div class="pb-category">${k}</div>
           <table class="data-table">
             <thead><tr><th>Part Number</th><th>Descripción</th><th>Precio Lista (USD)</th><th></th></tr></thead>
-            <tbody>${PRICEBOOK[k].map(r=>`
-              <tr>
-                <td class="pn">${r.pn}</td>
-                <td>${r.desc}</td>
-                <td><b>$${r.price.toLocaleString()}</b></td>
-                <td>
-                  <button class="tbl-action" title="Agregar al inventario" onclick='addToInv(${JSON.stringify(r)})'>📦</button>
-                  <button class="tbl-action" title="Agregar a cotización" onclick='addToCot(${JSON.stringify(r)})'>📄</button>
-                </td>
-              </tr>`).join('')}
-            </tbody>
+            <tbody>${rows}</tbody>
           </table>
-          <div class="table-footer"><span>${PRICEBOOK[k].length} ítems · FY2025 LATAM/Caribbean/Israel</span></div>
+          <div class="table-footer"><span>${grouped[k].length} ítems · FY2025 LATAM/Caribbean/Israel</span></div>
         </div>
       </div>`;
   });
 }
 
-function switchPBTab(key, el) {
+function switchPBTab(id, el) {
   document.querySelectorAll('.pb-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.pb-content').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  const id = 'pbt-' + key.replace(/\s|[^\w]/g,'_');
   const el2 = document.getElementById(id);
   if (el2) el2.classList.add('active');
 }
 
 function filterPB() {
   const q = document.getElementById('pbSearch').value.toLowerCase();
-  document.querySelectorAll('.data-table tbody tr').forEach(tr => {
-    const txt = tr.textContent.toLowerCase();
-    tr.style.display = (!q || txt.includes(q)) ? '' : 'none';
+  document.querySelectorAll('#pbContents .data-table tbody tr').forEach(tr => {
+    tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
   });
 }
 
 function addToInv(item) {
-  INVENTARIO.push({ pn:item.pn, desc:item.desc, prov:'ZOLL', lista:item.price, costo:0, stock:0, wh:'—', tracking:'', venc:'', estado:'zero' });
-  renderInventario();
-  showToast('📦 ' + item.pn + ' agregado al inventario', 'success');
+  const data = { pn:item.pn, desc:item.desc, prov:'ZOLL', lista:item.price, costo:0, stock:0 };
+  api('addItem', { data }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+    showToast('📦 ' + item.pn + ' agregado al inventario', 'success');
+  });
 }
 
-function addToCot(item) { showToast('📄 ' + item.pn + ' agregado a la cotización', 'info'); }
+function addToCot(item) {
+  // Agregar al constructor de cotización activo
+  cotItems.push({ pn:item.pn, desc:item.desc, qty:1, precio_lista:item.price });
+  renderCotItems();
+  showToast('📄 ' + item.pn + ' agregado a cotización', 'info');
+}
+
 function addPBtoInventario() { showToast('Seleccioná un ítem con el botón 📦', 'info'); }
-function searchForQuote(q) { /* búsqueda en cotización */ }
+
 
 // ============================================
 //  CLIENTES
@@ -1267,9 +1349,12 @@ function searchForQuote(q) { /* búsqueda en cotización */ }
 function renderClientes(data) {
   const list = data || CLIENTES;
   const grid = document.getElementById('clientGrid');
-  const initials = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><h3>Sin clientes</h3><p>Agregá el primero.</p></div>';
+    return;
+  }
   grid.innerHTML = list.map(c => `
-    <div class="client-card">
+    <div class="client-card" onclick="openEditCliente('${c.id}')">
       <div class="client-avatar">${(c.nombre[0]||'C').toUpperCase()}</div>
       <div class="client-name">${c.nombre}</div>
       <div class="client-company">${c.empresa}</div>
@@ -1284,29 +1369,120 @@ function renderClientes(data) {
 
 function filterClientes() {
   const q = document.getElementById('clientSearch').value.toLowerCase();
-  const filtered = CLIENTES.filter(c =>
-    c.nombre.toLowerCase().includes(q) || c.empresa.toLowerCase().includes(q) || c.pais.toLowerCase().includes(q)
-  );
-  renderClientes(filtered);
+  renderClientes(CLIENTES.filter(c =>
+    String(c.nombre).toLowerCase().includes(q) ||
+    String(c.empresa).toLowerCase().includes(q) ||
+    String(c.pais).toLowerCase().includes(q)
+  ));
 }
 
 function saveCliente() {
-  showToast('✅ Cliente guardado', 'success');
-  closeModal('modalCliente');
+  const data = {
+    nombre:  document.getElementById('cliNombre').value.trim(),
+    empresa: document.getElementById('cliEmpresa').value.trim(),
+    email:   document.getElementById('cliEmail').value.trim(),
+    tel:     document.getElementById('cliTel').value.trim(),
+    pais:    document.getElementById('cliPais').value,
+    ciudad:  document.getElementById('cliCiudad').value.trim(),
+    notas:   document.getElementById('cliNotas').value.trim(),
+  };
+  if (!data.nombre) { showToast('El nombre es requerido', 'error'); return; }
+  const editId = document.getElementById('modalCliente').dataset.editId;
+  const fn     = editId ? 'updateCliente' : 'addCliente';
+  const args   = editId ? [editId, data] : [data];
+
+  api(fn === 'updateCliente' ? 'updateCliente' : 'addCliente',
+      fn === 'updateCliente' ? { id: args[0], data: args[1] } : { data: args[0] }
+  ).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    closeModal('modalCliente');
+    document.getElementById('modalCliente').dataset.editId = '';
+    api('getClientes').then(r2 => { if (r2.ok) { CLIENTES = r2.data; renderClientes(); } });
+    showToast('✅ Cliente guardado', 'success');
+  });
 }
+
+function openEditCliente(id) {
+  const c = CLIENTES.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('cliNombre').value  = c.nombre;
+  document.getElementById('cliEmpresa').value = c.empresa;
+  document.getElementById('cliEmail').value   = c.email;
+  document.getElementById('cliTel').value     = c.tel;
+  document.getElementById('cliPais').value    = c.pais;
+  document.getElementById('cliCiudad').value  = c.ciudad;
+  document.getElementById('cliNotas').value   = c.notas || '';
+  document.getElementById('modalCliente').dataset.editId = id;
+  openModal('modalCliente');
+}
+
+
+// ============================================
+//  COTIZACIONES (constructor básico)
+// ============================================
+let cotItems = [];
+
+function renderCotItems() {
+  const markup = Number(document.getElementById('cotMarkup').value) || 30;
+  let subtotal = 0;
+  const html = cotItems.map((item, i) => {
+    const total = item.precio_lista * item.qty * (1 + markup/100);
+    subtotal += total;
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px">
+      <span class="pn" style="width:160px">${item.pn}</span>
+      <span style="flex:1">${item.desc}</span>
+      <input type="number" value="${item.qty}" min="1" style="width:50px;padding:4px;background:#F5F8FA;border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center"
+        onchange="cotItems[${i}].qty=Number(this.value);renderCotItems()">
+      <span style="width:90px;text-align:right">$${total.toFixed(0)}</span>
+      <button class="tbl-action" onclick="cotItems.splice(${i},1);renderCotItems()">🗑</button>
+    </div>`;
+  }).join('');
+  document.getElementById('cotItems').innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
+  document.getElementById('cotTotal').textContent = '$' + subtotal.toFixed(2);
+}
+
+function searchForQuote(q) {
+  if (!q || q.length < 2) return;
+  const hits = PRICEBOOK_DATA.filter(i =>
+    i.pn.toLowerCase().includes(q.toLowerCase()) ||
+    i.desc.toLowerCase().includes(q.toLowerCase())
+  ).slice(0, 8);
+  // Mostrar sugerencias (simplificado)
+  if (hits.length) showToast('Encontrados: ' + hits.map(h=>h.pn).join(', '), 'info');
+}
+
 
 // ============================================
 //  FINANZAS
 // ============================================
 function unlockFinanzas() {
   const pin = document.getElementById('finPin').value;
-  if (pin === FIN_PIN || (currentUser && currentUser.role === 'admin')) {
-    document.getElementById('finanzasLocked').style.display = 'none';
+  api('validateFinPin', { pin }).then(r => {
+    if (!r.ok) { showToast('❌ PIN incorrecto', 'error'); return; }
+    document.getElementById('finanzasLocked').style.display  = 'none';
     document.getElementById('finanzasContent').style.display = 'block';
+    loadFinanzas();
     showToast('✅ Sección financiera desbloqueada', 'success');
-  } else {
-    showToast('❌ PIN incorrecto', 'error');
-  }
+  });
+}
+
+function loadFinanzas() {
+  api('getFinanzas').then(r => {
+    if (!r.ok) return;
+    const movs = r.data;
+    if (!movs.length) return;
+    const ultimo = movs[movs.length-1];
+    document.querySelector('.finanzas-balance').textContent = '$' + Number(ultimo.saldo).toLocaleString();
+    const tbody = document.querySelector('#finanzasContent table tbody');
+    if (!tbody) return;
+    tbody.innerHTML = movs.slice(-10).reverse().map(m => `
+      <tr>
+        <td>${m.fecha}</td><td>${m.desc}</td>
+        <td style="color:var(--green)">${m.ingreso?'+$'+Number(m.ingreso).toLocaleString():'—'}</td>
+        <td style="color:var(--danger)">${m.egreso?'-$'+Number(m.egreso).toLocaleString():'—'}</td>
+        <td class="pn">$${Number(m.saldo).toLocaleString()}</td>
+      </tr>`).join('');
+  });
 }
 
 // ============================================
@@ -1347,28 +1523,369 @@ document.addEventListener('keydown', e => {
 // ============================================
 //  INIT
 // ============================================
-updateClock();
+updateClock();-e <!-- ===== MODAL: NUEVO TRACKING ===== -->
+<div class="modal-overlay" id="modalTracking">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title">✈️ Nuevo Tracking</div>
+      <button class="modal-close" onclick="closeModal('modalTracking')">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="field"><label>Número de tracking</label><input type="text" id="trkNumero" placeholder="774899513289"></div>
+      <div class="field"><label>Carrier</label>
+        <select id="trkCarrier" style="width:100%;padding:12px 14px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none">
+          <option>FedEx</option><option>DHL</option><option>UPS</option><option>USPS</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Origen</label><input type="text" id="trkOrigen" placeholder="Boston, MA"></div>
+      <div class="field"><label>Destino</label><input type="text" id="trkDestino" value="Miami, FL"></div>
+      <div class="field"><label>ETA</label><input type="date" id="trkETA"></div>
+      <div class="field"><label>Estado</label>
+        <select id="trkEstado" style="width:100%;padding:12px 14px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none">
+          <option>En tránsito</option><option>Pendiente</option><option>Recibido</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px">Ítems asociados</div>
+      <input type="text" placeholder="Buscar ítem del inventario..." oninput="searchItemsForTracking(this.value)" style="width:100%;padding:10px 14px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;outline:none;margin-bottom:8px">
+      <div id="trkItemsSearch" style="max-height:160px;overflow-y:auto;background:#F7FAFA;border-radius:var(--radius);padding:8px"></div>
+      <div id="trkItemsSelected" style="margin-top:8px;font-size:12px;color:var(--green)"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalTracking')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveTracking()">💾 Guardar tracking</button>
+    </div>
+  </div>
+</div>
 
-/*
- * ============================================================
- * INTEGRACIÓN CON GOOGLE APPS SCRIPT
- * Para conectar con la hoja de cálculo, reemplazá las 
- * funciones de datos locales con llamadas a:
- *
- * google.script.run
- *   .withSuccessHandler(callback)
- *   .withFailureHandler(err => showToast(err.message,'error'))
- *   .getInventario()         → carga inventario desde Sheet
- *   .addItem(data)           → agrega ítem al Sheet
- *   .deleteItem(pn)          → elimina ítem del Sheet
- *   .getClientes()           → carga clientes
- *   .addCliente(data)        → guarda cliente
- *   .validateUser(u,p)       → login seguro
- *   .saveCotizacion(data)    → guarda cotización
- *   .sendEmail(to,subj,html) → envía email via Gmail
- *   .getGoldwayData()        → lee el Sheet de Goldway
- * ============================================================
- */
+<!-- ===== MODAL: EMAIL WAREHOUSE ===== -->
+<div class="modal-overlay" id="modalEmailWH">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header">
+      <div class="modal-title">📧 Email al Warehouse</div>
+      <button class="modal-close" onclick="closeModal('modalEmailWH')">✕</button>
+    </div>
+    <div class="field"><label>Para</label><input type="email" id="whEmailTo" placeholder="warehouse@amelife-911.com"></div>
+    <div style="background:#F7FAFA;border-radius:var(--radius);padding:16px;font-size:13px;line-height:1.9;margin:12px 0;border:1px solid rgba(0,0,0,0.09)">
+      Estimados, por favor armar lo siguiente.<br>
+      Enviarme números de Serie, Lotes y vencimiento, cuando aplique.<br>
+      Saludos!!<br><br>
+      <div id="whEmailItems" style="color:var(--muted)">— sin ítems seleccionados —</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalEmailWH')">Cancelar</button>
+      <button class="btn btn-primary" onclick="enviarEmailWH()">📧 Enviar</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.drop-over { border-color: var(--green) !important; background: rgba(74,154,42,0.05) !important; }
+.wh-input { width:100%;padding:7px 10px;background:#F7FAFC;border:1px solid #D1DCE5;border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border var(--transition); }
+.wh-input:focus { border-color:var(--green); }
+.wh-input.filled { border-color:var(--green-dark);background:rgba(74,154,42,0.06); }
+.trk-item-row { display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background var(--transition);font-size:13px; }
+.trk-item-row:hover { background:#EEF3F8; }
+</style>
+
+<script>
+// ============================================================
+// AMELIFE · Facturas + WH + Trackings JS | 2026-03-05 14:00 ARG
+// ============================================================
+
+let facturaItems = [];
+let whItems      = [];
+let TRACKINGS    = [];
+let trkSelected  = [];
+
+// ── showPanel extendido para cargar datos ──────────────────
+const _origShowPanel = showPanel;
+showPanel = function(id, el) {
+  _origShowPanel(id, el);
+  if (id === 'trackings') loadTrackings();
+  if (id === 'warehouse') { loadWHItems(); loadTrackings(); }
+};
+
+// ── TRACKINGS ──────────────────────────────────────────────
+function loadTrackings() {
+  api('getTrackings').then(r => {
+    if (!r.ok) return;
+    TRACKINGS = r.data;
+    renderTrackings();
+    const sel  = document.getElementById('whFilterTracking');
+    const opts = ['<option value="">Todos los trackings</option>'];
+    TRACKINGS.forEach(t => opts.push(`<option value="${t.numero}">${t.numero}${t.carrier?' · '+t.carrier:''}</option>`));
+    sel.innerHTML = opts.join('');
+  });
+}
+
+function renderTrackings(data) {
+  const list = data || TRACKINGS;
+  const sm   = { 'En tránsito':'badge-warning', 'Recibido':'badge-green', 'Pendiente':'badge-muted' };
+  document.getElementById('trkBody').innerHTML = list.map(t => `
+    <tr>
+      <td class="pn" style="cursor:pointer" onclick="verItemsTracking('${t.numero}')">${t.numero}</td>
+      <td>${t.carrier||'—'}</td>
+      <td style="font-size:12px;max-width:180px;white-space:normal">${t.items||'—'}</td>
+      <td>${t.origen||'—'}</td>
+      <td>${t.destino||'—'}</td>
+      <td>${t.eta||'—'}</td>
+      <td><span class="badge ${sm[t.estado]||'badge-muted'}">${t.estado||'—'}</span></td>
+      <td class="pn" style="font-size:11px">${t.wh||'—'}</td>
+      <td>
+        <button class="tbl-action" onclick="marcarRecibido('${t.id}')" title="Marcar recibido">✅</button>
+        <button class="tbl-action" onclick="verItemsTracking('${t.numero}')" title="Ver ítems">👁</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--muted)">Sin trackings</td></tr>';
+  document.getElementById('trkCount').textContent = list.length + ' trackings';
+}
+
+function filterTrackings() {
+  const q  = document.getElementById('trkSearch').value.toLowerCase();
+  const st = document.getElementById('trkFilterEstado').value;
+  renderTrackings(TRACKINGS.filter(t =>
+    (!q  || String(t.numero).toLowerCase().includes(q) || String(t.items||'').toLowerCase().includes(q)) &&
+    (!st || t.estado === st)
+  ));
+}
+
+function verItemsTracking(numero) {
+  const det = document.getElementById('trkDetalle');
+  det.style.display = 'block';
+  document.getElementById('trkDetalleTitle').textContent = '📦 Ítems del tracking ' + numero;
+  document.getElementById('trkDetalleBody').innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">⏳ Cargando...</div>';
+  api('getItemsByTracking', { trackingNum: numero }).then(r => {
+    if (!r.ok || !r.data.length) {
+      document.getElementById('trkDetalleBody').innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Sin ítems asociados</div>';
+      return;
+    }
+    document.getElementById('trkDetalleBody').innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>PN</th><th>Descripción</th><th>Stock</th><th>WH</th><th>Estado</th></tr></thead>
+        <tbody>${r.data.map(i=>`<tr>
+          <td class="pn">${i.pn}</td><td>${i.desc}</td><td>${i.stock}</td>
+          <td class="pn">${i.wh||'<span style="color:var(--warning)">Sin WH</span>'}</td>
+          <td>${i.estado==='ok'?'✅':i.estado==='low'?'⚠️':'❌'}</td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+  });
+}
+
+function saveTracking() {
+  const data = {
+    numero:  document.getElementById('trkNumero').value.trim(),
+    carrier: document.getElementById('trkCarrier').value,
+    origen:  document.getElementById('trkOrigen').value.trim(),
+    destino: document.getElementById('trkDestino').value.trim(),
+    eta:     document.getElementById('trkETA').value,
+    estado:  document.getElementById('trkEstado').value,
+  };
+  if (!data.numero) { showToast('Ingresá el número de tracking', 'error'); return; }
+  api('addTracking', { data }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    if (trkSelected.length) {
+      api('asignarTrackingAItems', { itemIds: trkSelected.map(i=>i.id), trackingNumero: data.numero });
+    }
+    trkSelected = [];
+    closeModal('modalTracking');
+    loadTrackings();
+    showToast('✅ Tracking guardado', 'success');
+  });
+}
+
+function marcarRecibido(id) {
+  api('updateTrackingEstado', { id, estado: 'Recibido', wh: '' }).then(r => {
+    if (r.ok) { loadTrackings(); showToast('✅ Marcado como recibido', 'success'); }
+  });
+}
+
+function searchItemsForTracking(q) {
+  const box = document.getElementById('trkItemsSearch');
+  if (!q || q.length < 2) { box.innerHTML = ''; return; }
+  const hits = INVENTARIO.filter(i =>
+    i.pn.toLowerCase().includes(q.toLowerCase()) ||
+    i.desc.toLowerCase().includes(q.toLowerCase())
+  ).slice(0, 8);
+  box.innerHTML = hits.map(i => `
+    <div class="trk-item-row">
+      <input type="checkbox" id="tc_${i.id}" onchange="toggleTrkItem(this,'${i.id}','${i.pn}')">
+      <label for="tc_${i.id}" style="cursor:pointer;flex:1"><span class="pn" style="margin-right:8px">${i.pn}</span>${i.desc}</label>
+    </div>`).join('') || '<div style="color:var(--muted);padding:8px">Sin resultados</div>';
+}
+
+function toggleTrkItem(chk, id, pn) {
+  if (chk.checked) trkSelected.push({id, pn});
+  else trkSelected = trkSelected.filter(i => i.id !== id);
+  document.getElementById('trkItemsSelected').textContent =
+    trkSelected.length ? 'Seleccionados: ' + trkSelected.map(i=>i.pn).join(', ') : '';
+}
+
+// ── WAREHOUSE ──────────────────────────────────────────────
+function loadWHItems() {
+  document.getElementById('whBody').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)">⏳ Cargando...</td></tr>';
+  Promise.all([api('getItemsSinWH'), api('getInventario')]).then(([rWH, rInv]) => {
+    if (rWH.ok)  { whItems = rWH.data; renderWHItems(); }
+    if (rInv.ok) {
+      const sinWH = rInv.data.filter(i => !i.wh || i.wh==='' || i.wh==='—').length;
+      document.getElementById('whSinContar').textContent   = sinWH;
+      document.getElementById('whConContador').textContent = rInv.data.length - sinWH;
+    }
+  });
+}
+
+function renderWHItems(data) {
+  const list = data || whItems;
+  document.getElementById('whBody').innerHTML = list.map((item,i) => `
+    <tr>
+      <td class="pn">${item.pn}</td>
+      <td style="font-size:12px;max-width:180px;white-space:normal">${item.desc}</td>
+      <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
+      <td><b>${item.stock}</b></td>
+      <td><input class="wh-input" id="wh_${i}" placeholder="WH-XXX" value="${item.wh||''}"
+          oninput="this.classList.toggle('filled',this.value.length>0)"
+          onchange="whItems[${i}]._wh=this.value"></td>
+      <td><input class="wh-input" id="lot_${i}" placeholder="LOT-XXXX" value="${item.lote||''}"
+          onchange="whItems[${i}]._lote=this.value"></td>
+      <td><input type="date" class="wh-input" id="venc_${i}" value="${item.venc||''}"
+          onchange="whItems[${i}]._venc=this.value"></td>
+      <td><input class="wh-input" id="serie_${i}" placeholder="SN-XXXXX"
+          onchange="whItems[${i}]._serie=this.value"></td>
+    </tr>`).join('') ||
+    '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--green)">✅ Todos los ítems tienen WH asignado</td></tr>';
+  document.getElementById('whCount').textContent = list.length + ' ítems sin WH';
+}
+
+function filterWH() {
+  const q   = document.getElementById('whSearch').value.toLowerCase();
+  const trk = document.getElementById('whFilterTracking').value;
+  renderWHItems(whItems.filter(i =>
+    (!q   || i.pn.toLowerCase().includes(q) || i.desc.toLowerCase().includes(q)) &&
+    (!trk || String(i.tracking)===trk)
+  ));
+}
+
+function guardarWHBulk() {
+  const toSave = whItems.map((item,i) => ({
+    id:    item.id, pn: item.pn,
+    wh:    document.getElementById('wh_'+i)?.value.trim()   || '',
+    lote:  document.getElementById('lot_'+i)?.value.trim()  || '',
+    venc:  document.getElementById('venc_'+i)?.value        || '',
+    serie: document.getElementById('serie_'+i)?.value.trim()|| '',
+  })).filter(i => i.wh);
+  if (!toSave.length) { showToast('Ingresá al menos un WH para guardar','error'); return; }
+  api('asignarWHBulk', { items: toSave }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    showToast('✅ ' + r.data.asignados + ' WH asignados', 'success');
+    loadWHItems();
+    api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+  });
+}
+
+function emailWarehouseModal() {
+  const lista = whItems.slice(0,20).map(i=>`${i.stock} · ${i.pn} · ${i.desc}`).join('<br>');
+  document.getElementById('whEmailItems').innerHTML = lista || '— sin ítems —';
+  openModal('modalEmailWH');
+}
+
+function enviarEmailWH() {
+  const to = document.getElementById('whEmailTo').value.trim();
+  if (!to) { showToast('Ingresá el email destino','error'); return; }
+  const items = whItems.map(i=>({ qty:i.stock, pn:i.pn, desc:i.desc, wh:i.wh||'' }));
+  api('emailWarehouse', { items, toWarehouse: to }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    closeModal('modalEmailWH');
+    showToast('📧 Email enviado', 'success');
+  });
+}
+
+// ── DRAG & DROP FACTURA ────────────────────────────────────
+function dropOver(e)  { e.preventDefault(); document.getElementById('dropZone').classList.add('drop-over'); }
+function dropLeave(e) { document.getElementById('dropZone').classList.remove('drop-over'); }
+function dropFile(e)  {
+  e.preventDefault(); document.getElementById('dropZone').classList.remove('drop-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type==='application/pdf') processPDF(file);
+  else showToast('Solo se aceptan archivos PDF','error');
+}
+function handlePDFSelect(e) { if (e.target.files[0]) processPDF(e.target.files[0]); }
+
+function processPDF(file) {
+  document.getElementById('facturaEmpty').style.display   = 'none';
+  document.getElementById('facturaTable').style.display   = 'none';
+  document.getElementById('facturaLoading').style.display = 'block';
+  document.getElementById('facturaActions').style.display = 'none';
+  document.getElementById('facturaTitle').textContent     = '📋 ' + file.name;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const base64 = ev.target.result.split(',')[1];
+    api('importarFacturaPDF', { base64Data: base64, fileName: file.name }).then(r => {
+      document.getElementById('facturaLoading').style.display = 'none';
+      if (!r.ok) {
+        showToast(r.error, 'error');
+        document.getElementById('facturaEmpty').style.display = 'block';
+        return;
+      }
+      facturaItems = r.data.items;
+      renderFacturaItems();
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderFacturaItems() {
+  document.getElementById('facturaBody').innerHTML = facturaItems.map((item,i) => `
+    <tr>
+      <td><input type="checkbox" class="fchk" checked data-idx="${i}"></td>
+      <td class="pn">${item.pn}</td>
+      <td style="font-size:12px">${item.desc}</td>
+      <td><input type="number" value="${item.qty}" min="1"
+          style="width:50px;padding:4px 6px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);text-align:center;font-size:12px"
+          onchange="facturaItems[${i}].qty=Number(this.value)"></td>
+      <td><input type="number" value="${item.precio_costo}"
+          style="width:90px;padding:4px 6px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);text-align:right;font-size:12px;font-family:'JetBrains Mono',monospace"
+          onchange="facturaItems[${i}].precio_costo=Number(this.value)"></td>
+    </tr>`).join('');
+  document.getElementById('facturaBadge').style.display = 'inline-block';
+  document.getElementById('facturaBadge').textContent   = facturaItems.length + ' ítems';
+  document.getElementById('facturaTable').style.display = 'table';
+  document.getElementById('facturaActions').style.display = 'flex';
+}
+
+function toggleAllFactura(chk) { document.querySelectorAll('.fchk').forEach(c => c.checked=chk.checked); }
+
+function confirmarImportacion() {
+  const checked  = Array.from(document.querySelectorAll('.fchk:checked')).map(c=>Number(c.dataset.idx));
+  const items    = facturaItems.filter((_,i)=>checked.includes(i));
+  const tracking = document.getElementById('facturaTracking').value.trim();
+  if (!items.length) { showToast('Seleccioná al menos un ítem','error'); return; }
+  api('confirmarImportacion', { items, trackingNum: tracking }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    showToast(`✅ ${r.data.added} agregados · ${r.data.updated} actualizados`, 'success');
+    const hist = document.getElementById('historialFacturas');
+    const now  = new Date().toLocaleString('es-AR');
+    hist.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border2)">
+      ✅ <b>${now}</b> · ${items.length} ítems · tracking: ${tracking||'—'}
+    </div>` + (hist.innerHTML === 'Sin importaciones registradas' ? '' : hist.innerHTML);
+    resetFactura();
+    api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+    loadWHItems();
+  });
+}
+
+function resetFactura() {
+  facturaItems=[];
+  document.getElementById('facturaEmpty').style.display='block';
+  document.getElementById('facturaTable').style.display='none';
+  document.getElementById('facturaLoading').style.display='none';
+  document.getElementById('facturaActions').style.display='none';
+  document.getElementById('facturaBadge').style.display='none';
+  document.getElementById('facturaTitle').textContent='📋 Ítems de la factura';
+  document.getElementById('pdfInput').value='';
+  document.getElementById('facturaTracking').value='';
+}
 </script>
+
 </body>
 </html>
