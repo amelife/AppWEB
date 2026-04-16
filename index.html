@@ -2024,9 +2024,10 @@ function confirmarImportacion() {
 // ============================================================
 //  IMPORTAR CLIENTES CSV + BULK DELETE
 // ============================================================
-let csvData        = [];      // todos los contactos del CSV
-let csvFiltered    = [];      // filtrados por búsqueda
-let clientSelected = new Set(); // IDs seleccionados para eliminar
+let csvData        = [];
+let csvFiltered    = [];
+let clientSelected = new Set();
+let csvSelected    = new Set();
 let selectMode     = false;
 
 // ── Contactos CSV embebidos directamente (sin llamada al backend) ──
@@ -2340,8 +2341,6 @@ function abrirImportCSV() {
 
 
 // ── Render tabla CSV ───────────────────────────────────────
-let csvSelected = new Set(); // índices seleccionados del CSV
-
 function renderCSV(data) {
   const list  = data || csvFiltered;
   const tbody = document.getElementById('csvBody');
