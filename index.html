@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v2.0 | 2026-03-05 15:30 ARG - GitHub Pages + Apps Script API -->
+<!-- AMELIFE EMS Technologies - Web App v2.1 | 2026-04-16 21:15 ARG - GitHub Pages + Apps Script API · Módulo Bancos -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9,6 +9,9 @@
 <!-- Favicon -->
 <link rel="icon" type="image/png" href="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp">
 <link rel="apple-touch-icon" href="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp">
+
+<!-- Chart.js (módulo Bancos) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <!-- PWA - Guardar en pantalla de inicio -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -508,6 +511,9 @@
       </div>
       <div class="nav-item" id="navFinanzas" onclick="showPanel('finanzas',this)">
         <span class="icon">💰</span><span>Finanzas</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('bancos',this)">
+        <span class="icon">🏦</span><span>Bancos</span>
       </div>
     </div>
 
@@ -1066,6 +1072,52 @@
         </div>
       </div>
 
+      <!-- ============================================ -->
+      <!-- PANEL: BANCOS                                 -->
+      <!-- ============================================ -->
+      <div class="panel" id="panel-bancos">
+        <div class="panel-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+          <button class="btn btn-outline" onclick="bancosAbrirOCR()">📄 Subir Extracto (OCR)</button>
+          <button class="btn btn-outline" onclick="bancosAbrirManual()">✏️ Cargar Manual</button>
+          <button class="btn btn-outline" onclick="bancosAbrirGestion()">⚙️ Gestionar Cuentas</button>
+          <button class="btn btn-primary" onclick="bancosRefresh();bancosCargarEvolucion();">🔄 Actualizar</button>
+        </div>
+
+        <!-- Total consolidado + stats -->
+        <div class="stats-grid" style="margin-bottom:16px;">
+          <div class="stat-card">
+            <div class="stat-label">Total Consolidado (USD)</div>
+            <div class="stat-value" id="bancosTotalUSD" style="color:var(--green);font-size:28px;">$0.00</div>
+            <div class="stat-sub" id="bancosTotalSub">—</div>
+          </div>
+          <div class="stat-card info">
+            <div class="stat-label">Última actualización</div>
+            <div class="stat-value" id="bancosUltimaFecha" style="color:var(--info);font-size:22px;">—</div>
+            <div class="stat-sub" id="bancosUltimaFuente">Sin cargas</div>
+          </div>
+        </div>
+
+        <!-- Grid de cuentas agrupadas por banco -->
+        <div id="bancosGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px;"></div>
+
+        <!-- Gráfico de evolución -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📈 Evolución de Saldos</div>
+            <select id="bancosRangoEvol" onchange="bancosCargarEvolucion()"
+                    style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
+              <option value="3">Últimos 3 meses</option>
+              <option value="6">Últimos 6 meses</option>
+              <option value="12" selected>Últimos 12 meses</option>
+              <option value="24">Últimos 24 meses</option>
+            </select>
+          </div>
+          <div style="padding:12px;">
+            <canvas id="bancosChart" height="110"></canvas>
+          </div>
+        </div>
+      </div>
+
     </div><!-- end content -->
   </div><!-- end main -->
 </div><!-- end app -->
@@ -1155,6 +1207,120 @@
       <button class="btn btn-outline" onclick="showToast('📧 Enviando por email...','info')">📧 Email</button>
       <button class="btn btn-outline" onclick="showToast('💬 Abriendo WhatsApp...','info')">💬 WhatsApp</button>
       <button class="btn btn-primary" onclick="showToast('✅ Cotización guardada!','success'); closeModal('modalCotizacion')">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Subir Extracto Bancario (OCR) -->
+<div class="modal-overlay" id="modalBancosOCR">
+  <div class="modal" style="max-width:780px;">
+    <div class="modal-header">
+      <div class="modal-title">🏦 Subir Extracto Bancario</div>
+      <button class="modal-close" onclick="closeModal('modalBancosOCR')">✕</button>
+    </div>
+
+    <!-- PASO 1: selección de archivo -->
+    <div id="bancosOcrStep1">
+      <div class="field">
+        <label>Cuenta a la que pertenece este extracto (opcional):</label>
+        <select id="bancosOcrBancoHint"><option value="">— Sin preseleccionar —</option></select>
+      </div>
+
+      <div class="field">
+        <label>Archivo del extracto (PDF o imagen):</label>
+        <div id="bancosDropzone"
+             style="border:2px dashed var(--green);border-radius:10px;padding:32px 20px;text-align:center;background:var(--card2);cursor:pointer;transition:all .2s;">
+          <input type="file" id="bancosFileInput" accept="application/pdf,image/png,image/jpeg,image/jpg" style="display:none;">
+          <div style="font-size:32px;margin-bottom:6px;">📤</div>
+          <div style="color:var(--text);font-weight:600;">Arrastrá el archivo o <a href="#" onclick="document.getElementById('bancosFileInput').click();return false;" style="color:var(--green);">elegí uno</a></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px;">PDF, PNG o JPG · máx. 10 MB</div>
+        </div>
+        <div id="bancosOcrArchivo" style="display:none;margin-top:10px;padding:10px 12px;background:var(--green-glow);border-radius:8px;font-size:13px;color:var(--text);"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalBancosOCR')">Cancelar</button>
+        <button class="btn btn-primary" id="bancosBtnProcesarOCR" onclick="bancosProcesarOCR()" disabled>🔎 Procesar OCR</button>
+      </div>
+    </div>
+
+    <!-- PASO 2: loading -->
+    <div id="bancosOcrStep2" style="display:none;text-align:center;padding:40px 20px;">
+      <div class="spinner" style="margin:0 auto 16px;"></div>
+      <div style="color:var(--text);">Procesando OCR… puede tardar 10-30 segundos</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:6px;">Subiendo archivo y extrayendo texto con Drive API</div>
+    </div>
+
+    <!-- PASO 3: revisión de sugerencias -->
+    <div id="bancosOcrStep3" style="display:none;">
+      <div class="field">
+        <label>Fecha del extracto:</label>
+        <input type="date" id="bancosOcrFecha">
+      </div>
+
+      <div style="overflow-x:auto;margin-top:10px;">
+        <table class="data-table">
+          <thead>
+            <tr><th>Cuenta</th><th>Etiqueta detectada</th><th>Saldo detectado</th><th>Saldo final</th><th style="text-align:center;">✓</th></tr>
+          </thead>
+          <tbody id="bancosOcrTbody"></tbody>
+        </table>
+      </div>
+
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer;font-weight:600;color:var(--muted);padding:8px 0;">Ver texto OCR completo</summary>
+        <pre id="bancosOcrTexto" style="background:var(--card2);padding:10px;border-radius:8px;font-size:11px;max-height:220px;overflow:auto;white-space:pre-wrap;color:var(--text);"></pre>
+      </details>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="bancosResetOCR()">← Volver</button>
+        <button class="btn btn-primary" onclick="bancosConfirmarOCR()">✅ Confirmar y Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Carga Manual de Saldo -->
+<div class="modal-overlay" id="modalBancosManual">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Cargar Saldo Manual</div>
+      <button class="modal-close" onclick="closeModal('modalBancosManual')">✕</button>
+    </div>
+    <div class="modal-grid">
+      <div class="field" style="grid-column:1/-1"><label>Cuenta</label><select id="bancosManualBanco"></select></div>
+      <div class="field"><label>Fecha</label><input type="date" id="bancosManualFecha"></div>
+      <div class="field"><label>Saldo (USD)</label><input type="number" step="0.01" id="bancosManualSaldo" placeholder="0.00"></div>
+      <div class="field" style="grid-column:1/-1"><label>Notas (opcional)</label><input type="text" id="bancosManualNotas"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalBancosManual')">Cancelar</button>
+      <button class="btn btn-primary" onclick="bancosGuardarManual()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Gestión de Cuentas -->
+<div class="modal-overlay" id="modalBancosGestion">
+  <div class="modal" style="max-width:860px;">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ Gestionar Cuentas Bancarias</div>
+      <button class="modal-close" onclick="closeModal('modalBancosGestion')">✕</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-primary" onclick="bancosNuevaCuenta()">+ Nueva cuenta</button>
+      <button class="btn btn-outline" onclick="bancosEjecutarSetup()" style="margin-left:8px;">🔧 Setup inicial</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="data-table">
+        <thead>
+          <tr><th>Banco</th><th>Cuenta</th><th>Titular</th><th>Tipo</th><th>Moneda</th><th style="text-align:center;">Activa</th><th style="text-align:center;">Acciones</th></tr>
+        </thead>
+        <tbody id="bancosGestionTbody"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalBancosGestion')">Cerrar</button>
     </div>
   </div>
 </div>
@@ -1343,9 +1509,15 @@ function showPanel(id, el) {
     dashboard:'Dashboard', inventario:'Inventario', pricebook:'Price Book ZOLL',
     clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
     trackings:'Trackings', warehouse:'Warehouse', subdist:'Subdistribuidores',
-    goldway:'Goldway Inventory', finanzas:'Finanzas'
+    goldway:'Goldway Inventory', finanzas:'Finanzas', bancos:'Bancos'
   };
   document.getElementById('topbarTitle').textContent = titles[id] || id;
+
+  // Auto-init de módulos que lo requieran
+  if (id === 'bancos' && typeof bancosInit === 'function') {
+    bancosSetupDropzone();
+    bancosInit();
+  }
 }
 
 function updateClock() {
@@ -2649,6 +2821,462 @@ function closePDFPopup() {
   const el = document.getElementById('pdfPopup');
   if (el) el.style.display = 'none';
   clearInterval(window._pdfTimer);
+}
+
+// ============================================================
+// ====================== MÓDULO BANCOS =======================
+// v1.0 · 2026-04-16 21:15 ARG
+// ============================================================
+
+const BANCOS_STATE = {
+  bancos: [],
+  resumen: null,
+  chart: null,
+  ocrArchivo: null,
+  ocrResultado: null,
+  dropzoneReady: false
+};
+
+function bancosFmt(n) {
+  const v = Number(n) || 0;
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function bancosInit() {
+  await bancosRefresh();
+  await bancosCargarEvolucion();
+}
+
+async function bancosRefresh() {
+  const [bancos, resumen] = await Promise.all([
+    api('listarBancos'),
+    api('getResumenBancos')
+  ]);
+
+  if (!bancos.ok) { showToast('Error cargando cuentas: ' + (bancos.error||''), 'error'); return; }
+  BANCOS_STATE.bancos = bancos.data || [];
+  BANCOS_STATE.resumen = resumen.ok ? resumen.data : null;
+
+  bancosRenderTotal();
+  bancosRenderGrid();
+  bancosLlenarSelectsCuentas();
+}
+
+function bancosRenderTotal() {
+  const r = BANCOS_STATE.resumen;
+  if (!r) {
+    document.getElementById('bancosTotalUSD').textContent = '$0.00';
+    document.getElementById('bancosTotalSub').textContent = '—';
+    document.getElementById('bancosUltimaFecha').textContent = '—';
+    document.getElementById('bancosUltimaFuente').textContent = 'Sin cargas';
+    return;
+  }
+  document.getElementById('bancosTotalUSD').textContent = bancosFmt(r.totalUSD);
+  const cuentasConSaldo = (r.detalle || []).filter(d => d.ultimoSaldo > 0).length;
+  const totalCuentas    = (r.detalle || []).length;
+  document.getElementById('bancosTotalSub').textContent =
+    cuentasConSaldo + '/' + totalCuentas + ' cuentas con saldo · ' + (r.porBanco||[]).length + ' bancos';
+
+  // Última fecha cargada
+  const fechas = (r.detalle || []).map(d => d.ultimaFecha).filter(f => f);
+  const maxFecha = fechas.length ? fechas.sort().slice(-1)[0] : '—';
+  document.getElementById('bancosUltimaFecha').textContent = maxFecha;
+
+  const fuentes = (r.detalle || []).filter(d => d.ultimaFecha === maxFecha).map(d => d.ultimaFuente);
+  const fuentesUnicas = [...new Set(fuentes.filter(f => f))];
+  document.getElementById('bancosUltimaFuente').textContent = fuentesUnicas.length ? fuentesUnicas.join(' · ') : '—';
+}
+
+function bancosRenderGrid() {
+  const grid = document.getElementById('bancosGrid');
+  const r = BANCOS_STATE.resumen;
+  if (!r || !r.porBanco || r.porBanco.length === 0) {
+    grid.innerHTML = '<div class="card"><div style="padding:20px;color:var(--muted);text-align:center;"><em>No hay cuentas bancarias cargadas. Usá "Gestionar Cuentas" → "Setup inicial".</em></div></div>';
+    return;
+  }
+
+  grid.innerHTML = r.porBanco.map(b => `
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🏦 ${b.banco}</div>
+        <span class="pn" style="color:var(--green);font-size:18px;font-weight:800;">${bancosFmt(b.totalUSD)}</span>
+      </div>
+      <div style="padding:8px 16px 16px;">
+        ${b.cuentas.map(c => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed var(--border2);">
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:14px;color:var(--text);font-weight:600;">${c.cuenta}</div>
+              <div style="font-size:11px;color:var(--muted);">${c.titular || ''}${c.ultimaFecha ? ' · Actualizado '+c.ultimaFecha : ' · Sin datos'}</div>
+            </div>
+            <div style="font-size:15px;font-weight:700;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:10px;">${bancosFmt(c.ultimoSaldo)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function bancosLlenarSelectsCuentas() {
+  const opts = BANCOS_STATE.bancos
+    .filter(b => b.activo)
+    .map(b => '<option value="'+b.id+'">'+b.banco+' · '+b.cuenta+(b.titular?' ('+b.titular+')':'')+'</option>')
+    .join('');
+
+  const selManual = document.getElementById('bancosManualBanco');
+  if (selManual) selManual.innerHTML = '<option value="">— Elegir cuenta —</option>' + opts;
+
+  const selHint = document.getElementById('bancosOcrBancoHint');
+  if (selHint) selHint.innerHTML = '<option value="">— Sin preseleccionar —</option>' + opts;
+}
+
+// ---------- EVOLUCIÓN (Chart.js) ----------
+
+async function bancosCargarEvolucion() {
+  const sel = document.getElementById('bancosRangoEvol');
+  const meses = sel ? (Number(sel.value) || 12) : 12;
+
+  const r = await api('getEvolucionBancos', { meses });
+  if (!r.ok) { console.error('Evolución:', r.error); return; }
+
+  const d = r.data;
+  const canvas = document.getElementById('bancosChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (BANCOS_STATE.chart) BANCOS_STATE.chart.destroy();
+
+  if (!d.fechas || d.fechas.length === 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--muted') || '#888';
+    ctx.font = '14px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sin datos históricos todavía — cargá un extracto para ver la evolución', canvas.width/2, 60);
+    return;
+  }
+
+  const paleta = ['#4A9A2A','#2980B9','#E67E22','#8E44AD','#E74C3C','#16A085','#F39C12','#2C3E50'];
+
+  const datasets = d.series.map((s, i) => ({
+    label: s.label,
+    data: s.data,
+    borderColor: paleta[i % paleta.length],
+    backgroundColor: paleta[i % paleta.length] + '22',
+    tension: 0.3,
+    fill: false,
+    spanGaps: true,
+    pointRadius: 3
+  }));
+
+  datasets.push({
+    label: 'TOTAL',
+    data: d.total,
+    borderColor: '#1A2533',
+    backgroundColor: 'rgba(74,154,42,0.10)',
+    borderWidth: 3,
+    tension: 0.3,
+    fill: true,
+    pointRadius: 4
+  });
+
+  const textColor = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#333';
+
+  BANCOS_STATE.chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: d.fechas, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, color: textColor, font: { size: 11 } } },
+        tooltip: {
+          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + bancosFmt(ctx.parsed.y) }
+        }
+      },
+      scales: {
+        x: { ticks: { color: textColor, font: { size: 10 } }, grid: { display: false } },
+        y: {
+          ticks: { color: textColor, font: { size: 10 }, callback: (v) => bancosFmt(v).replace('.00','') },
+          grid:  { color: 'rgba(128,128,128,0.12)' }
+        }
+      }
+    }
+  });
+}
+
+// ---------- OCR ----------
+
+function bancosAbrirOCR() {
+  bancosResetOCR();
+  bancosSetupDropzone();
+  openModal('modalBancosOCR');
+}
+
+function bancosResetOCR() {
+  BANCOS_STATE.ocrArchivo = null;
+  BANCOS_STATE.ocrResultado = null;
+  document.getElementById('bancosOcrStep1').style.display = 'block';
+  document.getElementById('bancosOcrStep2').style.display = 'none';
+  document.getElementById('bancosOcrStep3').style.display = 'none';
+  document.getElementById('bancosOcrArchivo').style.display = 'none';
+  document.getElementById('bancosBtnProcesarOCR').disabled = true;
+  const fi = document.getElementById('bancosFileInput');
+  if (fi) fi.value = '';
+}
+
+function bancosSetupDropzone() {
+  const dz = document.getElementById('bancosDropzone');
+  const input = document.getElementById('bancosFileInput');
+  if (!dz || !input || BANCOS_STATE.dropzoneReady) return;
+  BANCOS_STATE.dropzoneReady = true;
+
+  dz.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'A') input.click();
+  });
+  dz.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dz.style.background = 'var(--green-glow)';
+  });
+  dz.addEventListener('dragleave', () => {
+    dz.style.background = 'var(--card2)';
+  });
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dz.style.background = 'var(--card2)';
+    if (e.dataTransfer.files.length) bancosHandleFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', (e) => {
+    if (e.target.files.length) bancosHandleFile(e.target.files[0]);
+  });
+}
+
+function bancosHandleFile(file) {
+  const MB = 1024 * 1024;
+  if (file.size > 10 * MB) { showToast('Archivo demasiado grande (máx 10 MB)', 'error'); return; }
+  const tiposOK = ['application/pdf','image/png','image/jpeg','image/jpg'];
+  if (!tiposOK.includes(file.type)) { showToast('Formato no soportado. Subí PDF, PNG o JPG.', 'error'); return; }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1];
+    BANCOS_STATE.ocrArchivo = { name: file.name, mimeType: file.type, base64 };
+    const info = document.getElementById('bancosOcrArchivo');
+    info.style.display = 'block';
+    info.innerHTML = '📎 <strong>' + file.name + '</strong> · ' + (file.size/1024).toFixed(1) + ' KB';
+    document.getElementById('bancosBtnProcesarOCR').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function bancosProcesarOCR() {
+  if (!BANCOS_STATE.ocrArchivo) return;
+
+  document.getElementById('bancosOcrStep1').style.display = 'none';
+  document.getElementById('bancosOcrStep2').style.display = 'block';
+
+  const bancoHintId = document.getElementById('bancosOcrBancoHint').value;
+  const bancoHintLabel = bancoHintId
+    ? (BANCOS_STATE.bancos.find(b => b.id === bancoHintId) || {}).banco
+    : '';
+
+  const r = await api('ocrExtractoBanco', {
+    nombreArchivo: BANCOS_STATE.ocrArchivo.name,
+    mimeType:      BANCOS_STATE.ocrArchivo.mimeType,
+    base64:        BANCOS_STATE.ocrArchivo.base64,
+    bancoHint:     bancoHintLabel || ''
+  });
+
+  if (!r.ok) {
+    showToast('Error OCR: ' + (r.error||''), 'error');
+    bancosResetOCR();
+    return;
+  }
+
+  BANCOS_STATE.ocrResultado = r.data;
+  bancosRenderSugerencias();
+  document.getElementById('bancosOcrStep2').style.display = 'none';
+  document.getElementById('bancosOcrStep3').style.display = 'block';
+}
+
+function bancosRenderSugerencias() {
+  const res = BANCOS_STATE.ocrResultado;
+  const s = res.sugerencias || {};
+  const candidatos = s.candidatos || [];
+
+  document.getElementById('bancosOcrTexto').textContent = res.textoCompleto || '(sin texto)';
+  document.getElementById('bancosOcrFecha').value = bancosParsearFecha(s.fechaDetectada);
+
+  const tbody = document.getElementById('bancosOcrTbody');
+  const selectHTML = BANCOS_STATE.bancos
+    .filter(b => b.activo)
+    .map(b => '<option value="'+b.id+'">'+b.banco+' · '+b.cuenta+(b.titular?' ('+b.titular+')':'')+'</option>')
+    .join('');
+
+  if (candidatos.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectHTML}</select></td>
+        <td><em style="color:var(--muted);">No se detectaron etiquetas automáticamente</em></td>
+        <td>—</td>
+        <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="0" style="width:100%;padding:6px;"></td>
+        <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk"></td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = candidatos.map(c => `
+    <tr>
+      <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectHTML}</select></td>
+      <td>${c.etiqueta}<br><small style="color:var(--muted);">${(c.linea||'').substring(0,80)}</small></td>
+      <td>${bancosFmt(c.saldoSugerido)}</td>
+      <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="${c.saldoSugerido}" style="width:100%;padding:6px;"></td>
+      <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk" checked></td>
+    </tr>
+  `).join('');
+}
+
+function bancosParsearFecha(str) {
+  if (!str) return new Date().toISOString().split('T')[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  let m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return m[3] + '-' + m[1].padStart(2,'0') + '-' + m[2].padStart(2,'0');
+  m = str.match(/^(\w+)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (m) {
+    const meses = { january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,
+                    enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12 };
+    const mes = meses[m[1].toLowerCase()];
+    if (mes) return m[3] + '-' + String(mes).padStart(2,'0') + '-' + m[2].padStart(2,'0');
+  }
+  return new Date().toISOString().split('T')[0];
+}
+
+async function bancosConfirmarOCR() {
+  const fecha = document.getElementById('bancosOcrFecha').value;
+  if (!fecha) { showToast('Ingresá la fecha del extracto', 'error'); return; }
+
+  const filas = document.querySelectorAll('#bancosOcrTbody tr');
+  const items = [];
+  filas.forEach(tr => {
+    const chk = tr.querySelector('.bancos-ocr-chk');
+    if (!chk || !chk.checked) return;
+    const bancoId = tr.querySelector('.bancos-ocr-sel').value;
+    const saldo   = Number(tr.querySelector('.bancos-ocr-saldo').value);
+    if (!bancoId || isNaN(saldo)) return;
+    items.push({
+      bancoId, fecha, saldo,
+      fuente: 'OCR',
+      archivo: (BANCOS_STATE.ocrResultado && BANCOS_STATE.ocrResultado.archivoUrl) || ''
+    });
+  });
+
+  if (items.length === 0) { showToast('No marcaste ninguna fila para guardar', 'error'); return; }
+
+  showToast('Guardando snapshots...', 'info');
+  const r = await api('guardarSnapshotsBulk', { items });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+
+  showToast('✅ ' + r.data.total + ' snapshot(s) guardados', 'success');
+  closeModal('modalBancosOCR');
+  await bancosRefresh();
+  await bancosCargarEvolucion();
+}
+
+// ---------- Carga Manual ----------
+
+function bancosAbrirManual() {
+  document.getElementById('bancosManualFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('bancosManualSaldo').value = '';
+  document.getElementById('bancosManualNotas').value = '';
+  document.getElementById('bancosManualBanco').value = '';
+  openModal('modalBancosManual');
+}
+
+async function bancosGuardarManual() {
+  const bancoId = document.getElementById('bancosManualBanco').value;
+  const fecha   = document.getElementById('bancosManualFecha').value;
+  const saldo   = Number(document.getElementById('bancosManualSaldo').value);
+  const notas   = document.getElementById('bancosManualNotas').value;
+
+  if (!bancoId) { showToast('Elegí una cuenta', 'error'); return; }
+  if (!fecha)   { showToast('Ingresá la fecha',  'error'); return; }
+  if (isNaN(saldo)) { showToast('Saldo inválido', 'error'); return; }
+
+  const r = await api('guardarSnapshot', { bancoId, fecha, saldo, notas, fuente: 'Manual' });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+
+  showToast('✅ Saldo guardado', 'success');
+  closeModal('modalBancosManual');
+  await bancosRefresh();
+  await bancosCargarEvolucion();
+}
+
+// ---------- Gestión de Cuentas ----------
+
+async function bancosAbrirGestion() {
+  await bancosRenderGestion();
+  openModal('modalBancosGestion');
+}
+
+async function bancosRenderGestion() {
+  const tbody = document.getElementById('bancosGestionTbody');
+  if (!BANCOS_STATE.bancos || BANCOS_STATE.bancos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px;"><em>No hay cuentas cargadas. Ejecutá "Setup inicial" para crear las 5 cuentas (Safra × 3, IFB × 2).</em></td></tr>';
+    return;
+  }
+  tbody.innerHTML = BANCOS_STATE.bancos.map(b => `
+    <tr>
+      <td>${b.banco}</td>
+      <td>${b.cuenta}</td>
+      <td>${b.titular||''}</td>
+      <td>${b.tipo||''}</td>
+      <td>${b.moneda||'USD'}</td>
+      <td style="text-align:center;">${b.activo ? '✅' : '❌'}</td>
+      <td style="text-align:center;">
+        <button class="tbl-action" onclick="bancosToggleActivo('${b.id}', ${!b.activo})" title="${b.activo?'Desactivar':'Activar'}">${b.activo?'🚫':'✔️'}</button>
+        <button class="tbl-action" onclick="bancosEliminarCuenta('${b.id}')" title="Eliminar">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function bancosEjecutarSetup() {
+  if (!confirm('Esto va a crear las hojas Bancos y Bancos_Snapshots y sembrar las 5 cuentas iniciales (Safra × 3, IFB × 2). ¿Continuar?')) return;
+  showToast('Ejecutando setup...', 'info');
+  const r = await api('setupBancos');
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast('✅ Setup OK: ' + r.data.bancos + ' cuentas · ' + r.data.snapshots + ' snapshots', 'success');
+  await bancosRefresh();
+  await bancosRenderGestion();
+}
+
+async function bancosNuevaCuenta() {
+  const banco   = prompt('Banco (ej. Safra, IFB, Chase):'); if (!banco) return;
+  const cuenta  = prompt('Cuenta (ej. Checking 1234, Brokerage, etc.):'); if (!cuenta) return;
+  const titular = prompt('Titular (ej. AMELIFE 911 LLC):') || '';
+  const tipo    = prompt('Tipo (Checking/Savings/Brokerage/Securities/LC):', 'Checking') || 'Checking';
+  const moneda  = prompt('Moneda (USD/ARS/EUR):', 'USD') || 'USD';
+
+  const r = await api('crearBanco', { banco, cuenta, titular, tipo, moneda });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast('✅ Cuenta creada', 'success');
+  await bancosRefresh();
+  await bancosRenderGestion();
+}
+
+async function bancosToggleActivo(id, activo) {
+  const r = await api('editarBanco', { id, activo });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  await bancosRefresh();
+  await bancosRenderGestion();
+}
+
+async function bancosEliminarCuenta(id) {
+  if (!confirm('¿Eliminar esta cuenta? Los snapshots históricos quedan en la hoja Bancos_Snapshots.')) return;
+  const r = await api('eliminarBanco', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast('✅ Cuenta eliminada', 'success');
+  await bancosRefresh();
+  await bancosRenderGestion();
 }
 </script>
 
