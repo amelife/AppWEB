@@ -1831,6 +1831,10 @@ function processPDF(file) {
         return;
       }
       facturaItems = r.data.items;
+      if (r.data.debug) {
+        document.getElementById('historialFacturas').innerHTML =
+          '<div style="font-size:11px;font-family:monospace;white-space:pre-wrap;padding:10px;background:#f5f5f5;border-radius:6px;color:#333;max-height:200px;overflow-y:auto"><b>DEBUG OCR:</b>\n' + r.data.debug + '</div>';
+      }
       renderFacturaItems();
     });
   };
