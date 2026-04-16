@@ -1087,7 +1087,10 @@
           <!-- Gráfico de evolución -->
           <div class="card">
             <div class="card-header">
-              <div class="card-title">📈 Evolución de Saldos</div>
+              <div>
+                <div class="card-title">📈 Evolución de Saldos</div>
+                <div id="bancosChartInfo" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
+              </div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                 <select id="bancosFiltroBanco" onchange="bancosCargarEvolucion()"
                         style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
@@ -1105,7 +1108,7 @@
               </div>
             </div>
             <div style="padding:12px;">
-              <canvas id="bancosChart" height="110"></canvas>
+              <canvas id="bancosChart" height="320"></canvas>
             </div>
           </div>
         </div>
@@ -3095,6 +3098,7 @@ const BANCOS_HISTORICO_SAFRA = [
   { fecha: '2026-03-31', total: 3245923.34 }
 ];
 
+
 async function bancosCargarEvolucion() {
   const selMeses = document.getElementById('bancosRangoEvol');
   const meses = selMeses ? (Number(selMeses.value) || 24) : 24;
@@ -3109,13 +3113,14 @@ async function bancosCargarEvolucion() {
   const canvas = document.getElementById('bancosChart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const chartInfo = document.getElementById('bancosChartInfo');
 
   if (BANCOS_STATE.chart) BANCOS_STATE.chart.destroy();
 
   // ¿Mostrar histórico Safra? Solo si filtro es Todos o Safra
   const mostrarHistoricoSafra = (filtroBanco === '__ALL__' || filtroBanco === 'Safra');
 
-  // Filtrar histórico Safra por ventana de meses
+  // Filtrar histórico por ventana de meses
   const corte = new Date();
   corte.setDate(corte.getDate() - (meses * 30));
   const corteStr = corte.toISOString().split('T')[0];
@@ -3123,7 +3128,7 @@ async function bancosCargarEvolucion() {
     ? BANCOS_HISTORICO_SAFRA.filter(h => h.fecha >= corteStr)
     : [];
 
-  // Unir fechas del backend + fechas del histórico hardcoded
+  // Unir fechas
   const fechasSet = new Set([...(d.fechas || []), ...historicoVisible.map(h => h.fecha)]);
   const fechas = [...fechasSet].sort();
 
@@ -3133,7 +3138,25 @@ async function bancosCargarEvolucion() {
     ctx.font = '14px system-ui';
     ctx.textAlign = 'center';
     ctx.fillText('Sin datos históricos todavía — cargá un extracto para ver la evolución', canvas.width/2, 60);
+    if (chartInfo) chartInfo.textContent = '—';
     return;
+  }
+
+  // Info de delta en el header
+  if (chartInfo) {
+    if (historicoVisible.length >= 2) {
+      const primero = historicoVisible[0];
+      const ultimo  = historicoVisible[historicoVisible.length-1];
+      const delta   = ultimo.total - primero.total;
+      const pct     = primero.total > 0 ? (delta / primero.total * 100) : 0;
+      const signo   = delta >= 0 ? '▲' : '▼';
+      const color   = delta >= 0 ? '#22c55e' : '#ef4444';
+      chartInfo.innerHTML = `Safra: <span style="color:${color};font-weight:700;">${signo} ${bancosFmt(Math.abs(delta))} (${pct>=0?'+':''}${pct.toFixed(1)}%)</span> desde ${primero.fecha} hasta ${ultimo.fecha}`;
+    } else if (historicoVisible.length === 1) {
+      chartInfo.textContent = 'Safra Histórico: 1 punto · ampliá el rango para ver evolución';
+    } else {
+      chartInfo.textContent = '—';
+    }
   }
 
   // Filtrar series por banco seleccionado
@@ -3148,11 +3171,10 @@ async function bancosCargarEvolucion() {
     });
   }
 
-  // Re-mapear cada serie al nuevo array de fechas unificado (arrastrar valor anterior)
+  // Remapear series al array de fechas unificado
   const remapear = (serieOriginal) => {
     if (!d.fechas || d.fechas.length === 0) return fechas.map(() => null);
     return fechas.map(f => {
-      // Buscar el último valor <= f en serieOriginal
       let val = null;
       for (let i = 0; i < d.fechas.length; i++) {
         if (d.fechas[i] <= f && serieOriginal.data[i] !== null && serieOriginal.data[i] !== undefined) {
@@ -3170,86 +3192,179 @@ async function bancosCargarEvolucion() {
     data: remapear(s)
   }));
 
-  // Total dinámico (snapshots cargados)
+  // Total dinámico (snapshots actuales)
   const totalDinamico = fechas.map((_, idx) => {
     return seriesRemapeadas.reduce((sum, s) => sum + (s.data[idx] || 0), 0);
   });
 
-  // Serie del histórico Safra hardcoded
+  // Serie histórica Safra hardcoded (PROTAGONISTA)
   let serieHistoricaSafra = null;
   if (historicoVisible.length > 0) {
     const mapHist = {};
     historicoVisible.forEach(h => { mapHist[h.fecha] = h.total; });
-    // Arrastrar el valor anterior para fechas intermedias
     let ult = null;
     const dataHist = fechas.map(f => {
       if (mapHist[f] !== undefined) { ult = mapHist[f]; return ult; }
-      return ult; // arrastra el último valor conocido (null al principio)
+      return null; // no arrastrar, solo los puntos reales
     });
     serieHistoricaSafra = {
-      label: '📊 Safra Histórico (Total Net Portfolio)',
+      label: '🟣 Safra Histórico (Total Net Portfolio)',
       data: dataHist,
-      borderColor: '#8E44AD',
-      backgroundColor: 'rgba(142,68,173,0.15)',
-      tension: 0.3,
-      fill: false,
+      borderColor: '#a855f7',
+      backgroundColor: 'rgba(168,85,247,0.15)',
+      tension: 0.35,
+      fill: true,
       spanGaps: true,
-      pointRadius: 5,
-      pointStyle: 'rectRot',
-      borderDash: [6, 4]
+      pointRadius: 8,
+      pointHoverRadius: 11,
+      pointBackgroundColor: '#a855f7',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      borderWidth: 4
     };
   }
 
+  // Líneas de cuentas individuales: más finas y sutiles (protagonista es el histórico)
   const paleta = ['#4A9A2A','#2980B9','#E67E22','#E74C3C','#16A085','#F39C12','#2C3E50'];
 
   const datasets = seriesRemapeadas.map((s, i) => ({
     label: s.label,
     data: s.data,
     borderColor: paleta[i % paleta.length],
-    backgroundColor: paleta[i % paleta.length] + '22',
+    backgroundColor: 'transparent',
     tension: 0.3,
     fill: false,
     spanGaps: true,
-    pointRadius: 3
+    pointRadius: 2,
+    pointHoverRadius: 5,
+    borderWidth: 1.5,
+    borderDash: [3, 3]
   }));
 
   // Total dinámico si hay >1 serie
   if (seriesRemapeadas.length > 1) {
     datasets.push({
-      label: filtroBanco === '__ALL__' ? 'TOTAL ACTUAL' : 'TOTAL ' + filtroBanco,
+      label: filtroBanco === '__ALL__' ? '⚫ TOTAL ACTUAL' : '⚫ TOTAL ' + filtroBanco,
       data: totalDinamico,
       borderColor: '#1A2533',
-      backgroundColor: 'rgba(74,154,42,0.10)',
-      borderWidth: 3,
+      backgroundColor: 'rgba(74,154,42,0.08)',
+      borderWidth: 2.5,
       tension: 0.3,
-      fill: true,
-      pointRadius: 4
+      fill: false,
+      pointRadius: 4,
+      pointHoverRadius: 6
     });
   }
 
-  // Agregar histórico Safra al final (queda superpuesto con línea punteada)
+  // Histórico SIEMPRE al final (se dibuja encima de todo)
   if (serieHistoricaSafra) datasets.push(serieHistoricaSafra);
 
   const textColor = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#333';
+  const isDark = document.body.classList.contains('dark') ||
+                 getComputedStyle(document.body).getPropertyValue('--bg').trim().startsWith('#0') ||
+                 getComputedStyle(document.body).getPropertyValue('--bg').trim().startsWith('#1');
+
+  // Calcular min dinámico del eje Y para amplificar la evolución
+  const todosValores = [];
+  datasets.forEach(ds => ds.data.forEach(v => { if (v !== null && v !== undefined && !isNaN(v)) todosValores.push(v); }));
+  let yMin = 0;
+  let yMax = undefined;
+  if (todosValores.length > 1) {
+    const minVal = Math.min(...todosValores);
+    const maxVal = Math.max(...todosValores);
+    const rango  = maxVal - minVal;
+    // Si el rango es chico respecto al mínimo (ej: todos entre $2M y $3M), amplificamos
+    if (rango > 0 && minVal > 0 && rango / minVal < 2) {
+      yMin = Math.max(0, minVal - rango * 0.3);
+      yMax = maxVal + rango * 0.2;
+    }
+  }
+
+  // Plugin inline: escribir valor arriba de cada punto del histórico Safra
+  const plugin_labels_historico = {
+    id: 'labelsHistorico',
+    afterDatasetsDraw(chart) {
+      if (!serieHistoricaSafra) return;
+      const datasetIndex = chart.data.datasets.findIndex(d => d.label === serieHistoricaSafra.label);
+      if (datasetIndex < 0) return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = 'bold 11px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      meta.data.forEach((point, i) => {
+        const val = serieHistoricaSafra.data[i];
+        if (val === null || val === undefined) return;
+        const label = '$' + (val/1000).toFixed(0) + 'K';
+        // Fondo del pill
+        const w = ctx.measureText(label).width + 10;
+        const h = 18;
+        const x = point.x;
+        const y = point.y - 14;
+        ctx.fillStyle = '#a855f7';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x - w/2, y - h, w, h, 4);
+        else ctx.rect(x - w/2, y - h, w, h);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x, y - 4);
+      });
+      ctx.restore();
+    }
+  };
 
   BANCOS_STATE.chart = new Chart(ctx, {
     type: 'line',
     data: { labels: fechas, datasets },
+    plugins: [plugin_labels_historico],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, color: textColor, font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 14,
+            color: textColor,
+            font: { size: 11 },
+            padding: 10,
+            usePointStyle: false
+          }
+        },
         tooltip: {
-          callbacks: { label: (ctx) => ctx.dataset.label + ': ' + bancosFmt(ctx.parsed.y) }
+          backgroundColor: isDark ? '#1f2937' : '#fff',
+          titleColor: isDark ? '#f3f4f6' : '#111',
+          bodyColor: isDark ? '#f3f4f6' : '#333',
+          borderColor: '#a855f7',
+          borderWidth: 1,
+          padding: 10,
+          titleFont: { size: 12, weight: 'bold' },
+          bodyFont: { size: 12 },
+          callbacks: {
+            label: (ctx) => ctx.dataset.label + ': ' + bancosFmt(ctx.parsed.y)
+          }
         }
       },
       scales: {
-        x: { ticks: { color: textColor, font: { size: 10 } }, grid: { display: false } },
+        x: {
+          ticks: { color: textColor, font: { size: 10 }, maxRotation: 0 },
+          grid: { display: false }
+        },
         y: {
-          ticks: { color: textColor, font: { size: 10 }, callback: (v) => bancosFmt(v).replace('.00','') },
-          grid:  { color: 'rgba(128,128,128,0.12)' }
+          min: yMin,
+          max: yMax,
+          ticks: {
+            color: textColor,
+            font: { size: 10 },
+            callback: (v) => {
+              if (Math.abs(v) >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+              if (Math.abs(v) >= 1000)    return '$' + (v/1000).toFixed(0) + 'K';
+              return '$' + v;
+            }
+          },
+          grid: { color: 'rgba(128,128,128,0.10)' }
         }
       }
     }
