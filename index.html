@@ -2974,6 +2974,15 @@ function bancosLlenarSelectsCuentas() {
 
 // ---------- EVOLUCIÓN (Chart.js) ----------
 
+// Histórico Safra hardcoded (Total Net Portfolio de statements oficiales)
+// Se muestra siempre que el filtro sea "Todos" o "Safra".
+const BANCOS_HISTORICO_SAFRA = [
+  { fecha: '2024-04-30', total: 2451157.30 },
+  { fecha: '2024-12-31', total: 2756465.09 },
+  { fecha: '2025-06-30', total: 3015194.66 },
+  { fecha: '2026-03-31', total: 3245923.34 }
+];
+
 async function bancosCargarEvolucion() {
   const selMeses = document.getElementById('bancosRangoEvol');
   const meses = selMeses ? (Number(selMeses.value) || 24) : 24;
@@ -2991,7 +3000,22 @@ async function bancosCargarEvolucion() {
 
   if (BANCOS_STATE.chart) BANCOS_STATE.chart.destroy();
 
-  if (!d.fechas || d.fechas.length === 0) {
+  // ¿Mostrar histórico Safra? Solo si filtro es Todos o Safra
+  const mostrarHistoricoSafra = (filtroBanco === '__ALL__' || filtroBanco === 'Safra');
+
+  // Filtrar histórico Safra por ventana de meses
+  const corte = new Date();
+  corte.setDate(corte.getDate() - (meses * 30));
+  const corteStr = corte.toISOString().split('T')[0];
+  const historicoVisible = mostrarHistoricoSafra
+    ? BANCOS_HISTORICO_SAFRA.filter(h => h.fecha >= corteStr)
+    : [];
+
+  // Unir fechas del backend + fechas del histórico hardcoded
+  const fechasSet = new Set([...(d.fechas || []), ...historicoVisible.map(h => h.fecha)]);
+  const fechas = [...fechasSet].sort();
+
+  if (fechas.length === 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--muted') || '#888';
     ctx.font = '14px system-ui';
@@ -3000,27 +3024,73 @@ async function bancosCargarEvolucion() {
     return;
   }
 
-  // Filtrar series por banco seleccionado. Cada serie tiene bancoId → lookup del banco
+  // Filtrar series por banco seleccionado
   const bancosById = {};
   BANCOS_STATE.bancos.forEach(b => { bancosById[b.id] = b; });
 
-  let seriesFiltradas = d.series;
-  let totalFiltrado = d.total;
-
+  let seriesFiltradas = d.series || [];
   if (filtroBanco !== '__ALL__') {
-    seriesFiltradas = d.series.filter(s => {
+    seriesFiltradas = seriesFiltradas.filter(s => {
       const b = bancosById[s.bancoId];
       return b && b.banco === filtroBanco;
     });
-    // Recalcular total solo con las series filtradas
-    totalFiltrado = d.fechas.map((_, idx) => {
-      return seriesFiltradas.reduce((sum, s) => sum + (s.data[idx] || 0), 0);
-    });
   }
 
-  const paleta = ['#4A9A2A','#2980B9','#E67E22','#8E44AD','#E74C3C','#16A085','#F39C12','#2C3E50'];
+  // Re-mapear cada serie al nuevo array de fechas unificado (arrastrar valor anterior)
+  const remapear = (serieOriginal) => {
+    if (!d.fechas || d.fechas.length === 0) return fechas.map(() => null);
+    return fechas.map(f => {
+      // Buscar el último valor <= f en serieOriginal
+      let val = null;
+      for (let i = 0; i < d.fechas.length; i++) {
+        if (d.fechas[i] <= f && serieOriginal.data[i] !== null && serieOriginal.data[i] !== undefined) {
+          val = serieOriginal.data[i];
+        } else if (d.fechas[i] > f) {
+          break;
+        }
+      }
+      return val;
+    });
+  };
 
-  const datasets = seriesFiltradas.map((s, i) => ({
+  const seriesRemapeadas = seriesFiltradas.map(s => ({
+    ...s,
+    data: remapear(s)
+  }));
+
+  // Total dinámico (snapshots cargados)
+  const totalDinamico = fechas.map((_, idx) => {
+    return seriesRemapeadas.reduce((sum, s) => sum + (s.data[idx] || 0), 0);
+  });
+
+  // Serie del histórico Safra hardcoded
+  let serieHistoricaSafra = null;
+  if (historicoVisible.length > 0) {
+    const mapHist = {};
+    historicoVisible.forEach(h => { mapHist[h.fecha] = h.total; });
+    // Arrastrar el valor anterior para fechas intermedias
+    let ult = null;
+    const dataHist = fechas.map(f => {
+      if (mapHist[f] !== undefined) { ult = mapHist[f]; return ult; }
+      return ult; // arrastra el último valor conocido (null al principio)
+    });
+    serieHistoricaSafra = {
+      label: '📊 Safra Histórico (Total Net Portfolio)',
+      data: dataHist,
+      borderColor: '#8E44AD',
+      backgroundColor: 'rgba(142,68,173,0.15)',
+      tension: 0.3,
+      fill: false,
+      spanGaps: true,
+      pointRadius: 5,
+      pointStyle: 'rectRot',
+      borderDash: [6, 4]
+    };
+  }
+
+  const paleta = ['#4A9A2A','#2980B9','#E67E22','#E74C3C','#16A085','#F39C12','#2C3E50'];
+
+  const datasets = seriesRemapeadas.map((s, i) => ({
     label: s.label,
     data: s.data,
     borderColor: paleta[i % paleta.length],
@@ -3031,11 +3101,11 @@ async function bancosCargarEvolucion() {
     pointRadius: 3
   }));
 
-  // Totalizador: si hay más de una serie, lo mostramos; si hay solo una, lo omitimos (sería redundante)
-  if (seriesFiltradas.length > 1) {
+  // Total dinámico si hay >1 serie
+  if (seriesRemapeadas.length > 1) {
     datasets.push({
-      label: filtroBanco === '__ALL__' ? 'TOTAL CONSOLIDADO' : 'TOTAL ' + filtroBanco,
-      data: totalFiltrado,
+      label: filtroBanco === '__ALL__' ? 'TOTAL ACTUAL' : 'TOTAL ' + filtroBanco,
+      data: totalDinamico,
       borderColor: '#1A2533',
       backgroundColor: 'rgba(74,154,42,0.10)',
       borderWidth: 3,
@@ -3045,11 +3115,14 @@ async function bancosCargarEvolucion() {
     });
   }
 
+  // Agregar histórico Safra al final (queda superpuesto con línea punteada)
+  if (serieHistoricaSafra) datasets.push(serieHistoricaSafra);
+
   const textColor = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#333';
 
   BANCOS_STATE.chart = new Chart(ctx, {
     type: 'line',
-    data: { labels: d.fechas, datasets },
+    data: { labels: fechas, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
