@@ -726,6 +726,7 @@
           <button class="btn btn-outline" onclick="toggleClientSelect()" id="btnSelectMode">☑ Seleccionar</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="clientCountLabel">Últimos 20 · escribí para buscar entre todos</div>
 
         <div class="client-grid" id="clientGrid"></div>
       </div>
@@ -1305,14 +1306,12 @@ async function loadAllData() {
   setLoading('invBody', true);
   setLoading('clientGrid', true);
 
-  const [rInv, rCli, rPB] = await Promise.all([
+  const [rInv, rPB] = await Promise.all([
     api('getInventario'),
-    api('getClientes'),
     api('getPriceBook'),
   ]);
 
   if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
-  if (rCli.ok) { CLIENTES       = rCli.data; renderClientes();   }
   if (rPB.ok)  { PRICEBOOK_DATA = rPB.data;  renderPriceBook();  }
 }
 
@@ -1536,13 +1535,49 @@ function renderClientes(data) {
   }).join('');
 }
 
+// ── Carga inicial: últimos 20 clientes ────────────────────
+let buscarTimeout = null;
+
+function loadClientesRecientes() {
+  const grid = document.getElementById('clientGrid');
+  grid.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</div>';
+  api('getClientesRecientes', { limite: 20 }).then(r => {
+    if (!r.ok) { showToast(r.error,'error'); return; }
+    CLIENTES = r.data;
+    renderClientes();
+    const lbl = document.getElementById('clientCountLabel');
+    if (lbl) lbl.textContent = 'Últimos 20 · escribí para buscar entre todos';
+  });
+}
+
 function filterClientes() {
-  const q = document.getElementById('clientSearch').value.toLowerCase();
-  renderClientes(CLIENTES.filter(c =>
-    String(c.nombre).toLowerCase().includes(q) ||
-    String(c.empresa).toLowerCase().includes(q) ||
-    String(c.pais).toLowerCase().includes(q)
-  ));
+  const q = document.getElementById('clientSearch').value.trim();
+  clearTimeout(buscarTimeout);
+
+  if (!q) {
+    renderClientes(CLIENTES);
+    const lbl = document.getElementById('clientCountLabel');
+    if (lbl) lbl.textContent = 'Últimos 20 · escribí para buscar entre todos';
+    return;
+  }
+  if (q.length < 2) return;
+
+  // Resultado local inmediato
+  const local = CLIENTES.filter(c =>
+    String(c.nombre).toLowerCase().includes(q.toLowerCase()) ||
+    String(c.empresa||'').toLowerCase().includes(q.toLowerCase())
+  );
+  if (local.length) renderClientes(local);
+
+  // Búsqueda completa en el Sheet con debounce
+  buscarTimeout = setTimeout(() => {
+    api('buscarClientes', { query: q }).then(r => {
+      if (!r.ok) return;
+      renderClientes(r.data);
+      const lbl = document.getElementById('clientCountLabel');
+      if (lbl) lbl.textContent = r.data.length + ' resultado' + (r.data.length !== 1?'s':'') + ' para "' + q + '"';
+    });
+  }, 400);
 }
 
 function saveCliente() {
@@ -1819,6 +1854,7 @@ showPanel = function(id, el) {
   _origShowPanel(id, el);
   if (id === 'trackings') loadTrackings();
   if (id === 'warehouse') { loadWHItems(); loadTrackings(); }
+  if (id === 'clientes')  loadClientesRecientes();
 };
 
 // ── TRACKINGS ──────────────────────────────────────────────
