@@ -305,11 +305,12 @@
   /* ===================== CLIENTES ===================== */
   .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
   .client-card {
-    background:#FFFFFF; border:1px solid rgba(0,0,0,0.08); border-radius:var(--radius-lg); padding:18px;
+    position:relative; background:#FFFFFF; border:1px solid rgba(0,0,0,0.08); border-radius:var(--radius-lg); padding:18px;
     transition:border-color var(--transition), transform var(--transition), box-shadow var(--transition);
     cursor:pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   }
   .client-card:hover { border-color:var(--green); transform:translateY(-2px); box-shadow: 0 6px 20px rgba(74,154,42,0.10); }
+  .client-card.selected { border-color:var(--green); background:rgba(74,154,42,0.05); transform:none; }
   .client-avatar { width:44px; height:44px; border-radius:50%; background:var(--green-dark); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; margin-bottom:12px; }
   .client-name { font-size:15px; font-weight:700; margin-bottom:4px; }
   .client-company { font-size:12px; color:var(--green); font-weight:600; margin-bottom:8px; }
@@ -643,21 +644,73 @@
 
       <!-- ===== CLIENTES ===== -->
       <div class="panel" id="panel-clientes">
+
+        <!-- Toolbar principal -->
         <div class="toolbar">
           <div class="search-box">
             <input type="text" id="clientSearch" placeholder="Buscar cliente..." oninput="filterClientes()" />
           </div>
-          <select class="filter-select">
-            <option>Todos los países</option>
-            <option>Ecuador</option>
-            <option>Perú</option>
-            <option>Colombia</option>
-            <option>Argentina</option>
-            <option>EEUU</option>
+          <select class="filter-select" id="clientFilterPais" onchange="filterClientes()">
+            <option value="">Todos los países</option>
+            <option>Ecuador</option><option>Perú</option><option>Colombia</option>
+            <option>Argentina</option><option>EEUU</option><option>México</option>
           </select>
+          <!-- Acciones bulk -->
+          <div id="clientBulkBar" style="display:none;align-items:center;gap:8px">
+            <span id="clientBulkCount" style="font-size:13px;font-weight:600;color:var(--green)"></span>
+            <button class="btn btn-danger" onclick="eliminarClientesSeleccionados()" style="padding:8px 14px;font-size:12px">🗑 Eliminar seleccionados</button>
+            <button class="btn btn-outline" onclick="deseleccionarTodosClientes()" style="padding:8px 14px;font-size:12px">✕ Cancelar</button>
+          </div>
+          <button class="btn btn-outline" onclick="openModal('modalImportCSV')">📥 Importar CSV</button>
+          <button class="btn btn-outline" onclick="toggleClientSelect()" id="btnSelectMode">☑ Seleccionar</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
+
         <div class="client-grid" id="clientGrid"></div>
+      </div>
+
+      <!-- ===== MODAL: IMPORTAR CSV CLIENTES ===== -->
+      <div class="modal-overlay" id="modalImportCSV">
+        <div class="modal" style="max-width:900px;max-height:90vh">
+          <div class="modal-header">
+            <div class="modal-title">📥 Importar contactos desde CSV</div>
+            <button class="modal-close" onclick="closeModal('modalImportCSV')">✕</button>
+          </div>
+
+          <!-- Toolbar del importador -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+            <input type="text" id="csvSearch" placeholder="Buscar en el CSV..." oninput="filterCSV()"
+              style="flex:1;min-width:180px;padding:9px 12px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:13px;outline:none">
+            <button class="btn btn-outline" onclick="seleccionarTodosCSV(true)" style="font-size:12px;padding:8px 12px">✅ Todos</button>
+            <button class="btn btn-outline" onclick="seleccionarTodosCSV(false)" style="font-size:12px;padding:8px 12px">☐ Ninguno</button>
+            <span id="csvSelCount" style="font-size:13px;font-weight:700;color:var(--green)"></span>
+          </div>
+
+          <!-- Tabla de contactos del CSV -->
+          <div style="overflow-y:auto;max-height:480px;border-radius:var(--radius);border:1px solid var(--border2)">
+            <table class="data-table" id="csvTable">
+              <thead>
+                <tr>
+                  <th style="width:36px"><input type="checkbox" id="csvChkAll" onchange="seleccionarTodosCSV(this.checked)"></th>
+                  <th>Nombre</th>
+                  <th>Empresa</th>
+                  <th>Email</th>
+                  <th>Tel</th>
+                  <th>Ciudad</th>
+                  <th>País</th>
+                </tr>
+              </thead>
+              <tbody id="csvBody">
+                <tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">⏳ Cargando contactos...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('modalImportCSV')">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarImportCSV()">✅ Importar seleccionados</button>
+          </div>
+        </div>
       </div>
 
       <!-- ===== COTIZACIONES ===== -->
@@ -1397,21 +1450,29 @@ function renderClientes(data) {
   const list = data || CLIENTES;
   const grid = document.getElementById('clientGrid');
   if (!list.length) {
-    grid.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><h3>Sin clientes</h3><p>Agregá el primero.</p></div>';
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><h3>Sin clientes</h3><p>Agregá el primero o importá desde CSV.</p></div>';
     return;
   }
-  grid.innerHTML = list.map(c => `
-    <div class="client-card" onclick="openEditCliente('${c.id}')">
+  grid.innerHTML = list.map(c => {
+    const isSel = clientSelected.has(c.id);
+    return `<div class="client-card${isSel?' selected':''}" data-id="${c.id}"
+      onclick="${selectMode ? `toggleClientCard('${c.id}')` : `openEditCliente('${c.id}')`}"
+      style="${selectMode?'cursor:pointer':''}"
+    >
+      ${selectMode ? `<div style="position:absolute;top:12px;right:12px">
+        <input type="checkbox" ${isSel?'checked':''} onclick="event.stopPropagation();toggleClientCard('${c.id}')">
+      </div>` : ''}
       <div class="client-avatar">${(c.nombre[0]||'C').toUpperCase()}</div>
       <div class="client-name">${c.nombre}</div>
-      <div class="client-company">${c.empresa}</div>
+      <div class="client-company">${c.empresa||'—'}</div>
       <div class="client-info">
-        📧 ${c.email}<br>
-        📞 ${c.tel}<br>
-        🌎 ${c.ciudad}, ${c.pais}<br>
+        📧 ${c.email||'—'}<br>
+        📞 ${c.tel||'—'}<br>
+        🌎 ${c.ciudad||''} ${c.pais?'· '+c.pais:''}<br>
         ${c.notas ? '📝 '+c.notas : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterClientes() {
@@ -1941,7 +2002,151 @@ function confirmarImportacion() {
   });
 }
 
-function resetFactura() {
+// ============================================================
+//  IMPORTAR CLIENTES CSV + BULK DELETE
+// ============================================================
+let csvData        = [];      // todos los contactos del CSV
+let csvFiltered    = [];      // filtrados por búsqueda
+let clientSelected = new Set(); // IDs seleccionados para eliminar
+let selectMode     = false;
+
+// ── Abrir modal y cargar CSV desde el backend ──────────────
+document.getElementById('modalImportCSV')?.addEventListener
+  || document.addEventListener('DOMContentLoaded', function(){});
+
+// Cargar contactos cuando se abre el modal
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modalImportCSV' && csvData.length === 0) loadCSVData();
+}
+
+function loadCSVData() {
+  document.getElementById('csvBody').innerHTML =
+    '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">⏳ Cargando 294 contactos...</td></tr>';
+  api('getContactosCSV').then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    csvData     = r.data;
+    csvFiltered = [...csvData];
+    // Pre-seleccionar todos
+    csvData.forEach((_,i) => csvSelected.add(i));
+    renderCSV();
+    updateCSVCount();
+  });
+}
+
+// ── Render tabla CSV ───────────────────────────────────────
+let csvSelected = new Set(); // índices seleccionados del CSV
+
+function renderCSV(data) {
+  const list  = data || csvFiltered;
+  const tbody = document.getElementById('csvBody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Sin resultados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map((c, i) => {
+    const realIdx = csvData.indexOf(c);
+    const checked = csvSelected.has(realIdx) ? 'checked' : '';
+    return `<tr style="opacity:${checked?1:0.5}">
+      <td><input type="checkbox" ${checked} onchange="toggleCSVRow(${realIdx},this.checked)"></td>
+      <td style="font-weight:600;font-size:13px">${c.nombre}</td>
+      <td style="font-size:12px;color:var(--muted)">${c.empresa||'—'}</td>
+      <td style="font-size:12px">${c.email||'—'}</td>
+      <td style="font-size:12px">${c.tel||'—'}</td>
+      <td style="font-size:12px">${c.ciudad||'—'}</td>
+      <td style="font-size:12px">${c.pais||'—'}</td>
+    </tr>`;
+  }).join('');
+  updateCSVCount();
+}
+
+function toggleCSVRow(idx, checked) {
+  if (checked) csvSelected.add(idx);
+  else         csvSelected.delete(idx);
+  // Actualizar opacidad de la fila
+  const rows = document.querySelectorAll('#csvBody tr');
+  renderCSV(csvFiltered);
+  updateCSVCount();
+}
+
+function seleccionarTodosCSV(val) {
+  if (val) csvData.forEach((_,i) => csvSelected.add(i));
+  else     csvSelected.clear();
+  document.getElementById('csvChkAll').checked = val;
+  renderCSV(csvFiltered);
+  updateCSVCount();
+}
+
+function updateCSVCount() {
+  const el = document.getElementById('csvSelCount');
+  if (el) el.textContent = csvSelected.size + ' / ' + csvData.length + ' seleccionados';
+}
+
+function filterCSV() {
+  const q = document.getElementById('csvSearch').value.toLowerCase();
+  csvFiltered = !q ? [...csvData] : csvData.filter(c =>
+    c.nombre.toLowerCase().includes(q) ||
+    (c.empresa||'').toLowerCase().includes(q) ||
+    (c.email||'').toLowerCase().includes(q) ||
+    (c.pais||'').toLowerCase().includes(q)
+  );
+  renderCSV(csvFiltered);
+}
+
+function confirmarImportCSV() {
+  const items = [...csvSelected].map(i => csvData[i]).filter(Boolean);
+  if (!items.length) { showToast('Seleccioná al menos un contacto', 'error'); return; }
+  showToast('Importando ' + items.length + ' contactos...', 'info');
+  api('importarClientes', { items }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    closeModal('modalImportCSV');
+    showToast('✅ ' + r.data.added + ' importados · ' + r.data.skipped + ' ya existían', 'success');
+    api('getClientes').then(r2 => { if (r2.ok) { CLIENTES = r2.data; renderClientes(); } });
+  });
+}
+
+// ── Modo selección para bulk delete ───────────────────────
+function toggleClientSelect() {
+  selectMode = !selectMode;
+  clientSelected.clear();
+  document.getElementById('btnSelectMode').textContent = selectMode ? '✕ Cancelar' : '☑ Seleccionar';
+  document.getElementById('clientBulkBar').style.display = selectMode ? 'flex' : 'none';
+  renderClientes();
+}
+
+function deseleccionarTodosClientes() {
+  selectMode = false;
+  clientSelected.clear();
+  document.getElementById('btnSelectMode').textContent = '☑ Seleccionar';
+  document.getElementById('clientBulkBar').style.display = 'none';
+  renderClientes();
+}
+
+function toggleClientCard(id) {
+  if (!selectMode) return;
+  if (clientSelected.has(id)) clientSelected.delete(id);
+  else                        clientSelected.add(id);
+  const count = clientSelected.size;
+  document.getElementById('clientBulkCount').textContent = count + ' seleccionado' + (count!==1?'s':'');
+  // Actualizar visual
+  document.querySelectorAll('.client-card').forEach(card => {
+    const cardId = card.dataset.id;
+    card.classList.toggle('selected', clientSelected.has(cardId));
+  });
+}
+
+function eliminarClientesSeleccionados() {
+  if (!clientSelected.size) return;
+  if (!confirm('¿Eliminar ' + clientSelected.size + ' clientes?')) return;
+  api('eliminarClientesBulk', { ids: [...clientSelected] }).then(r => {
+    if (!r.ok) { showToast(r.error, 'error'); return; }
+    showToast('🗑 ' + r.data.eliminados + ' clientes eliminados', 'success');
+    CLIENTES = CLIENTES.filter(c => !clientSelected.has(c.id));
+    deseleccionarTodosClientes();
+  });
+}
+
+
   facturaItems=[];
   document.getElementById('facturaEmpty').style.display='block';
   document.getElementById('facturaTable').style.display='none';
