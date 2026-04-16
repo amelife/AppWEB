@@ -661,7 +661,7 @@
             <button class="btn btn-danger" onclick="eliminarClientesSeleccionados()" style="padding:8px 14px;font-size:12px">🗑 Eliminar seleccionados</button>
             <button class="btn btn-outline" onclick="deseleccionarTodosClientes()" style="padding:8px 14px;font-size:12px">✕ Cancelar</button>
           </div>
-          <button class="btn btn-outline" onclick="openModal('modalImportCSV')">📥 Importar CSV</button>
+          <button class="btn btn-outline" onclick="abrirImportCSV()">📥 Importar CSV</button>
           <button class="btn btn-outline" onclick="toggleClientSelect()" id="btnSelectMode">☑ Seleccionar</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
@@ -824,7 +824,7 @@
               <table class="data-table" id="facturaTable" style="display:none">
                 <thead><tr>
                   <th><input type="checkbox" id="chkAll" onchange="toggleAllFactura(this)"></th>
-                  <th>PN</th><th>Descripción</th><th>Cant</th><th>Precio Costo</th>
+                  <th>PN</th><th>Descripción</th><th>Proveedor</th><th>Cant</th><th>Precio Costo</th><th>Seriales</th>
                 </tr></thead>
                 <tbody id="facturaBody"></tbody>
               </table>
@@ -1963,18 +1963,37 @@ function processPDF(file) {
 }
 
 function renderFacturaItems() {
+  const iStyle = "padding:4px 7px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);font-size:12px;font-family:'Outfit',sans-serif;outline:none;width:100%";
+  const mStyle = "padding:4px 7px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);font-size:11px;font-family:'JetBrains Mono',monospace;outline:none;width:100%";
+
   document.getElementById('facturaBody').innerHTML = facturaItems.map((item,i) => `
     <tr>
       <td><input type="checkbox" class="fchk" checked data-idx="${i}"></td>
-      <td class="pn">${item.pn}</td>
-      <td style="font-size:12px">${item.desc}</td>
-      <td><input type="number" value="${item.qty}" min="1"
-          style="width:50px;padding:4px 6px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);text-align:center;font-size:12px"
-          onchange="facturaItems[${i}].qty=Number(this.value)"></td>
-      <td><input type="number" value="${item.precio_costo}"
-          style="width:90px;padding:4px 6px;background:#F7FAFA;border:1px solid rgba(0,0,0,0.09);border-radius:6px;color:var(--text);text-align:right;font-size:12px;font-family:'JetBrains Mono',monospace"
-          onchange="facturaItems[${i}].precio_costo=Number(this.value)"></td>
+      <td style="min-width:130px">
+        <input style="${mStyle}" value="${item.pn||''}"
+          onchange="facturaItems[${i}].pn=this.value">
+      </td>
+      <td style="min-width:220px">
+        <input style="${iStyle}" value="${(item.desc||'').replace(/"/g,'&quot;')}"
+          onchange="facturaItems[${i}].desc=this.value">
+      </td>
+      <td style="min-width:80px">
+        <input style="${iStyle}" value="${item.prov||'ZOLL'}"
+          onchange="facturaItems[${i}].prov=this.value">
+      </td>
+      <td style="min-width:60px">
+        <input type="number" style="${mStyle};text-align:center;width:60px" value="${item.qty||0}" min="0"
+          onchange="facturaItems[${i}].qty=Number(this.value)">
+      </td>
+      <td style="min-width:90px">
+        <input type="number" style="${mStyle};text-align:right;width:90px" value="${item.precio_costo||0}" min="0" step="0.01"
+          onchange="facturaItems[${i}].precio_costo=Number(this.value)">
+      </td>
+      <td style="min-width:120px;font-size:10px;color:var(--muted)">
+        ${item.seriales && item.seriales.length ? item.seriales.length + ' series' : '—'}
+      </td>
     </tr>`).join('');
+
   document.getElementById('facturaBadge').style.display = 'inline-block';
   document.getElementById('facturaBadge').textContent   = facturaItems.length + ' ítems';
   document.getElementById('facturaTable').style.display = 'table';
@@ -2010,29 +2029,315 @@ let csvFiltered    = [];      // filtrados por búsqueda
 let clientSelected = new Set(); // IDs seleccionados para eliminar
 let selectMode     = false;
 
-// ── Abrir modal y cargar CSV desde el backend ──────────────
-document.getElementById('modalImportCSV')?.addEventListener
-  || document.addEventListener('DOMContentLoaded', function(){});
+// ── Contactos CSV embebidos directamente (sin llamada al backend) ──
+const CSV_CONTACTOS = [
+  {nombre:'3D Medical',empresa:'3D Medical',email:'',tel:'',ciudad:'',pais:'',notas:'Av. Javier Prado oeste 757- 1004-904'},
+  {nombre:'AA',empresa:'AA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ACOTAPH',empresa:'ACOTAPH',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'AEROMAS Colombia',empresa:'AEROMAS Colombia',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Ingreso Catam, Aeropuerto Internacional El Dorado Puerta 6, Hangar 15, Bogotá, Cundinamarca, Colombia'},
+  {nombre:'ALAIRE',empresa:'ALAIRE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Alejandra Groff',empresa:'Alejandra Groff',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Alejandra Leguizamon',empresa:'Alejandra Leguizamon',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección Medalla Milagrosa No. 2146 ESQ Diego García. Lambare Asunción. Paraguay. Código Postal 2420'},
+  {nombre:'ALERTA MEDICA PERU',empresa:'ALERTA MEDICA PERU',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 20515292781'},
+  {nombre:'ALFA AMBULANCIAS',empresa:'ALFA AMBULANCIAS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Amazon',empresa:'Amazon',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Ambulancias Network SA de CV',empresa:'Ambulancias Network SA de CV',email:'',tel:'',ciudad:'',pais:'',notas:'Naucalpan estado de Mexico,Mexico'},
+  {nombre:'AME LIFE LLC',empresa:'AME LIFE LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Amelife',empresa:'Amelife',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'American Diagnostic Corp',empresa:'American Diagnostic Corp',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'AMEZAGA ARELLANO S.A.CINGENIEROS',empresa:'AMEZAGA ARELLANO S.A.CINGENIEROS',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 20131308095'},
+  {nombre:'AMSEL',empresa:'AMSEL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ANATOMIC SOLUTIONS S.A.',empresa:'ANATOMIC SOLUTIONS S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'EDIFICIO DISCOVER # II, 2do PISO'},
+  {nombre:'Andres',empresa:'Andres',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ANDRES HERNADEZ',empresa:'ANDRES HERNADEZ',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ANEK S3 SL',empresa:'ANEK S3 SL',email:'',tel:'',ciudad:'',pais:'',notas:'CIF: B85649903'},
+  {nombre:'ANSHAN',empresa:'ANSHAN',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ANSILANS MEDICAL SAC',empresa:'ANSILANS MEDICAL SAC',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 20601136415'},
+  {nombre:'APPLE STORE',empresa:'APPLE STORE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'ARALMEX CORP SAC',empresa:'ARALMEL CORP',email:'',tel:'',ciudad:'',pais:'',notas:'Av Encalada No 1257 Of 303'},
+  {nombre:'Asociación Paraguaya de Futbol',empresa:'Asociación Paraguaya de Futbol',email:'',tel:'',ciudad:'',pais:'',notas:'Parque Olímpico - Ñu Guasú, Ciudad de Luque'},
+  {nombre:'ASUCOM SA',empresa:'ASUCOM SA',email:'',tel:'',ciudad:'',pais:'',notas:'Carlos Krause.'},
+  {nombre:'ATSA Corp',empresa:'ATSA Corp',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Av. Elmer Faucett N° 3463'},
+  {nombre:'AUTOMOTOR S.A',empresa:'AUTOMOTOR S.A',email:'',tel:'',ciudad:'',pais:'',notas:'Direccion: Av.Gral. José Gervasio Artigas 1921'},
+  {nombre:'B Y G ELECTRONICA',empresa:'B Y G ELECTRONICA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BANCO DE LA REPUBLICA',empresa:'BANCO DE LA REPUBLICA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Bank',empresa:'Bank',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BARRIENTOS',empresa:'BARRIENTOS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Bertonati Technologies S.A.',empresa:'Bertonati Technologies S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Parcela 6 Sublote B-2 Lote 9 Av. Los Eucaliptos Esq. Av, Las Poncianas, Lurín, Perú'},
+  {nombre:'Bioelectronik- Renan Ibañez Laruta',empresa:'Bioelectronik- Renan Ibañez Laruta',email:'',tel:'',ciudad:'',pais:'',notas:'NIT: 6733011016'},
+  {nombre:'BIOMED MEDICAL DEVICES SRL',empresa:'BIOMED MEDICAL DEVICES SRL',email:'',tel:'',ciudad:'',pais:'',notas:'Manuela Pedraza 2134'},
+  {nombre:'BIOMEDICALS, LLC',empresa:'BIOMEDICALS, LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BIOTECHNOLOGIES',empresa:'BIOTECHNOLOGIES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BIOTECHNOLOGIES SAC',empresa:'BIOTECHNOLOGIES SAC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BJR RESCUE S.A',empresa:'BJR RESCUE S.A',email:'',tel:'',ciudad:'',pais:'',notas:'Vicente Cárdenas E515 Y Amazonas'},
+  {nombre:'Bluwely Company SA',empresa:'Bluwely Company SA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BOSTON ANDES CAPITAL LLC',empresa:'BOSTON ANDES CAPITAL LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Brasmedica/ Ricardo Oscar Marquez Paredes',empresa:'Brasmedica/ Ricardo Oscar Marquez Paredes',email:'',tel:'',ciudad:'',pais:'',notas:'Av. Simón Bolivar #1988'},
+  {nombre:'BRINGIT',empresa:'BRINGIT',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BR-MANESMANN GROUP Atención Sr ETAN BAYAR Through: EUGENIO VARAS',empresa:'BR-MANESMANN GROUP Atención Sr ETAN BAYAR Through: EUGENIO VARAS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BROWN BROTHERS HARRIMAN',empresa:'BROWN BROTHERS HARRIMAN',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'BUISAR CIA LTDA',empresa:'BUISAR CIA LTDA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Cardio Solutions, S.A. de C.V.',empresa:'Cardio Solutions, S.A. de C.V.',email:'',tel:'',ciudad:'',pais:'',notas:'Blvd. Adolfo Lopez Mateos No. 112 Col. Mixcoac 03910 México, D.F. DATE Tel. (55) 4000-1382'},
+  {nombre:'CARDIOPULMONARY CARE S.A.C.',empresa:'CARDIOPULMONARY CARE S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:'Calle Teniente Raul Vera Collahuazo  146 Urb. Humboldt Miraflores Lima Peru'},
+  {nombre:'Carrocerías Milenium',empresa:'Carrocerías Milenium',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'CLEMNCIA MARIA JAUGEN IT: CLEMENCIA MARIA HAU',empresa:'CLEMNCIA MARIA JAUGEN IT: CLEMENCIA MARIA HAU',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'COGS',empresa:'COGS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'COMEN',empresa:'COMEN',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'COMERCIAL TODO PRODUCTO SpA',empresa:'COMERCIAL TODO PRODUCTO SpA',email:'',tel:'',ciudad:'',pais:'',notas:'RUT: 76.426.528-9'},
+  {nombre:'Comercializadora RMH Spa',empresa:'Comercializadora RMH Spa',email:'',tel:'',ciudad:'',pais:'',notas:'RUT 76.348.242-1'},
+  {nombre:'Comercializadora Tradecus Cia. Ltda.',empresa:'Comercializadora Tradecus Cia. Ltda.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 1792386888001'},
+  {nombre:'COMERSEC SAC',empresa:'COMERSEC SAC',email:'',tel:'',ciudad:'',pais:'',notas:'AV ANDRES BELAUDE 181, OFICINA 601'},
+  {nombre:'Comfort Craft Sales Inc',empresa:'Comfort Craft Sales Inc',email:'',tel:'',ciudad:'',pais:'',notas:'20185 E. Country Club Dr #2605'},
+  {nombre:'Comfort Craft Sales Inc.',empresa:'Comfort Craft Sales Inc.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Condor de Servicios S.A.E.C.A',empresa:'Condor de Servicios S.A.E.C.A',email:'',tel:'',ciudad:'',pais:'',notas:'Dr Osvaldo Chavez, Asunción, Paraguay'},
+  {nombre:'Cóndor SACI',empresa:'Cóndor SACI',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección Dr. Bernardino Gorostiaga esquina'},
+  {nombre:'Confido Medical',empresa:'Confido Medical',email:'',tel:'',ciudad:'',pais:'',notas:'Email Sales@confidomedical.com'},
+  {nombre:'CONMEBOL',empresa:'CONMEBOL',email:'',tel:'',ciudad:'',pais:'',notas:'Avda. Sudamericana y Valois Rivarola Luque, Paraguay.'},
+  {nombre:'CONVERSIONES SAN JOSE',empresa:'CONVERSIONES SAN JOSE',email:'',tel:'',ciudad:'',pais:'',notas:'CLAUDIO ARRAU 9750'},
+  {nombre:'CONVERSIONES SAN JOSE SA',empresa:'CONVERSIONES SAN JOSE SA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'COOPERATIVA ELECTRICA DE OBRAS Y SERVICIOS PUBLICOS LIMITADA DE JUSTINIANO POSSE',empresa:'COOPERATIVA ELECTRICA DE OBRAS Y SERVICIOS PUBLICOS LIMITADA DE JUSTINIANO POSSE',email:'',tel:'',ciudad:'',pais:'',notas:'Add: 9 de Julio 681 - Zip CODE 2553 - Justiniano Posse - Cordoba - Argentina'},
+  {nombre:'Corporacion DACMAR SAC',empresa:'Corporacion DACMAR SAC',email:'',tel:'',ciudad:'',pais:'',notas:'Teléfono: (01) 511.9450'},
+  {nombre:'CORPORACIÓN GOLDWAY PERU SAC',empresa:'CORPORACIÓN GOLDWAY PERU SAC',email:'',tel:'',ciudad:'',pais:'',notas:'Calle los Laureles 125 Valle Hermoso,'},
+  {nombre:'CORPORACION QUANTUM S.A.C.',empresa:'CORPORACION QUANTUM S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:'Central: Urb Los Inkas Jr. Antisuyo I-11-B'},
+  {nombre:'CPB MEDICAL S.A.C.',empresa:'CPB MEDICAL S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 20603355289'},
+  {nombre:'CPB MEDICAL SAC',empresa:'CPB MEDICAL SAC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'CRIVOLOTTI',empresa:'CRIVOLOTTI',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'CSJ Chile',empresa:'CSJ Chile',email:'',tel:'',ciudad:'',pais:'',notas:'Claudio Arrau # 9750'},
+  {nombre:'DDM MEDICAL SAC',empresa:'DDM MEDICAL SAC',email:'',tel:'',ciudad:'',pais:'',notas:'Av Angamos oeste 651 oficina 701'},
+  {nombre:'DEACHILE SPA | RUT 76.179.531-7',empresa:'DEACHILE SPA | RUT 76.179.531-7',email:'',tel:'',ciudad:'Santiago de Chile',pais:'Chile',notas:'Suecia 3580 oficina 502, Ñuñoa'},
+  {nombre:'Dermovet SRL',empresa:'Dermovet SRL',email:'',tel:'',ciudad:'',pais:'',notas:'CUIT 30715140302'},
+  {nombre:'DIDACLIBROS',empresa:'DIDACLIBROS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'DIKLA',empresa:'DIKLA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Distribuidora de Reactivos y Equipos de Laboratorio BUISAR CIA. LTDA',empresa:'Distribuidora de Reactivos y Equipos de Laboratorio BUISAR CIA. LTDA',email:'',tel:'',ciudad:'',pais:'',notas:'Av. 10 de Agosto N21-182 y San Gregorio (casa al final del parqueadero)'},
+  {nombre:'Dory Agencia viaje',empresa:'Dory Agencia viaje',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'DRIVE MEDICAL',empresa:'DRIVE MEDICAL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Drogueria Diprolab',empresa:'Drogueria Diprolab',email:'',tel:'',ciudad:'',pais:'',notas:'Movil: +569-91959960'},
+  {nombre:'ECODATA S.A.',empresa:'ECODATA S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'TAX/ID 78.299.070-5'},
+  {nombre:'Ecodata S.P.A.',empresa:'Ecodata S.P.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Calle Lorena Nº 1240 Providencia-Santiago'},
+  {nombre:'EKIPOTEL CHILE S.A.',empresa:'EKIPOTEL CHILE S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'FAX:  56-2-29232026	 TEL.  56-2-29232020'},
+  {nombre:'Electromédica SA',empresa:'Electromédica SA',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Av Ortega y Gasset #42 Esq, Santo Domingo 10122, República Dominicana'},
+  {nombre:'ELECTROMEDYCAL S A S',empresa:'ELECTROMEDYCAL S A S',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Electromedycal SAS',empresa:'Electromedycal SAS',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección:  Av. Padre Luis Vacari  Calle rio cachavi'},
+  {nombre:'Emedical Paraguay',empresa:'Emedical Paraguay',email:'',tel:'',ciudad:'',pais:'',notas:'80088472-8'},
+  {nombre:'EMEDICAL S.A',empresa:'EMEDICAL S.A',email:'',tel:'',ciudad:'',pais:'',notas:'Av. Uruguay 1525 – Piso 3 – Montevideo – Uruguay'},
+  {nombre:'EMERGENCIAS SA',empresa:'EMERGENCIAS SA',email:'',tel:'',ciudad:'',pais:'',notas:'Atención Sr. Marcelo Vidal'},
+  {nombre:'Emerlab SAC',empresa:'Emerlab SAC',email:'',tel:'',ciudad:'',pais:'',notas:'Ruc: 20608928597'},
+  {nombre:'Empresa constructora & servicios generales Akunta',empresa:'Empresa constructora & servicios generales Akunta',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'EMSIX LLC',empresa:'EMSIX LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Esersum Cia Ltda.',empresa:'Esersum Cia Ltda.',email:'',tel:'',ciudad:'',pais:'',notas:'Atención Ing. Daniel Vargas Harnisth'},
+  {nombre:'ETERNAL FAITH',empresa:'ETERNAL FAITH',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Etramed Import S.A.C',empresa:'Etramed Import S.A.C',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'EuroGaza Emergencias',empresa:'EuroGaza Emergencias',email:'',tel:'',ciudad:'',pais:'',notas:'Camino de los Naranjeros A-4, 46, Salida 430, 14191 La Carlota, Córdoba, España'},
+  {nombre:'Ezequiel',empresa:'Ezequiel',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'FALCON CISA',empresa:'FALCON CISA',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 80010835-4'},
+  {nombre:'FALCON COMERCIAL E INDUSTRIAL S.A.',empresa:'FALCON COMERCIAL E INDUSTRIAL S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 80010835-3,'},
+  {nombre:'FARMACOS COSMETICOS',empresa:'FARMACOS COSMETICOS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'FARMAGAL',empresa:'FARMAGAL',email:'',tel:'',ciudad:'',pais:'',notas:'Quito, Ecuador'},
+  {nombre:'Fedelta Salud S.A.',empresa:'Fedelta Salud S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'CUIT: 30-71468112-1'},
+  {nombre:'Firas Mouhandes',empresa:'Firas Mouhandes',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'FIRECORP',empresa:'FIRECORP',email:'',tel:'',ciudad:'',pais:'',notas:'Ave. Santa Elena con Calle 9na., Edificio Firecorp No. 21'},
+  {nombre:'FIREGROUND EQUIPAMIENTO SPA',empresa:'FIREGROUND EQUIPAMIENTO SPA',email:'',tel:'',ciudad:'',pais:'',notas:'RUT 76990549-4'},
+  {nombre:'FLORENTIN CREACIONES',empresa:'FLORENTIN CREACIONES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Fluke Corporation 28775 Aurora Road Cleveland, OH 44139-3303',empresa:'Fluke Corporation 28775 Aurora Road Cleveland, OH 44139-3303',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Francisco Videla',empresa:'Francisco Videla',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'FRIDIMEX',empresa:'FRIDIMEX',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'FRIDIMEX SA',empresa:'FRIDIMEX SA',email:'',tel:'',ciudad:'',pais:'',notas:'30613240574'},
+  {nombre:'FUNDACIÓN COLOMBIA CARDIOSEGURA',empresa:'FUNDACIÓN COLOMBIA CARDIOSEGURA',email:'',tel:'',ciudad:'',pais:'',notas:'direccion_ejecutiva@colombiacardiosegura.org'},
+  {nombre:'Fundacion Favaloro',empresa:'Fundacion Favaloro',email:'',tel:'',ciudad:'',pais:'',notas:'CUIT 33-55976886-9:'},
+  {nombre:'FUNDACION JEVRA HATZALAH GRUPO DE SALVACION ARGENTINA',empresa:'FUNDACION JEVRA HATZALAH GRUPO DE SALVACION ARGENTINA',email:'',tel:'',ciudad:'',pais:'',notas:'CUIT: 30-71543622-8'},
+  {nombre:'G . E TAIKI',empresa:'G . E TAIKI',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'G . E TAIKI S.A.C.',empresa:'G . E TAIKI S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'GALAZ EQUIPOS S A DE C V',empresa:'GALAZ EQUIPOS S A DE C V',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Galenica',empresa:'Galenica',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'GATICAL',empresa:'GATICAL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Gemsco SA de CV',empresa:'Gemsco SA de CV',email:'',tel:'',ciudad:'',pais:'',notas:'Jesús Castañeda'},
+  {nombre:'GEPREVESA Guatemala',empresa:'GEPREVESA Guatemala',email:'',tel:'',ciudad:'',pais:'',notas:'Ronnie Lombana'},
+  {nombre:'GERMAN ALBERTO RODRIGUEZ',empresa:'GERMAN ALBERTO RODRIGUEZ',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Gladys Mabel Manca',empresa:'Gladys Mabel Manca',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'GLOBAL FLEET',empresa:'GLOBAL FLEET',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'GLOBAMEDICS',empresa:'GLOBAMEDICS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'GMMC MXICO, S.A.',empresa:'GMMC MXICO, S.A.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Grenada Football Association',empresa:'Grenada Football Association',email:'',tel:'',ciudad:'',pais:'',notas:'Email : gfageneralsecreteriat@gmail.com'},
+  {nombre:'GRUPO IBP SA',empresa:'GRUPO IBP SA',email:'',tel:'',ciudad:'',pais:'',notas:'DIRECCION :'},
+  {nombre:'HARD & SOFT',empresa:'HARD & SOFT',email:'',tel:'',ciudad:'',pais:'',notas:'Simon Bolivar N°550,'},
+  {nombre:'Harsons',empresa:'Harsons',email:'',tel:'',ciudad:'',pais:'',notas:'P.O. Box. 561'},
+  {nombre:'Honduras Cardiosegura',empresa:'Honduras Cardiosegura',email:'',tel:'',ciudad:'',pais:'',notas:'Juan Carlos Cordova'},
+  {nombre:'HT Supplies LLC',empresa:'HT Supplies LLC',email:'',tel:'',ciudad:'',pais:'',notas:'Jose Gregorio Garcia'},
+  {nombre:'IFB',empresa:'IFB',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Imporpet SRL',empresa:'Imporpet SRL',email:'',tel:'',ciudad:'',pais:'',notas:'Soldado de la, independencia 619. Piso 1'},
+  {nombre:'IMPORTADORA, EXPORTADORA, COMERCIALIZADORA, DISTRIBUIDORA Y FABRICANTE SOUTHCROSS SPA',empresa:'IMPORTADORA, EXPORTADORA, COMERCIALIZADORA, DISTRIBUIDORA Y FABRICANTE SOUTHCROSS SPA',email:'',tel:'',ciudad:'',pais:'',notas:'RUT: 77.032.706-­‐7'},
+  {nombre:'Iñaki Perujo',empresa:'Iñaki Perujo',email:'',tel:'',ciudad:'',pais:'',notas:'Parque España 53-3, colonia Condesa, cp 06140, cuauhtemoc, Ciudad de México'},
+  {nombre:'Industria Ferromedica Cia. Limitada',empresa:'Industria Ferromedica Cia. Limitada',email:'',tel:'',ciudad:'',pais:'',notas:'Ruc: 1792296730001'},
+  {nombre:'Industrias Bertonati Roll Up Ltda',empresa:'Industrias Bertonati Roll Up Ltda',email:'',tel:'',ciudad:'',pais:'',notas:'Rut: 76.056.990-9'},
+  {nombre:'Ing. Com. Daniel Lizano Torres',empresa:'Ing. Com. Daniel Lizano Torres',email:'',tel:'',ciudad:'',pais:'',notas:'Francisco Gómez S9-412 entre Av. Pedro V. Maldonado y Fco. Ruiz (sector La Villaflora).'},
+  {nombre:'INGENIERÍA Y GESTIÓN NOCTUA SpA',empresa:'INGENIERÍA Y GESTIÓN NOCTUA SpA',email:'',tel:'',ciudad:'',pais:'',notas:'Rut Sociedad: 76.733.647-0'},
+  {nombre:'INLEMED S.A.C.',empresa:'INLEMED S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC Nº 20472852753'},
+  {nombre:'Innovaciones Medicas',empresa:'Innovaciones Medicas',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: 4ta. Calle A 3-35 Sector A5 San Cristóbal zona 8 Mixco. Guatemala.'},
+  {nombre:'Internal FNB',empresa:'Internal FNB',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Interservice Peru Hospital S.R.L.',empresa:'Interservice Peru Hospital S.R.L.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 20391026336'},
+  {nombre:'INVERSIONES NAMUCHE S.A.C',empresa:'INVERSIONES NAMUCHE S.A.C',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 20489481201'},
+  {nombre:'ITAIPU',empresa:'ITAIPU',email:'',tel:'',ciudad:'',pais:'',notas:'Lic. Fernando Benitez'},
+  {nombre:'JA',empresa:'JA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JAJAN . ASSOCIATES, PLLC',empresa:'JAJAN . ASSOCIATES, PLLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Jiangsu Rixin Medical Equipment',empresa:'Jiangsu Rixin Medical Equipment',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JMEDICS SAS',empresa:'JMEDICS SAS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JORGE JOSE PIVIDAL',empresa:'JORGE JOSE PIVIDAL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JORGE PIVIDAL PEREZ',empresa:'JORGE PIVIDAL PEREZ',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JOSE ALBERTO LINARES',empresa:'JOSE ALBERTO LINARES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'JOSE ANTONIO BERNALES',empresa:'JOSE ANTONIO BERNALES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Jose Marcelo Sigal',empresa:'Jose Marcelo Sigal',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Jota Medics S.A.S.',empresa:'Jota Medics S.A.S.',email:'',tel:'',ciudad:'',pais:'',notas:'Calle 57 A # 30-19 Barrio Nicolás Federman'},
+  {nombre:'JUAN MANUEL ESPINOSA',empresa:'JUAN MANUEL ESPINOSA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Julian Andres Szeftel',empresa:'Julian Andres Szeftel',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Julio Sanjur',empresa:'Julio Sanjur',email:'',tel:'',ciudad:'',pais:'',notas:'Address Line: Ecogardens # A25, Via Chapala'},
+  {nombre:'Karen Lorena Cruz Arellano',empresa:'Karen Lorena Cruz Arellano',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'KENETH ESCOBAR CTX',empresa:'KENETH ESCOBAR CTX',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LAGUINGUE',empresa:'LAGUINGUE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Laramed',empresa:'Laramed',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Latin Rep Supply S.A.',empresa:'Latin Rep Supply S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Calle Blancos, San Gabriel, 400 metros oeste de Amazon'},
+  {nombre:'LATINMED INTERNATIONAL, S.A.',empresa:'LATINMED INTERNATIONAL, S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'VIA RICARDO J. ALFARO ꗃ CENTRO COMERCIAL SIGLO 21 P.B. LOCAL 36'},
+  {nombre:'LDT GROUP Corp.',empresa:'LDT GROUP Corp.',email:'',tel:'',ciudad:'',pais:'',notas:'Torre de las Américas, Torre A, piso 9, oficina 902'},
+  {nombre:'León Yahes',empresa:'León Yahes',email:'',tel:'',ciudad:'',pais:'',notas:'Email lyahes@hotmail.com'},
+  {nombre:'LINEA OPERATIVA DE EMERGE',empresa:'LINEA OPERATIVA DE EMERGE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LINO TORRES',empresa:'LINO TORRES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LINO TORRES RICHARD',empresa:'LINO TORRES RICHARD',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LIZANO TORRE',empresa:'LIZANO TORRE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LJ Automotriz Ltda',empresa:'LJ Automotriz Ltda',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Av. Américo Vespucio 1321, Quilicura, Región Metropolitana, Chile'},
+  {nombre:'LOTITO',empresa:'LOTITO',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LOWEX',empresa:'LOWEX',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'LUIGUI LOTITO S Y CIA LTDA',empresa:'LUIGUI LOTITO S Y CIA LTDA',email:'',tel:'',ciudad:'',pais:'',notas:'Fabricación y comercialización de partes piezas y para extintores.'},
+  {nombre:'Luis Aranda Gomero',empresa:'Luis Aranda Gomero',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MAIA LAURA CRIVOLOTTI',empresa:'MAIA LAURA CRIVOLOTTI',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Manuel Ordóñez Reaño, Director General de Administración MINSA. Ministerio de Salud.',empresa:'Manuel Ordóñez Reaño, Director General de Administración MINSA. Ministerio de Salud.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Marc Warriner Customer Service Supervisor MGE',empresa:'Marc Warriner Customer Service Supervisor MGE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MARCO ANTONIO SORIA',empresa:'MARCO ANTONIO SORIA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Marco Antonio Soria Huaman',empresa:'Marco Antonio Soria Huaman',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MARÍA ESTHER CUROTTO ESPINOZA',empresa:'MARÍA ESTHER CUROTTO ESPINOZA',email:'',tel:'',ciudad:'',pais:'',notas:'DIRECCIÓN DE ENTREGA: AV. EMANCIPACIÓN 549 INT. 121 CERCADO DE LIMA'},
+  {nombre:'Mario Ruiz',empresa:'Mario Ruiz',email:'',tel:'',ciudad:'',pais:'',notas:'Phone: 503-22457900'},
+  {nombre:'MARLENE PAULINA GALARZA',empresa:'MARLENE PAULINA GALARZA',email:'',tel:'',ciudad:'',pais:'',notas:'RUC: 1704839677001'},
+  {nombre:'MASTER SAFETY SAS',empresa:'MASTER SAFETY SAS',email:'',tel:'',ciudad:'',pais:'',notas:'NIT : 830,115,400 - 9'},
+  {nombre:'Mastermed Instruments',empresa:'Mastermed Instruments',email:'',tel:'',ciudad:'',pais:'',notas:'NIT 198528025'},
+  {nombre:'MAX ENRIQUE',empresa:'MAX ENRIQUE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MEBA S.A',empresa:'MEBA S.A',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 80114943-6'},
+  {nombre:'MEDIC IMPORT S.R.Ltda.',empresa:'MEDIC IMPORT S.R.Ltda.',email:'',tel:'',ciudad:'',pais:'',notas:'Av aviacion 3944, of 1501, surquillo'},
+  {nombre:'MEDICAL TEAMS COMPANY S.A',empresa:'MEDICAL TEAMS COMPANY S.A',email:'',tel:'',ciudad:'',pais:'',notas:'CEL PHONE (57)3023971078'},
+  {nombre:'MEDICAL TEAMS COMPANY S.A.',empresa:'MEDICAL TEAMS COMPANY S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Guatemala.'},
+  {nombre:'MEDICALTEK CHILE S.A.',empresa:'MEDICALTEK CHILE S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'VENTA DE INSUMOS MEDICOS, DENTALES'},
+  {nombre:'Medik Biosolutions de Costa Rica SRL Cuidamos tu salud Cédula jurídica: 3-102-797581 Teléfono: +506 8883-0032 / 7075-3935 Email: comercial@medikcr.com',empresa:'Medik Biosolutions de Costa Rica SRL Cuidamos tu salud Cédula jurídica: 3-102-797581 Teléfono: +506 8883-0032 / 7075-3935 Email: comercial@medikcr.com',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MEDIOS AMERICA',empresa:'MEDIOS AMERICA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MEDISTAT PARAGUAY S.A..',empresa:'MEDISTAT PARAGUAY S.A..',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 80114667-4'},
+  {nombre:'METRONIX INC',empresa:'METRONIX INC',email:'',tel:'',ciudad:'',pais:'',notas:'13361 North 56th Street, Suite 16 Tampa, Florida'},
+  {nombre:'MIAMI CUSTOMS SERVICES',empresa:'MIAMI CUSTOMS SERVICES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MILTON GROSTEIN',empresa:'MILTON GROSTEIN',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Mobile Deposit',empresa:'Mobile Deposit',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MODO DOMO LLC',empresa:'MODO DOMO LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MONTEBIO SRL | CUIT 30708250062 VERA 575 – CP 1414 - CABA BUENOS AIRES – ARGENTINA .',empresa:'MONTEBIO SRL',email:'',tel:'',ciudad:'Buenos Aires',pais:'Argentina',notas:''},
+  {nombre:'MONTEBIO SRL CUIT 30708250062',empresa:'MONTEBIO SRL CUIT 30708250062',email:'',tel:'',ciudad:'',pais:'',notas:'VERA 575 – CP 1414  - CABA, BUENOS AIRES – ARGENTINA .'},
+  {nombre:'MP BIOMEDICALS LLC',empresa:'MP BIOMEDICALS LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'MSSP Consultores, S. A.',empresa:'MSSP Consultores, S. A.',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 2316394-1-792320 DV: 3'},
+  {nombre:'Networks Investment Company S.A.C.',empresa:'Networks Investment Company S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:'RUT or NIT: 20604139601'},
+  {nombre:'Nicolas Weis',empresa:'Nicolas Weis',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Nombre: SANTI S.A. Atención: Ing. Iván Santillán Ch. RUC:1706382270001',empresa:'Nombre: SANTI S.A. Atención: Ing. Iván Santillán Ch. RUC:1706382270001',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Calle: Guano S8-443 y Sig Sig'},
+  {nombre:'Office',empresa:'Office',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Owner',empresa:'Owner',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'PARAGUAY LOGISTIC SERVICES SA',empresa:'PARAGUAY LOGISTIC SERVICES SA',email:'',tel:'',ciudad:'',pais:'',notas:'RUC. 80079932-1'},
+  {nombre:'PERFECTECH S.A.',empresa:'PERFECTECH S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'CDLA SANTA LEONOR SOLAR#28 MZ#5'},
+  {nombre:'Physikalisch-Technische Bundesanstalt',empresa:'Physikalisch-Technische Bundesanstalt',email:'',tel:'',ciudad:'',pais:'',notas:'Department 9.3 Ms Diener.'},
+  {nombre:'PRESTAN LATAM',empresa:'PRESTAN LATAM',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'PRESTAN LATAM EQUIPAMENT',empresa:'PRESTAN LATAM EQUIPAMENT',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Prevención y Seguridad Industrial',empresa:'Prevención y Seguridad Industrial',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Calle Blancos de Macopa 300 metros Oeste, Inmobiliaria Bodeblancos, San José, Costa Rica'},
+  {nombre:'Prevenseg E.A.S',empresa:'Prevenseg E.A.S',email:'',tel:'',ciudad:'',pais:'',notas:'R.U.C: 80130031-2'},
+  {nombre:'PRODUCTOS METALICOS',empresa:'PRODUCTOS METALICOS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'PROMEDENT',empresa:'PROMEDENT',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'PROVEESALUD',empresa:'PROVEESALUD',email:'',tel:'',ciudad:'',pais:'',notas:'Av Arturo Prat 199, Torre B, Oficina 305, Concepcion. Chile'},
+  {nombre:'QUIROGA TRUCKS SA',empresa:'QUIROGA TRUCKS SA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'QUIRURGIL S.A.S.',empresa:'QUIRURGIL S.A.S.',email:'',tel:'',ciudad:'',pais:'',notas:'NIT 890942914-8'},
+  {nombre:'R GOMES',empresa:'R GOMES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Ramon Lizana SPA',empresa:'Ramon Lizana SPA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Recoverex, S.A',empresa:'Recoverex, S.A',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: 22 ave A 5-96'},
+  {nombre:'RENAN IBANEZ LARUTA',empresa:'RENAN IBANEZ LARUTA',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Representaciones PL, C.A K4033 8200 NW 30 TERRACE DORAL FL 33122',empresa:'Representaciones PL, C.A K4033 8200 NW 30 TERRACE DORAL FL 33122',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Rieder & Cia',empresa:'Rieder & Cia',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Avenida General José Gervasio Artigas 1945, Asunción, Paraguay'},
+  {nombre:'RIESTER',empresa:'RIESTER',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Rilab - Carlos Rivas Padilla y Cía Ltda',empresa:'Rilab - Carlos Rivas Padilla y Cía Ltda',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Escanilla 1176, Independencia, Región Metropolitana, Chile.'},
+  {nombre:'Rodomaq S.A',empresa:'Rodomaq S.A',email:'',tel:'',ciudad:'',pais:'',notas:'Ruta 2 Km 16 - Capiatá.'},
+  {nombre:'Safra',empresa:'Safra',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SAIKANG',empresa:'SAIKANG',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Sales',empresa:'Sales',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SANTIAGO PATRICIO VACA TOPON',empresa:'SANTIAGO PATRICIO VACA TOPON',email:'',tel:'',ciudad:'',pais:'',notas:'RUC #1718297532001'},
+  {nombre:'Sensacorp S.A.C.',empresa:'Sensacorp S.A.C.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SERBER . ASSOCIATES P.A.',empresa:'SERBER . ASSOCIATES P.A.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SERVICIOS AÉREOS PANAMERICANOS SARPA SAS',empresa:'SERVICIOS AÉREOS PANAMERICANOS SARPA SAS',email:'',tel:'',ciudad:'',pais:'',notas:'NIT895201578-0'},
+  {nombre:'Servicios especiales en medicina integral SAC',empresa:'Servicios especiales en medicina integral SAC',email:'',tel:'',ciudad:'',pais:'',notas:'RUC 20515292781'},
+  {nombre:'SHANGHAI TOP DISPLAY',empresa:'SHANGHAI TOP DISPLAY',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SHENZHEN OSEN',empresa:'SHENZHEN OSEN',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SIGAL',empresa:'SIGAL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Simmedical SpA',empresa:'Simmedical SpA',email:'',tel:'',ciudad:'',pais:'',notas:'Rut: 76.590.071-9'},
+  {nombre:'Soc. Comercial AMW SA',empresa:'Soc. Comercial AMW SA',email:'',tel:'',ciudad:'',pais:'',notas:'RUT: 77.714.930-K'},
+  {nombre:'Sociedad Civil Escuela Britanica',empresa:'Sociedad Civil Escuela Britanica',email:'',tel:'',ciudad:'',pais:'',notas:'8545 NW 72ND ST MIAMI, FL 33166-2349'},
+  {nombre:'Sociedad Médica emergencia Cardiológica V Región Ltda.',empresa:'Sociedad Médica emergencia Cardiológica V Región Ltda.',email:'',tel:'',ciudad:'',pais:'',notas:'79.567.820-4'},
+  {nombre:'SOLMEDICA SRL',empresa:'SOLMEDICA SRL',email:'',tel:'',ciudad:'',pais:'',notas:'Av. Simón Bolivar #1988'},
+  {nombre:'Soluciones Médicas Hospitalarias JA C.A.',empresa:'Soluciones Médicas Hospitalarias JA C.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: Av. Sucre De Los Dos Caminos , Locales 1&2. Caracas Venezuela'},
+  {nombre:'SORQUI COMPANY INC',empresa:'SORQUI COMPANY INC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SORQUI COMPANY INC.',empresa:'SORQUI COMPANY INC.',email:'',tel:'',ciudad:'',pais:'',notas:'Ruc: 2133873-1-762450 Dv 95'},
+  {nombre:'SPENCER',empresa:'SPENCER',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SPENCER ITALIA SRL',empresa:'SPENCER ITALIA SRL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'STRETCHERS & MEDICAL DEPOT',empresa:'STRETCHERS & MEDICAL DEPOT',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SUNBRIGHT GROUP',empresa:'SUNBRIGHT GROUP',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SYGO HEALTH',empresa:'SYGO HEALTH',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'SYNCROTECH',empresa:'SYNCROTECH',email:'',tel:'',ciudad:'',pais:'',notas:'Javier Gomez'},
+  {nombre:'TACTICAL MD COLOMBIA S.A.S',empresa:'TACTICAL MD COLOMBIA S.A.S',email:'',tel:'',ciudad:'',pais:'',notas:'NIT: 9013472574'},
+  {nombre:'TAICHI HOLDINGS LIMITED',empresa:'TAICHI HOLDINGS LIMITED',email:'',tel:'',ciudad:'',pais:'',notas:'5F Grand Bloom, 2-10-2 Fujimi Chiyoda-ku, Tokyo, 102-0071, Japan'},
+  {nombre:'Tannia Giovanna Fiallos',empresa:'Tannia Giovanna Fiallos',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'TATIANA GARGUREVICH SANCHEZ',empresa:'TATIANA GARGUREVICH SANCHEZ',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'TECHINVEST SAC',empresa:'TECHINVEST SAC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Test Lab Suppliers',empresa:'Test Lab Suppliers',email:'',tel:'',ciudad:'',pais:'',notas:'Contacto: Cristian Cruz'},
+  {nombre:'THE ECONOMIST NEWSPAPER',empresa:'THE ECONOMIST NEWSPAPER',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'THE FINANCIAL TIMES',empresa:'THE FINANCIAL TIMES',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'TOYOSA S.A.',empresa:'TOYOSA S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Concesionario Toyota'},
+  {nombre:'Toyota Gibraltar Stockholdings Ltd',empresa:'Toyota Gibraltar Stockholdings Ltd',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'TRADECUS CIA. LTDA.',empresa:'TRADECUS CIA. LTDA.',email:'amelife@amelife-911.com',tel:'',ciudad:'',pais:'',notas:'Av. 12 De Octubre N24-739 y Colón Edf. Boreal Torre “A” Piso 5 Of. 509.'},
+  {nombre:'Travel',empresa:'Travel',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Trust Med Group S. A.',empresa:'Trust Med Group S. A.',email:'',tel:'',ciudad:'',pais:'',notas:'Av. Córdoba 1561 piso 10'},
+  {nombre:'TSA S.A',empresa:'TSA S.A',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'tsn Security & Telecom',empresa:'tsn Security & Telecom',email:'',tel:'',ciudad:'',pais:'',notas:'Andrés Guajardo 350 Parque Industrial Apodaca'},
+  {nombre:'UCM',empresa:'UCM',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'UCM Servicios',empresa:'UCM Servicios',email:'',tel:'',ciudad:'',pais:'',notas:'RUT 76.851.780-0'},
+  {nombre:'UDLA Ecuador',empresa:'UDLA Ecuador',email:'',tel:'',ciudad:'',pais:'',notas:'Dirección: De Los Colimes esq, Quito 170513, Ecuador'},
+  {nombre:'ULTRATECH INVESTMENT, S.A.',empresa:'ULTRATECH INVESTMENT, S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'Calle 50 y 67 San Francisco'},
+  {nombre:'UNIDAD CORONARIO MOVIL S.A.',empresa:'UNIDAD CORONARIO MOVIL S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'RUT 88.670.700-2'},
+  {nombre:'UNIVERSUM GROUP LLC',empresa:'UNIVERSUM GROUP LLC',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'URANO VET S L/EDITORIAL',empresa:'URANO VET S L/EDITORIAL',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'USDT Treasury Bills',empresa:'USDT Treasury Bills',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'USPS',empresa:'USPS',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'VAREF S.A.',empresa:'VAREF S.A.',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Ventymont SAC',empresa:'Ventymont SAC',email:'',tel:'',ciudad:'',pais:'',notas:'Calle Daniel Hernandez Nº 344'},
+  {nombre:'VICENTE SCAVONE & CIA. S.A.E.',empresa:'VICENTE SCAVONE & CIA. S.A.E.',email:'',tel:'',ciudad:'',pais:'',notas:'SAN LORENZO - PARAGUAY'},
+  {nombre:'VITAL Socorro Médico Privado S.A.',empresa:'VITAL Socorro Médico Privado S.A.',email:'',tel:'',ciudad:'',pais:'',notas:'MPE S.A.'},
+  {nombre:'VITALHEART SPA',empresa:'VITALHEART SPA',email:'',tel:'',ciudad:'',pais:'',notas:'SEND Norte Edif A, 55DP 71 71 Viña del Mar'},
+  {nombre:'VITALTEC',empresa:'VITALTEC',email:'',tel:'',ciudad:'',pais:'',notas:'Calle Mariscal Cáceres Nº 132,'},
+  {nombre:'Vitaltime Spa',empresa:'Vitaltime Spa',email:'',tel:'',ciudad:'',pais:'',notas:'RUT 77.039.341-8'},
+  {nombre:'VIVEST',empresa:'VIVEST',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'WENZHOU MIWO TRADE',empresa:'WENZHOU MIWO TRADE',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Wenzhou Miwo Trade Co Ltd',empresa:'Wenzhou Miwo Trade Co Ltd',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Xero',empresa:'Xero',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'XXX',empresa:'XXX',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'yasna godoy olivares, yasnagodoy@yahoo.es',empresa:'yasna godoy olivares, yasnagodoy@yahoo.es',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Zoll',empresa:'Zoll',email:'',tel:'',ciudad:'',pais:'',notas:''},
+  {nombre:'Zoll Medical Corporation',empresa:'Zoll Medical Corporation',email:'',tel:'',ciudad:'',pais:'',notas:'269 Mill Road'},
+];
 
-// Cargar contactos cuando se abre el modal
-function openModal(id) {
-  document.getElementById(id).classList.add('open');
-  if (id === 'modalImportCSV' && csvData.length === 0) loadCSVData();
-}
-
-function loadCSVData() {
-  document.getElementById('csvBody').innerHTML =
-    '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">⏳ Cargando 294 contactos...</td></tr>';
-  api('getContactosCSV').then(r => {
-    if (!r.ok) { showToast(r.error, 'error'); return; }
-    csvData     = r.data;
+function abrirImportCSV() {
+  document.getElementById('modalImportCSV').classList.add('open');
+  if (csvData.length === 0) {
+    csvData     = CSV_CONTACTOS;
     csvFiltered = [...csvData];
-    // Pre-seleccionar todos
     csvData.forEach((_,i) => csvSelected.add(i));
     renderCSV();
     updateCSVCount();
-  });
+  }
 }
+
 
 // ── Render tabla CSV ───────────────────────────────────────
 let csvSelected = new Set(); // índices seleccionados del CSV
