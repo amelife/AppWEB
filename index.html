@@ -1060,12 +1060,25 @@
               <div class="stat-label">Total Consolidado (USD)</div>
               <div class="stat-value" id="bancosTotalUSD" style="color:var(--green);font-size:28px;">$0.00</div>
               <div class="stat-sub" id="bancosTotalSub">—</div>
+              <button onclick="bancosToggleDetalle()" id="bancosBtnDetalle"
+                style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--green);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">
+                👁 Ver detalle completo
+              </button>
             </div>
             <div class="stat-card info">
               <div class="stat-label">Última actualización</div>
               <div class="stat-value" id="bancosUltimaFecha" style="color:var(--info);font-size:22px;">—</div>
               <div class="stat-sub" id="bancosUltimaFuente">Sin cargas</div>
             </div>
+          </div>
+
+          <!-- Panel expandible con detalle completo -->
+          <div id="bancosDetallePanel" style="display:none;margin-bottom:16px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+              <h3 style="margin:0;font-size:16px;color:var(--text);">📊 Detalle completo por cuenta</h3>
+              <button onclick="bancosToggleDetalle()" style="background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+            </div>
+            <div id="bancosDetalleContent"></div>
           </div>
 
           <!-- Grid de cuentas agrupadas por banco -->
@@ -2902,6 +2915,105 @@ function bancosRenderTotal() {
   const fuentes = (r.detalle || []).filter(d => d.ultimaFecha === maxFecha).map(d => d.ultimaFuente);
   const fuentesUnicas = [...new Set(fuentes.filter(f => f))];
   document.getElementById('bancosUltimaFuente').textContent = fuentesUnicas.length ? fuentesUnicas.join(' · ') : '—';
+
+  // Refrescar detalle si está abierto
+  if (document.getElementById('bancosDetallePanel').style.display !== 'none') {
+    bancosRenderDetalle();
+  }
+}
+
+function bancosToggleDetalle() {
+  const panel = document.getElementById('bancosDetallePanel');
+  const btn   = document.getElementById('bancosBtnDetalle');
+  const abierto = panel.style.display !== 'none';
+  if (abierto) {
+    panel.style.display = 'none';
+    btn.innerHTML = '👁 Ver detalle completo';
+  } else {
+    bancosRenderDetalle();
+    panel.style.display = 'block';
+    btn.innerHTML = '✕ Ocultar detalle';
+    setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  }
+}
+
+function bancosRenderDetalle() {
+  const cont = document.getElementById('bancosDetalleContent');
+  const r = BANCOS_STATE.resumen;
+  if (!r || !r.porBanco || r.porBanco.length === 0) {
+    cont.innerHTML = '<em style="color:var(--muted);">Sin datos cargados</em>';
+    return;
+  }
+
+  let html = '';
+  let granTotal = 0;
+  let granTotalDesglose = 0;
+
+  r.porBanco.forEach(b => {
+    let subtotalBanco = 0;
+
+    // Tabla por banco
+    let rowsHtml = '';
+    b.cuentas.forEach(c => {
+      const desglose = (c.ultimoDesglose || []).filter(d => d && d.label);
+      subtotalBanco += c.ultimoSaldo || 0;
+
+      // Fila de la cuenta (saldo principal, sí suma)
+      rowsHtml += `
+        <tr>
+          <td style="padding:8px 6px;border-bottom:1px solid var(--border2);">
+            <div style="font-weight:600;color:var(--text);">${c.cuenta}</div>
+            <div style="font-size:11px;color:var(--muted);">${c.titular||''}${c.ultimaFecha?' · '+c.ultimaFecha:' · sin datos'}</div>
+          </td>
+          <td style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border2);">
+            <span style="font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;">${bancosFmt(c.ultimoSaldo)}</span>
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;">suma al total</div>
+          </td>
+        </tr>`;
+
+      // Filas de desglose (informativo, no suma)
+      desglose.forEach(d => {
+        granTotalDesglose += (d.monto || 0);
+        rowsHtml += `
+          <tr>
+            <td style="padding:4px 6px 4px 24px;border-bottom:1px dashed var(--border2);font-size:12px;color:var(--muted);">
+              <span style="opacity:0.6;">└─</span> ${d.label}
+            </td>
+            <td style="padding:4px 6px;text-align:right;border-bottom:1px dashed var(--border2);font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;">
+              ${bancosFmt(d.monto)}
+              <span style="font-size:9px;opacity:0.6;margin-left:4px;">(info)</span>
+            </td>
+          </tr>`;
+      });
+    });
+
+    granTotal += subtotalBanco;
+
+    html += `
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--card2);border-radius:8px 8px 0 0;border-left:3px solid var(--green);">
+          <div style="font-size:15px;font-weight:700;color:var(--text);">🏦 ${b.banco}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;">${bancosFmt(subtotalBanco)}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          ${rowsHtml}
+        </table>
+      </div>`;
+  });
+
+  // Total general al final
+  html += `
+    <div style="margin-top:20px;padding:14px 16px;background:linear-gradient(135deg,var(--green-glow) 0%,transparent 100%);border:2px solid var(--green);border-radius:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Total General Consolidado</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">Desglose informativo: ${bancosFmt(granTotalDesglose)} (no suma)</div>
+        </div>
+        <div style="font-size:26px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;">${bancosFmt(granTotal)}</div>
+      </div>
+    </div>`;
+
+  cont.innerHTML = html;
 }
 
 function bancosRenderGrid() {
