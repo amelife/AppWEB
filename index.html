@@ -27,6 +27,7 @@
   /* =============================================
      AMELIFE APP v1.0 | 2026-03-05 10:30 ARG
      ============================================= */
+  /* ── TEMA CLARO (default) ── */
   :root {
     --green:       #4A9A2A;
     --green-light: #5DB535;
@@ -48,6 +49,65 @@
     --shadow:      0 2px 16px rgba(0,0,0,0.08);
     --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
   }
+
+  /* ── TEMA OSCURO ── */
+  [data-theme="dark"] {
+    --green:       #6CB33F;
+    --green-light: #8DD05A;
+    --green-dark:  #4A8A28;
+    --green-glow:  rgba(108,179,63,0.18);
+    --bg:          #0C1520;
+    --sidebar:     #111D2B;
+    --card:        #162030;
+    --card2:       #1C2A3D;
+    --border:      rgba(108,179,63,0.15);
+    --border2:     rgba(255,255,255,0.07);
+    --text:        #E2EBF5;
+    --muted:       #7A90AA;
+    --danger:      #E05252;
+    --warning:     #E0A030;
+    --info:        #4A9FD5;
+    --shadow:      0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  /* Ajustes oscuro: inputs, modales, tabla, searchbox */
+  [data-theme="dark"] .login-box,
+  [data-theme="dark"] .modal,
+  [data-theme="dark"] #pdfPopupInner    { background: var(--card); border-color: var(--border); }
+  [data-theme="dark"] .topbar           { background: var(--sidebar); box-shadow: none; border-bottom: 1px solid var(--border2); }
+  [data-theme="dark"] .stat-card,
+  [data-theme="dark"] .card,
+  [data-theme="dark"] .table-container  { background: var(--card); border-color: var(--border2); box-shadow: none; }
+  [data-theme="dark"] .data-table thead tr { background: var(--card2); }
+  [data-theme="dark"] .data-table td    { border-bottom-color: var(--border2); }
+  [data-theme="dark"] .data-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+  [data-theme="dark"] .field input,
+  [data-theme="dark"] .field select,
+  [data-theme="dark"] .search-box input,
+  [data-theme="dark"] .filter-select,
+  [data-theme="dark"] .wh-input         { background: var(--bg); border-color: var(--border2); color: var(--text); }
+  [data-theme="dark"] .field input:focus,
+  [data-theme="dark"] .search-box input:focus { box-shadow: 0 0 0 3px var(--green-glow); }
+  [data-theme="dark"] .user-pill        { background: var(--card); }
+  [data-theme="dark"] .dep-tab          { background: var(--card); border-color: var(--border2); color: var(--muted); }
+  [data-theme="dark"] .dep-tab.active   { background: var(--green); color: #fff; }
+  [data-theme="dark"] .client-card      { background: var(--card); border-color: var(--border2); box-shadow: none; }
+  [data-theme="dark"] .client-card.selected { background: var(--green-glow); }
+  [data-theme="dark"] .qa-btn           { background: var(--card2); border-color: var(--border2); }
+  [data-theme="dark"] .modal-overlay    { background: rgba(0,0,0,0.7); }
+  [data-theme="dark"] #dropZone         { background: var(--card); border-color: var(--border); }
+  [data-theme="dark"] .pb-tab           { background: var(--card); border-color: var(--border2); }
+  [data-theme="dark"] .pb-tab.active    { background: var(--green-glow); }
+
+  /* ── Botón de tema ── */
+  #themeBtn {
+    width: 34px; height: 34px; border-radius: var(--radius);
+    background: var(--card2); border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px; transition: background var(--transition);
+    flex-shrink: 0;
+  }
+  #themeBtn:hover { background: var(--border); }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
 
@@ -473,6 +533,7 @@
         <span class="topbar-date" id="topbarDate"></span>
         <div class="notif-btn" title="Notificaciones">🔔</div>
         <div class="notif-btn" title="Configuración">⚙️</div>
+        <div id="themeBtn" onclick="cycleTheme()" title="Cambiar tema"></div>
       </div>
     </div>
 
@@ -1632,6 +1693,41 @@ document.addEventListener('keydown', e => {
 //  INIT
 // ============================================
 updateClock();
+
+// ============================================================
+//  SISTEMA DE TEMAS: claro / oscuro / auto (19hs-06hs)
+// ============================================================
+const TEMAS       = ['auto', 'light', 'dark'];
+const TEMA_ICONS  = { auto:'🌗', light:'☀️', dark:'🌙' };
+const TEMA_LABELS = { auto:'Automático', light:'Claro', dark:'Oscuro' };
+let temaActual    = localStorage.getItem('amelife_tema') || 'auto';
+
+function aplicarTema(tema) {
+  const html  = document.documentElement;
+  if (tema === 'auto') {
+    const h    = new Date().getHours();
+    const noche = h >= 19 || h < 6;
+    html.setAttribute('data-theme', noche ? 'dark' : '');
+  } else {
+    html.setAttribute('data-theme', tema === 'dark' ? 'dark' : '');
+  }
+  const btn = document.getElementById('themeBtn');
+  if (btn) btn.textContent = TEMA_ICONS[tema];
+}
+
+function cycleTheme() {
+  const idx  = TEMAS.indexOf(temaActual);
+  temaActual = TEMAS[(idx + 1) % TEMAS.length];
+  localStorage.setItem('amelife_tema', temaActual);
+  aplicarTema(temaActual);
+  showToast('Tema: ' + TEMA_LABELS[temaActual], 'info');
+}
+
+// Aplicar al cargar
+aplicarTema(temaActual);
+
+// Reevaluar auto cada minuto
+setInterval(function() { if (temaActual === 'auto') aplicarTema('auto'); }, 60000);
 </script>
 
 <!-- ===== MODAL: NUEVO TRACKING ===== -->
