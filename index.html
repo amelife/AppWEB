@@ -558,6 +558,25 @@
 
       <!-- ===== INVENTARIO ===== -->
       <div class="panel" id="panel-inventario">
+
+        <!-- Pestañas de depósito -->
+        <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="dep-tab active" onclick="switchDeposito('TODOS',this)">
+            📦 Todos
+          </button>
+          <button class="dep-tab" onclick="switchDeposito('XAID',this)">
+            🏭 Depósito XAID
+          </button>
+          <button class="dep-tab" onclick="switchDeposito('ADS',this)">
+            🏭 Depósito ADS
+          </button>
+          <div id="depStats" style="margin-left:auto;display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)">
+            <span id="depStatXAID">XAID: —</span>
+            <span style="color:var(--border2)">|</span>
+            <span id="depStatADS">ADS: —</span>
+          </div>
+        </div>
+
         <div class="toolbar">
           <div class="search-box">
             <input type="text" id="invSearch" placeholder="Buscar por PN, descripción, WH..." oninput="filterInventario()" />
@@ -583,13 +602,12 @@
               <tr>
                 <th>Part Number</th>
                 <th>Descripción</th>
-                <th>Proveedor</th>
-                <th>P. Lista</th>
+                <th>Depósito</th>
                 <th>P. Costo</th>
                 <th>Stock</th>
                 <th>WH #</th>
+                <th>Lugar</th>
                 <th>Tracking</th>
-                <th>Vencimiento</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -1028,14 +1046,77 @@
    Conectado a Google Apps Script
    ============================================= */
 
-// ── URL del Apps Script ────────────────────────────────────
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw577_aLhl42DkpN7or4ejTC7XyxCCWLGBjXxsLNfQTPNlaRJ2cL3ViOGV0KR_TaRY/exec';
-
 // ── Estado global ──────────────────────────────────────────
 let currentUser    = null;
 let INVENTARIO     = [];
 let CLIENTES       = [];
 let PRICEBOOK_DATA = [];
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw577_aLhl42DkpN7or4ejTC7XyxCCWLGBjXxsLNfQTPNlaRJ2cL3ViOGV0KR_TaRY/exec';
+
+// ── Estado depósito activo ─────────────────────────────────
+let depositoActivo = 'TODOS';
+
+// ── Cambiar pestaña de depósito ────────────────────────────
+function switchDeposito(dep, el) {
+  depositoActivo = dep;
+  document.querySelectorAll('.dep-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  filterInventario();
+}
+
+// ── Render inventario actualizado con depósito ─────────────
+function renderInventario(data) {
+  const rows  = data || INVENTARIO;
+  const tbody = document.getElementById('invBody');
+  const statusMap   = { ok:'badge-green', low:'badge-warning', zero:'badge-danger' };
+  const statusLabel = { ok:'OK', low:'Stock bajo', zero:'Sin stock' };
+  const depColor    = { XAID:'#2B7EC1', ADS:'#4A9A2A' };
+
+  tbody.innerHTML = rows.map((item, i) => {
+    const dep    = (item.deposito || '').toUpperCase();
+    const color  = depColor[dep] || 'var(--muted)';
+    const lugar  = item.notas || item.lugar || '';
+    return `<tr>
+      <td class="pn">${item.pn || '—'}</td>
+      <td style="max-width:240px;white-space:normal;font-size:12px">${item.desc}</td>
+      <td><span class="badge" style="background:${color}20;color:${color};font-weight:700">${dep||'—'}</span></td>
+      <td>${item.costo ? '$'+Number(item.costo).toLocaleString() : '—'}</td>
+      <td><b>${item.stock}</b></td>
+      <td class="pn" style="font-size:11px">${item.wh||'—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${lugar}</td>
+      <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
+      <td><span class="badge ${statusMap[item.estado]||'badge-muted'}">${statusLabel[item.estado]||item.estado}</span></td>
+      <td>
+        <button class="tbl-action" onclick="openEditItem('${item.id}')" title="Editar">✏️</button>
+        <button class="tbl-action" onclick="confirmDeleteItem('${item.id}','${item.pn}')" title="Eliminar">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('invCount').textContent = rows.length + ' ítems';
+
+  // Actualizar stats de depósitos
+  const xaidCount = INVENTARIO.filter(i => (i.deposito||'').toUpperCase() === 'XAID').length;
+  const adsCount  = INVENTARIO.filter(i => (i.deposito||'').toUpperCase() === 'ADS').length;
+  const xaidEl = document.getElementById('depStatXAID');
+  const adsEl  = document.getElementById('depStatADS');
+  if (xaidEl) xaidEl.textContent = 'XAID: ' + xaidCount + ' ítems';
+  if (adsEl)  adsEl.textContent  = 'ADS: '  + adsCount  + ' ítems';
+}
+
+function filterInventario() {
+  const q    = document.getElementById('invSearch').value.toLowerCase();
+  const prov = document.getElementById('invFilterProv').value;
+  const stk  = document.getElementById('invFilterStock').value;
+  const filtered = INVENTARIO.filter(i => {
+    const dep      = (i.deposito||'').toUpperCase();
+    const matchDep = depositoActivo === 'TODOS' || dep === depositoActivo;
+    const matchQ   = !q || String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q) || String(i.wh||'').toLowerCase().includes(q);
+    const matchProv= !prov || i.prov === prov;
+    const matchStk = !stk || i.estado === stk;
+    return matchDep && matchQ && matchProv && matchStk;
+  });
+  renderInventario(filtered);
+}
 
 // ── Helper universal para llamar al backend ────────────────
 async function api(action, params = {}) {
@@ -1156,44 +1237,6 @@ function updateClock() {
 // ============================================
 //  INVENTARIO
 // ============================================
-function renderInventario(data) {
-  const rows  = data || INVENTARIO;
-  const tbody = document.getElementById('invBody');
-  const statusMap   = { ok:'badge-green', low:'badge-warning', zero:'badge-danger' };
-  const statusLabel = { ok:'OK', low:'Stock bajo', zero:'Sin stock' };
-  tbody.innerHTML = rows.map((item, i) => `
-    <tr>
-      <td class="pn">${item.pn}</td>
-      <td style="max-width:260px;white-space:normal">${item.desc}</td>
-      <td><span class="badge badge-muted">${item.prov}</span></td>
-      <td>$${Number(item.lista||0).toLocaleString()}</td>
-      <td>$${Number(item.costo||0).toLocaleString()}</td>
-      <td><b>${item.stock}</b></td>
-      <td class="pn">${item.wh||'—'}</td>
-      <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
-      <td style="font-size:12px">${item.venc||'—'}</td>
-      <td><span class="badge ${statusMap[item.estado]||'badge-muted'}">${statusLabel[item.estado]||item.estado}</span></td>
-      <td>
-        <button class="tbl-action" onclick="openEditItem('${item.id}')" title="Editar">✏️</button>
-        <button class="tbl-action" onclick="confirmDeleteItem('${item.id}','${item.pn}')" title="Eliminar">🗑</button>
-      </td>
-    </tr>`).join('');
-  document.getElementById('invCount').textContent = rows.length + ' ítems';
-}
-
-function filterInventario() {
-  const q    = document.getElementById('invSearch').value.toLowerCase();
-  const prov = document.getElementById('invFilterProv').value;
-  const stk  = document.getElementById('invFilterStock').value;
-  const filtered = INVENTARIO.filter(i => {
-    const matchQ    = !q || String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q) || String(i.wh||'').toLowerCase().includes(q);
-    const matchProv = !prov || i.prov === prov;
-    const matchStk  = !stk || i.estado === stk;
-    return matchQ && matchProv && matchStk;
-  });
-  renderInventario(filtered);
-}
-
 function saveItem() {
   const data = {
     pn:    document.getElementById('invPN').value.trim(),
@@ -1581,6 +1624,13 @@ updateClock();
 
 <style>
 .drop-over { border-color: var(--green) !important; background: rgba(74,154,42,0.05) !important; }
+.dep-tab {
+  padding: 8px 18px; border-radius: 99px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all var(--transition); border: 1px solid rgba(0,0,0,0.10);
+  background: #fff; color: var(--muted); font-family: 'Outfit', sans-serif;
+}
+.dep-tab:hover { border-color: var(--green); color: var(--green); }
+.dep-tab.active { background: var(--green); color: #fff; border-color: var(--green); }
 .wh-input { width:100%;padding:7px 10px;background:#F7FAFC;border:1px solid #D1DCE5;border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border var(--transition); }
 .wh-input:focus { border-color:var(--green); }
 .wh-input.filled { border-color:var(--green-dark);background:rgba(74,154,42,0.06); }
