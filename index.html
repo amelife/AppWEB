@@ -56,11 +56,10 @@
     animation: fadeUp 0.5s ease;
   }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:none;} }
-  .login-logo { display:flex; align-items:center; gap:14px; margin-bottom:32px; }
-  .login-logo img { height: 48px; }
+  .login-logo { display:flex; align-items:center; gap:16px; margin-bottom:32px; }
+  .login-logo img { height: 64px; }
   .login-logo-text { display:flex; flex-direction:column; }
-  .login-logo-text span:first-child { font-size:22px; font-weight:800; color:var(--green); letter-spacing:-0.5px; }
-  .login-logo-text span:last-child { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; font-weight:500; }
+  .login-logo-text span:first-child { font-size:32px; font-weight:800; color:var(--green); letter-spacing:-1px; }
   .login-title { font-size:17px; font-weight:600; margin-bottom:6px; }
   .login-sub { font-size:13px; color:var(--muted); margin-bottom:28px; }
   .field { margin-bottom:16px; }
@@ -107,10 +106,9 @@
     border-bottom: 1px solid var(--border2);
     display:flex; align-items:center; gap:10px;
   }
-  .sidebar-header img { height:36px; }
+  .sidebar-header img { height:46px; }
   .sidebar-header-text { display:flex; flex-direction:column; }
-  .sidebar-header-text b { font-size:14px; font-weight:800; color:var(--green); }
-  .sidebar-header-text span { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .sidebar-header-text b { font-size:20px; font-weight:800; color:var(--green); letter-spacing:-0.5px; }
 
   .nav-section { padding: 20px 12px 6px; }
   .nav-label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; padding: 0 8px; margin-bottom:6px; }
@@ -356,7 +354,6 @@
       <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
       <div class="login-logo-text">
         <span>AMELIFE</span>
-        <span>EMS Technologies</span>
       </div>
     </div>
     <div class="login-title">Bienvenido al sistema</div>
@@ -380,7 +377,7 @@
     </div>
     <button class="btn-login" onclick="doLogin()">Ingresar al sistema →</button>
     <div class="login-error" id="loginError">Usuario o contraseña incorrectos</div>
-    <div class="login-footer">AMELIFE EMS Technologies LLC · Miami, FL · amelife-911.com</div>
+    <div class="login-footer">AMELIFE LLC · Miami, FL · amelife-911.com</div>
   </div>
 </div>
 
@@ -393,7 +390,6 @@
       <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
       <div class="sidebar-header-text">
         <b>AMELIFE</b>
-        <span>EMS Technologies</span>
       </div>
     </div>
 
@@ -1817,25 +1813,31 @@ function handlePDFSelect(e) { if (e.target.files[0]) processPDF(e.target.files[0
 function processPDF(file) {
   document.getElementById('facturaEmpty').style.display   = 'none';
   document.getElementById('facturaTable').style.display   = 'none';
-  document.getElementById('facturaLoading').style.display = 'block';
+  document.getElementById('facturaLoading').style.display = 'none';
   document.getElementById('facturaActions').style.display = 'none';
   document.getElementById('facturaTitle').textContent     = '📋 ' + file.name;
+
+  // Mostrar popup flotante
+  showPDFPopup(file.name);
+
   const reader = new FileReader();
   reader.onload = function(ev) {
     const base64 = ev.target.result.split(',')[1];
     api('importarFacturaPDF', { base64Data: base64, fileName: file.name }).then(r => {
-      document.getElementById('facturaLoading').style.display = 'none';
+      closePDFPopup();
       if (!r.ok) {
         showToast(r.error, 'error');
         document.getElementById('facturaEmpty').style.display = 'block';
         return;
       }
       facturaItems = r.data.items;
-      if (r.data.debug) {
-        document.getElementById('historialFacturas').innerHTML =
-          '<div style="font-size:11px;font-family:monospace;white-space:pre-wrap;padding:10px;background:#f5f5f5;border-radius:6px;color:#333;max-height:200px;overflow-y:auto"><b>DEBUG OCR:</b>\n' + r.data.debug + '</div>';
-      }
       renderFacturaItems();
+      // Navegar al panel de facturas si no estamos ahí
+      const panel = document.getElementById('panel-facturas');
+      if (panel && !panel.classList.contains('active')) {
+        showPanel('facturas', document.querySelector('[onclick*="facturas"]'));
+      }
+      showToast('✅ ' + r.data.total + ' ítems detectados — revisá y confirmá', 'success');
     });
   };
   reader.readAsDataURL(file);
@@ -1892,7 +1894,96 @@ function resetFactura() {
   document.getElementById('pdfInput').value='';
   document.getElementById('facturaTracking').value='';
 }
+
+// ── Popup flotante OCR ─────────────────────────────────────
+function showPDFPopup(fileName) {
+  if (!document.getElementById('pdfPopup')) {
+    const el = document.createElement('div');
+    el.id = 'pdfPopup';
+    el.innerHTML = `
+      <div id="pdfPopupInner">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <span style="font-weight:700;font-size:14px">📄 Procesando factura</span>
+          <button onclick="closePDFPopup()" title="Cerrar (el proceso sigue corriendo)"
+            style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--muted);line-height:1;padding:0">✕</button>
+        </div>
+        <div id="pdfPopupFile" style="font-size:12px;color:var(--muted);margin-bottom:12px;word-break:break-all"></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div class="pdf-spinner"></div>
+          <div>
+            <div style="font-size:13px;font-weight:600" id="pdfPopupStep">Subiendo PDF a Drive...</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:3px">Puede tardar 15-30 segundos</div>
+          </div>
+        </div>
+        <div style="background:rgba(0,0,0,0.08);border-radius:99px;height:5px;overflow:hidden">
+          <div id="pdfPopupBar" style="height:100%;background:var(--green);border-radius:99px;width:5%;transition:width 1.2s ease"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center">
+          Podés seguir trabajando — te avisamos cuando termine ✓
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+  }
+  document.getElementById('pdfPopupFile').textContent = fileName;
+  document.getElementById('pdfPopup').style.display = 'flex';
+  document.getElementById('pdfPopupBar').style.width = '5%';
+
+  let step = 0;
+  const steps = [
+    [20, 'Subiendo PDF a Drive...'],
+    [45, 'Aplicando OCR al documento...'],
+    [65, 'Extrayendo texto...'],
+    [82, 'Detectando ítems ZOLL...'],
+    [93, 'Casi listo...'],
+  ];
+  window._pdfTimer = setInterval(function() {
+    if (step < steps.length) {
+      document.getElementById('pdfPopupBar').style.width  = steps[step][0] + '%';
+      document.getElementById('pdfPopupStep').textContent = steps[step][1];
+      step++;
+    }
+  }, 5000);
+}
+
+function closePDFPopup() {
+  const el = document.getElementById('pdfPopup');
+  if (el) el.style.display = 'none';
+  clearInterval(window._pdfTimer);
+}
 </script>
+
+<style>
+#pdfPopup {
+  display: none;
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9000;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+#pdfPopupInner {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 14px;
+  padding: 18px 20px;
+  width: 320px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+  animation: slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:none; }
+}
+.pdf-spinner {
+  width: 32px; height: 32px; flex-shrink: 0;
+  border: 3px solid rgba(74,154,42,0.15);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 
 </body>
 </html>
