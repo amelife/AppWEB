@@ -4,7 +4,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AMELIFE · EMS Technologies</title>
+<title>AMELIFE</title>
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp">
+<link rel="apple-touch-icon" href="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp">
+
+<!-- PWA - Guardar en pantalla de inicio -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="AMELIFE">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="AMELIFE">
+<meta name="theme-color" content="#4A9A2A">
+<meta name="description" content="AMELIFE EMS Technologies · Sistema de gestión">
+
+<!-- Manifest PWA -->
+<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22AMELIFE%22%2C%22short_name%22%3A%22AMELIFE%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F0F4F8%22%2C%22theme_color%22%3A%22%234A9A2A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Famelife-911.com%2Fwp-content%2Fuploads%2F2020%2F12%2FLOGO.webp%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fwebp%22%7D%5D%7D">
+
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   /* =============================================
@@ -56,10 +73,8 @@
     animation: fadeUp 0.5s ease;
   }
   @keyframes fadeUp { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:none;} }
-  .login-logo { display:flex; align-items:center; gap:16px; margin-bottom:32px; }
-  .login-logo img { height: 64px; }
-  .login-logo-text { display:flex; flex-direction:column; }
-  .login-logo-text span:first-child { font-size:32px; font-weight:800; color:var(--green); letter-spacing:-1px; }
+  .login-logo { display:flex; align-items:center; justify-content:center; margin-bottom:32px; }
+  .login-logo img { height: 90px; }
   .login-title { font-size:17px; font-weight:600; margin-bottom:6px; }
   .login-sub { font-size:13px; color:var(--muted); margin-bottom:28px; }
   .field { margin-bottom:16px; }
@@ -106,9 +121,8 @@
     border-bottom: 1px solid var(--border2);
     display:flex; align-items:center; gap:10px;
   }
-  .sidebar-header img { height:46px; }
-  .sidebar-header-text { display:flex; flex-direction:column; }
-  .sidebar-header-text b { font-size:20px; font-weight:800; color:var(--green); letter-spacing:-0.5px; }
+  .sidebar-header img { height:54px; }
+  .sidebar-header-text { display:none; }
 
   .nav-section { padding: 20px 12px 6px; }
   .nav-label { font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; padding: 0 8px; margin-bottom:6px; }
@@ -352,9 +366,6 @@
   <div class="login-box">
     <div class="login-logo">
       <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
-      <div class="login-logo-text">
-        <span>AMELIFE</span>
-      </div>
     </div>
     <div class="login-title">Bienvenido al sistema</div>
     <div class="login-sub">Ingresá tus credenciales para continuar</div>
@@ -388,9 +399,6 @@
   <nav id="sidebar">
     <div class="sidebar-header">
       <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
-      <div class="sidebar-header-text">
-        <b>AMELIFE</b>
-      </div>
     </div>
 
     <div class="nav-section">
