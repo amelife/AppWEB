@@ -379,10 +379,9 @@
   .client-company { font-size:12px; color:var(--green); font-weight:600; margin-bottom:8px; }
   .client-info { font-size:12px; color:var(--muted); line-height:1.6; }
 
-  /* ===================== FINANZAS ===================== */
-  .finanzas-lock { text-align:center; padding:80px 20px; }
+  /* ===================== BANCOS ===================== */
+  .bancos-lock { text-align:center; padding:80px 20px; }
   .lock-icon { font-size:64px; margin-bottom:20px; }
-  .finanzas-balance { font-size:48px; font-weight:800; color:var(--green); font-family:'JetBrains Mono',monospace; }
 
   /* ===================== RESPONSIVO ===================== */
   @media(max-width:900px) {
@@ -446,7 +445,6 @@
       <select id="loginRole">
         <option value="admin">Admin</option>
         <option value="staff">Staff</option>
-        <option value="finanzas">Finanzas</option>
         <option value="subdist">Subdistribuidor</option>
       </select>
     </div>
@@ -509,10 +507,7 @@
       <div class="nav-item" onclick="showPanel('goldway',this)">
         <span class="icon">🔗</span><span>Goldway</span>
       </div>
-      <div class="nav-item" id="navFinanzas" onclick="showPanel('finanzas',this)">
-        <span class="icon">💰</span><span>Finanzas</span>
-      </div>
-      <div class="nav-item" onclick="showPanel('bancos',this)">
+      <div class="nav-item" id="navBancos" onclick="showPanel('bancos',this)">
         <span class="icon">🏦</span><span>Bancos</span>
       </div>
     </div>
@@ -1034,86 +1029,63 @@
         </div>
       </div>
 
-      <!-- ===== FINANZAS ===== -->
-      <div class="panel" id="panel-finanzas">
-        <div id="finanzasLocked" class="finanzas-lock">
-          <div class="lock-icon">🔐</div>
-          <h3 style="font-size:20px;margin-bottom:10px;">Sección Financiera</h3>
-          <p style="color:var(--muted);margin-bottom:24px;">Acceso restringido: Germán y Ezequiel</p>
-          <div style="max-width:300px;margin:0 auto;">
-            <div class="field"><label>PIN de acceso</label><input type="password" id="finPin" placeholder="••••" maxlength="6" /></div>
-            <button class="btn btn-primary" style="width:100%" onclick="unlockFinanzas()">Desbloquear</button>
-          </div>
-        </div>
-        <div id="finanzasContent" style="display:none">
-          <div class="stats-grid" style="max-width:800px">
-            <div class="stat-card">
-              <div class="stat-label">Saldo en cuenta</div>
-              <div class="finanzas-balance">$42,850</div>
-              <div class="stat-sub">Actualizado hoy</div>
-            </div>
-            <div class="stat-card info">
-              <div class="stat-label">Cobros pendientes</div>
-              <div class="stat-value" style="color:var(--info)">$18,080</div>
-              <div class="stat-sub">Ecuador FFAA</div>
-            </div>
-          </div>
-          <div class="card" style="margin-top:16px;max-width:800px">
-            <div class="card-header"><div class="card-title">💸 Movimientos</div><span class="card-action" onclick="showToast('Editando...','info')">+ Agregar</span></div>
-            <table class="data-table">
-              <thead><tr><th>Fecha</th><th>Descripción</th><th>Ingreso</th><th>Egreso</th><th>Saldo</th></tr></thead>
-              <tbody>
-                <tr><td>05 MAR 2026</td><td>Wire transfer EMV+ Ecuador</td><td style="color:var(--green)">+$18,000</td><td>—</td><td class="pn">$42,850</td></tr>
-                <tr><td>28 FEB 2026</td><td>Compra ZOLL · factura 2026-089</td><td>—</td><td style="color:var(--danger)">-$22,400</td><td class="pn">$24,850</td></tr>
-                <tr><td>15 FEB 2026</td><td>Wire Cruz Roja Colombia</td><td style="color:var(--green)">+$18,550</td><td>—</td><td class="pn">$47,250</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
       <!-- ============================================ -->
-      <!-- PANEL: BANCOS                                 -->
+      <!-- PANEL: BANCOS (con PIN)                       -->
       <!-- ============================================ -->
       <div class="panel" id="panel-bancos">
-        <div class="panel-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-          <button class="btn btn-outline" onclick="bancosAbrirOCR()">📄 Subir Extracto (OCR)</button>
-          <button class="btn btn-outline" onclick="bancosAbrirManual()">✏️ Cargar Manual</button>
-          <button class="btn btn-outline" onclick="bancosAbrirGestion()">⚙️ Gestionar Cuentas</button>
-          <button class="btn btn-primary" onclick="bancosRefresh();bancosCargarEvolucion();">🔄 Actualizar</button>
-        </div>
-
-        <!-- Total consolidado + stats -->
-        <div class="stats-grid" style="margin-bottom:16px;">
-          <div class="stat-card">
-            <div class="stat-label">Total Consolidado (USD)</div>
-            <div class="stat-value" id="bancosTotalUSD" style="color:var(--green);font-size:28px;">$0.00</div>
-            <div class="stat-sub" id="bancosTotalSub">—</div>
-          </div>
-          <div class="stat-card info">
-            <div class="stat-label">Última actualización</div>
-            <div class="stat-value" id="bancosUltimaFecha" style="color:var(--info);font-size:22px;">—</div>
-            <div class="stat-sub" id="bancosUltimaFuente">Sin cargas</div>
+        <!-- LOCK SCREEN -->
+        <div id="bancosLocked" class="bancos-lock">
+          <div class="lock-icon">🔐</div>
+          <h3 style="font-size:20px;margin-bottom:10px;">Módulo Bancario</h3>
+          <p style="color:var(--muted);margin-bottom:24px;">Acceso restringido · Germán y Ezequiel</p>
+          <div style="max-width:300px;margin:0 auto;">
+            <div class="field"><label>PIN de acceso</label><input type="password" id="bancosPin" placeholder="••••" maxlength="6" onkeyup="if(event.key==='Enter')unlockBancos()" /></div>
+            <button class="btn btn-primary" style="width:100%" onclick="unlockBancos()">Desbloquear</button>
           </div>
         </div>
 
-        <!-- Grid de cuentas agrupadas por banco -->
-        <div id="bancosGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px;"></div>
-
-        <!-- Gráfico de evolución -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">📈 Evolución de Saldos</div>
-            <select id="bancosRangoEvol" onchange="bancosCargarEvolucion()"
-                    style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
-              <option value="3">Últimos 3 meses</option>
-              <option value="6">Últimos 6 meses</option>
-              <option value="12" selected>Últimos 12 meses</option>
-              <option value="24">Últimos 24 meses</option>
-            </select>
+        <!-- CONTENIDO REAL -->
+        <div id="bancosContent" style="display:none;">
+          <div class="panel-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+            <button class="btn btn-outline" onclick="bancosAbrirOCR()">📄 Subir Extracto (OCR)</button>
+            <button class="btn btn-outline" onclick="bancosAbrirManual()">✏️ Cargar Manual</button>
+            <button class="btn btn-outline" onclick="bancosAbrirGestion()">⚙️ Gestionar Cuentas</button>
+            <button class="btn btn-primary" onclick="bancosRefresh();bancosCargarEvolucion();">🔄 Actualizar</button>
+            <button class="btn btn-outline" onclick="lockBancos()" style="margin-left:auto;">🔒 Bloquear</button>
           </div>
-          <div style="padding:12px;">
-            <canvas id="bancosChart" height="110"></canvas>
+
+          <!-- Total consolidado + stats -->
+          <div class="stats-grid" style="margin-bottom:16px;">
+            <div class="stat-card">
+              <div class="stat-label">Total Consolidado (USD)</div>
+              <div class="stat-value" id="bancosTotalUSD" style="color:var(--green);font-size:28px;">$0.00</div>
+              <div class="stat-sub" id="bancosTotalSub">—</div>
+            </div>
+            <div class="stat-card info">
+              <div class="stat-label">Última actualización</div>
+              <div class="stat-value" id="bancosUltimaFecha" style="color:var(--info);font-size:22px;">—</div>
+              <div class="stat-sub" id="bancosUltimaFuente">Sin cargas</div>
+            </div>
+          </div>
+
+          <!-- Grid de cuentas agrupadas por banco -->
+          <div id="bancosGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px;"></div>
+
+          <!-- Gráfico de evolución -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📈 Evolución de Saldos</div>
+              <select id="bancosRangoEvol" onchange="bancosCargarEvolucion()"
+                      style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
+                <option value="3">Últimos 3 meses</option>
+                <option value="6">Últimos 6 meses</option>
+                <option value="12" selected>Últimos 12 meses</option>
+                <option value="24">Últimos 24 meses</option>
+              </select>
+            </div>
+            <div style="padding:12px;">
+              <canvas id="bancosChart" height="110"></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -1456,7 +1428,7 @@ async function doLogin() {
   document.getElementById('userAvatar').textContent = (found.nombre[0] || 'U').toUpperCase();
 
   if (!['admin','finanzas'].includes(found.rol)) {
-    document.getElementById('navFinanzas').style.display = 'none';
+    document.getElementById('navBancos').style.display = 'none';
   }
 
   document.getElementById('loginScreen').style.display = 'none';
@@ -1479,6 +1451,13 @@ async function loadAllData() {
 
   if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
   if (rPB.ok)  { PRICEBOOK_DATA = rPB.data;  renderPriceBook();  }
+
+  // Si Bancos ya estaba desbloqueado en esta sesión de navegador, revelar contenido
+  if (BANCOS_UNLOCKED && currentUser && ['admin','finanzas'].includes(currentUser.rol)) {
+    const bc = document.getElementById('bancosContent');
+    const bl = document.getElementById('bancosLocked');
+    if (bc && bl) { bl.style.display = 'none'; bc.style.display = 'block'; }
+  }
 }
 
 // ── Indicador de carga ─────────────────────────────────────
@@ -1491,8 +1470,13 @@ function setLoading(elId, on) {
 function doLogout() {
   document.getElementById('app').classList.remove('visible');
   document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('finanzasContent').style.display = 'none';
-  document.getElementById('finanzasLocked').style.display = 'block';
+  // Resetear lock de Bancos
+  const bc = document.getElementById('bancosContent');
+  const bl = document.getElementById('bancosLocked');
+  if (bc) bc.style.display = 'none';
+  if (bl) bl.style.display = 'block';
+  BANCOS_UNLOCKED = false;
+  try { sessionStorage.removeItem('bancosUnlocked'); } catch(e){}
   currentUser = null;
 }
 
@@ -1509,12 +1493,12 @@ function showPanel(id, el) {
     dashboard:'Dashboard', inventario:'Inventario', pricebook:'Price Book ZOLL',
     clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
     trackings:'Trackings', warehouse:'Warehouse', subdist:'Subdistribuidores',
-    goldway:'Goldway Inventory', finanzas:'Finanzas', bancos:'Bancos'
+    goldway:'Goldway Inventory', bancos:'Bancos'
   };
   document.getElementById('topbarTitle').textContent = titles[id] || id;
 
-  // Auto-init de módulos que lo requieran
-  if (id === 'bancos' && typeof bancosInit === 'function') {
+  // Auto-init de Bancos SOLO si ya está desbloqueado
+  if (id === 'bancos' && typeof bancosInit === 'function' && BANCOS_UNLOCKED) {
     bancosSetupDropzone();
     bancosInit();
   }
@@ -1829,36 +1813,47 @@ function searchForQuote(q) {
 
 
 // ============================================
-//  FINANZAS
+//  BANCOS — GATE DE PIN
 // ============================================
-function unlockFinanzas() {
-  const pin = document.getElementById('finPin').value;
+// Flag global: true si el PIN fue validado en esta sesión
+let BANCOS_UNLOCKED = false;
+
+// Restaurar estado si ya fue desbloqueado en esta sesión del navegador
+try {
+  if (sessionStorage.getItem('bancosUnlocked') === '1') BANCOS_UNLOCKED = true;
+} catch(e){}
+
+function unlockBancos() {
+  // Solo admin/finanzas pueden desbloquear (doble chequeo por si tocan el DOM)
+  if (!currentUser || !['admin','finanzas'].includes(currentUser.rol)) {
+    showToast('❌ Acceso denegado', 'error');
+    return;
+  }
+  const pin = document.getElementById('bancosPin').value.trim();
+  if (!pin) { showToast('Ingresá el PIN', 'error'); return; }
+
   api('validateFinPin', { pin }).then(r => {
     if (!r.ok) { showToast('❌ PIN incorrecto', 'error'); return; }
-    document.getElementById('finanzasLocked').style.display  = 'none';
-    document.getElementById('finanzasContent').style.display = 'block';
-    loadFinanzas();
-    showToast('✅ Sección financiera desbloqueada', 'success');
+    BANCOS_UNLOCKED = true;
+    try { sessionStorage.setItem('bancosUnlocked', '1'); } catch(e){}
+    document.getElementById('bancosLocked').style.display  = 'none';
+    document.getElementById('bancosContent').style.display = 'block';
+    document.getElementById('bancosPin').value = '';
+    showToast('✅ Módulo Bancario desbloqueado', 'success');
+    // Inicializar módulo recién desbloqueado
+    if (typeof bancosInit === 'function') {
+      bancosSetupDropzone();
+      bancosInit();
+    }
   });
 }
 
-function loadFinanzas() {
-  api('getFinanzas').then(r => {
-    if (!r.ok) return;
-    const movs = r.data;
-    if (!movs.length) return;
-    const ultimo = movs[movs.length-1];
-    document.querySelector('.finanzas-balance').textContent = '$' + Number(ultimo.saldo).toLocaleString();
-    const tbody = document.querySelector('#finanzasContent table tbody');
-    if (!tbody) return;
-    tbody.innerHTML = movs.slice(-10).reverse().map(m => `
-      <tr>
-        <td>${m.fecha}</td><td>${m.desc}</td>
-        <td style="color:var(--green)">${m.ingreso?'+$'+Number(m.ingreso).toLocaleString():'—'}</td>
-        <td style="color:var(--danger)">${m.egreso?'-$'+Number(m.egreso).toLocaleString():'—'}</td>
-        <td class="pn">$${Number(m.saldo).toLocaleString()}</td>
-      </tr>`).join('');
-  });
+function lockBancos() {
+  BANCOS_UNLOCKED = false;
+  try { sessionStorage.removeItem('bancosUnlocked'); } catch(e){}
+  document.getElementById('bancosContent').style.display = 'none';
+  document.getElementById('bancosLocked').style.display  = 'block';
+  showToast('🔒 Módulo Bancario bloqueado', 'info');
 }
 
 // ============================================
