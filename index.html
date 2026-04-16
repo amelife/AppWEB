@@ -1075,13 +1075,21 @@
           <div class="card">
             <div class="card-header">
               <div class="card-title">📈 Evolución de Saldos</div>
-              <select id="bancosRangoEvol" onchange="bancosCargarEvolucion()"
-                      style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
-                <option value="3">Últimos 3 meses</option>
-                <option value="6">Últimos 6 meses</option>
-                <option value="12" selected>Últimos 12 meses</option>
-                <option value="24">Últimos 24 meses</option>
-              </select>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <select id="bancosFiltroBanco" onchange="bancosCargarEvolucion()"
+                        style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
+                  <option value="__ALL__">Todos los bancos</option>
+                  <!-- opciones de bancos se llenan dinámicamente -->
+                </select>
+                <select id="bancosRangoEvol" onchange="bancosCargarEvolucion()"
+                        style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:13px;">
+                  <option value="3">Últimos 3 meses</option>
+                  <option value="6">Últimos 6 meses</option>
+                  <option value="12">Últimos 12 meses</option>
+                  <option value="24" selected>Últimos 24 meses</option>
+                  <option value="60">Últimos 5 años</option>
+                </select>
+              </div>
             </div>
             <div style="padding:12px;">
               <canvas id="bancosChart" height="110"></canvas>
@@ -2951,13 +2959,27 @@ function bancosLlenarSelectsCuentas() {
 
   const selHint = document.getElementById('bancosOcrBancoHint');
   if (selHint) selHint.innerHTML = '<option value="">— Sin preseleccionar —</option>' + opts;
+
+  // Llenar filtro de banco del gráfico (agrupado por banco único, no por cuenta)
+  const selFiltro = document.getElementById('bancosFiltroBanco');
+  if (selFiltro) {
+    const bancosUnicos = [...new Set(BANCOS_STATE.bancos.filter(b=>b.activo).map(b=>b.banco))];
+    const prevValue = selFiltro.value || '__ALL__';
+    selFiltro.innerHTML = '<option value="__ALL__">Todos los bancos</option>' +
+      bancosUnicos.map(b => `<option value="${b}">🏦 ${b}</option>`).join('');
+    // Mantener selección previa si sigue existiendo
+    if ([...selFiltro.options].some(o => o.value === prevValue)) selFiltro.value = prevValue;
+  }
 }
 
 // ---------- EVOLUCIÓN (Chart.js) ----------
 
 async function bancosCargarEvolucion() {
-  const sel = document.getElementById('bancosRangoEvol');
-  const meses = sel ? (Number(sel.value) || 12) : 12;
+  const selMeses = document.getElementById('bancosRangoEvol');
+  const meses = selMeses ? (Number(selMeses.value) || 24) : 24;
+
+  const selBanco = document.getElementById('bancosFiltroBanco');
+  const filtroBanco = selBanco ? selBanco.value : '__ALL__';
 
   const r = await api('getEvolucionBancos', { meses });
   if (!r.ok) { console.error('Evolución:', r.error); return; }
@@ -2978,9 +3000,27 @@ async function bancosCargarEvolucion() {
     return;
   }
 
+  // Filtrar series por banco seleccionado. Cada serie tiene bancoId → lookup del banco
+  const bancosById = {};
+  BANCOS_STATE.bancos.forEach(b => { bancosById[b.id] = b; });
+
+  let seriesFiltradas = d.series;
+  let totalFiltrado = d.total;
+
+  if (filtroBanco !== '__ALL__') {
+    seriesFiltradas = d.series.filter(s => {
+      const b = bancosById[s.bancoId];
+      return b && b.banco === filtroBanco;
+    });
+    // Recalcular total solo con las series filtradas
+    totalFiltrado = d.fechas.map((_, idx) => {
+      return seriesFiltradas.reduce((sum, s) => sum + (s.data[idx] || 0), 0);
+    });
+  }
+
   const paleta = ['#4A9A2A','#2980B9','#E67E22','#8E44AD','#E74C3C','#16A085','#F39C12','#2C3E50'];
 
-  const datasets = d.series.map((s, i) => ({
+  const datasets = seriesFiltradas.map((s, i) => ({
     label: s.label,
     data: s.data,
     borderColor: paleta[i % paleta.length],
@@ -2991,16 +3031,19 @@ async function bancosCargarEvolucion() {
     pointRadius: 3
   }));
 
-  datasets.push({
-    label: 'TOTAL',
-    data: d.total,
-    borderColor: '#1A2533',
-    backgroundColor: 'rgba(74,154,42,0.10)',
-    borderWidth: 3,
-    tension: 0.3,
-    fill: true,
-    pointRadius: 4
-  });
+  // Totalizador: si hay más de una serie, lo mostramos; si hay solo una, lo omitimos (sería redundante)
+  if (seriesFiltradas.length > 1) {
+    datasets.push({
+      label: filtroBanco === '__ALL__' ? 'TOTAL CONSOLIDADO' : 'TOTAL ' + filtroBanco,
+      data: totalFiltrado,
+      borderColor: '#1A2533',
+      backgroundColor: 'rgba(74,154,42,0.10)',
+      borderWidth: 3,
+      tension: 0.3,
+      fill: true,
+      pointRadius: 4
+    });
+  }
 
   const textColor = getComputedStyle(document.body).getPropertyValue('--text').trim() || '#333';
 
