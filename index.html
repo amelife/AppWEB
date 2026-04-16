@@ -1254,7 +1254,7 @@
 
 <!-- Modal: Carga Manual de Saldo -->
 <div class="modal-overlay" id="modalBancosManual">
-  <div class="modal">
+  <div class="modal" style="max-width:640px;">
     <div class="modal-header">
       <div class="modal-title">✏️ Cargar Saldo Manual</div>
       <button class="modal-close" onclick="closeModal('modalBancosManual')">✕</button>
@@ -1262,9 +1262,23 @@
     <div class="modal-grid">
       <div class="field" style="grid-column:1/-1"><label>Cuenta</label><select id="bancosManualBanco"></select></div>
       <div class="field"><label>Fecha</label><input type="date" id="bancosManualFecha"></div>
-      <div class="field"><label>Saldo (USD)</label><input type="number" step="0.01" id="bancosManualSaldo" placeholder="0.00"></div>
+      <div class="field"><label>Saldo principal (USD) · suma al total</label><input type="number" step="0.01" id="bancosManualSaldo" placeholder="0.00"></div>
       <div class="field" style="grid-column:1/-1"><label>Notas (opcional)</label><input type="text" id="bancosManualNotas"></div>
     </div>
+
+    <!-- Desglose opcional -->
+    <div style="margin-top:12px;padding:12px;background:var(--card2);border-radius:10px;border-left:3px solid var(--info);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;color:var(--text);">Desglose informativo (no suma)</div>
+          <div style="font-size:11px;color:var(--muted);">Ej: Cash Account, Securities, LCs · Son subcuentas visuales, no afectan el total</div>
+        </div>
+        <button class="btn btn-outline" style="padding:6px 10px;font-size:12px;" onclick="bancosDesgloseAgregar()">+ Agregar</button>
+      </div>
+      <div id="bancosManualDesglose"></div>
+      <div id="bancosManualDesgloseSumaInfo" style="margin-top:6px;font-size:11px;color:var(--muted);text-align:right;"></div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalBancosManual')">Cancelar</button>
       <button class="btn btn-primary" onclick="bancosGuardarManual()">💾 Guardar</button>
@@ -2897,15 +2911,30 @@ function bancosRenderGrid() {
         <span class="pn" style="color:var(--green);font-size:18px;font-weight:800;">${bancosFmt(b.totalUSD)}</span>
       </div>
       <div style="padding:8px 16px 16px;">
-        ${b.cuentas.map(c => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed var(--border2);">
-            <div style="min-width:0;flex:1;">
-              <div style="font-size:14px;color:var(--text);font-weight:600;">${c.cuenta}</div>
-              <div style="font-size:11px;color:var(--muted);">${c.titular || ''}${c.ultimaFecha ? ' · Actualizado '+c.ultimaFecha : ' · Sin datos'}</div>
+        ${b.cuentas.map(c => {
+          const desglose = (c.ultimoDesglose || []).filter(d => d && d.label);
+          return `
+          <div style="padding:10px 0;border-bottom:1px dashed var(--border2);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="min-width:0;flex:1;">
+                <div style="font-size:14px;color:var(--text);font-weight:600;">${c.cuenta}</div>
+                <div style="font-size:11px;color:var(--muted);">${c.titular || ''}${c.ultimaFecha ? ' · Actualizado '+c.ultimaFecha : ' · Sin datos'}</div>
+              </div>
+              <div style="font-size:15px;font-weight:700;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:10px;">${bancosFmt(c.ultimoSaldo)}</div>
             </div>
-            <div style="font-size:15px;font-weight:700;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:10px;">${bancosFmt(c.ultimoSaldo)}</div>
+            ${desglose.length > 0 ? `
+              <div style="margin-top:8px;padding:8px 10px;background:var(--card2);border-radius:6px;border-left:3px solid var(--info);">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Desglose (informativo)</div>
+                ${desglose.map(d => `
+                  <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--muted);">
+                    <span>${d.label}</span>
+                    <span style="font-weight:600;color:var(--text);">${bancosFmt(d.monto||0)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
           </div>
-        `).join('')}
+        `;}).join('')}
       </div>
     </div>
   `).join('');
@@ -3096,38 +3125,79 @@ async function bancosProcesarOCR() {
 function bancosRenderSugerencias() {
   const res = BANCOS_STATE.ocrResultado;
   const s = res.sugerencias || {};
-  const candidatos = s.candidatos || [];
+  const cuentas = s.cuentas || [];
+  const subcuentas = s.subcuentas || [];
 
   document.getElementById('bancosOcrTexto').textContent = res.textoCompleto || '(sin texto)';
   document.getElementById('bancosOcrFecha').value = bancosParsearFecha(s.fechaDetectada);
 
   const tbody = document.getElementById('bancosOcrTbody');
-  const selectHTML = BANCOS_STATE.bancos
+  const selectCuentasHTML = BANCOS_STATE.bancos
     .filter(b => b.activo)
     .map(b => '<option value="'+b.id+'">'+b.banco+' · '+b.cuenta+(b.titular?' ('+b.titular+')':'')+'</option>')
     .join('');
 
-  if (candidatos.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectHTML}</select></td>
-        <td><em style="color:var(--muted);">No se detectaron etiquetas automáticamente</em></td>
+  let html = '';
+
+  // SECCIÓN 1: Cuentas (suman al total)
+  if (cuentas.length > 0) {
+    html += `<tr style="background:var(--card2);"><td colspan="5" style="padding:8px;font-weight:700;color:var(--green);font-size:12px;">💰 CUENTAS — Suman al total consolidado</td></tr>`;
+    html += cuentas.map((c, i) => `
+      <tr data-tipo="cuenta" data-idx="${i}">
+        <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectCuentasHTML}</select></td>
+        <td data-etiqueta="${c.etiqueta}">${c.etiqueta}<br><small style="color:var(--muted);">${(c.linea||'').substring(0,80)}</small></td>
+        <td>${bancosFmt(c.saldoSugerido)}</td>
+        <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="${c.saldoSugerido}" style="width:100%;padding:6px;"></td>
+        <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk" checked></td>
+      </tr>
+    `).join('');
+  }
+
+  // SECCIÓN 2: Subcuentas (info visual, NO suman)
+  if (subcuentas.length > 0) {
+    const parentOpts = cuentas.map((c, i) => `<option value="cuenta-${i}">↑ ${c.etiqueta}</option>`).join('');
+    html += `<tr style="background:var(--card2);"><td colspan="5" style="padding:8px;font-weight:700;color:var(--info);font-size:12px;">🔍 SUBCUENTAS — Se guardan como desglose visual (no suman)</td></tr>`;
+    html += subcuentas.map((sc, i) => `
+      <tr data-tipo="subcuenta" data-idx="${i}">
+        <td>
+          <select class="bancos-ocr-parent" style="width:100%;padding:6px;">
+            <option value="">-- Sin asignar (ignorar) --</option>
+            ${parentOpts}
+          </select>
+        </td>
+        <td data-etiqueta="${sc.etiqueta}">${sc.etiqueta}<br><small style="color:var(--muted);">${(sc.linea||'').substring(0,80)}</small></td>
+        <td>${bancosFmt(sc.saldoSugerido)}</td>
+        <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="${sc.saldoSugerido}" style="width:100%;padding:6px;"></td>
+        <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk" checked></td>
+      </tr>
+    `).join('');
+  }
+
+  if (!cuentas.length && !subcuentas.length) {
+    html = `
+      <tr data-tipo="cuenta" data-idx="0">
+        <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectCuentasHTML}</select></td>
+        <td data-etiqueta="Manual"><em style="color:var(--muted);">No se detectaron etiquetas. Cargá manualmente.</em></td>
         <td>—</td>
         <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="0" style="width:100%;padding:6px;"></td>
         <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk"></td>
       </tr>`;
-    return;
   }
 
-  tbody.innerHTML = candidatos.map(c => `
-    <tr>
-      <td><select class="bancos-ocr-sel" style="width:100%;padding:6px;">${selectHTML}</select></td>
-      <td>${c.etiqueta}<br><small style="color:var(--muted);">${(c.linea||'').substring(0,80)}</small></td>
-      <td>${bancosFmt(c.saldoSugerido)}</td>
-      <td><input type="number" step="0.01" class="bancos-ocr-saldo" value="${c.saldoSugerido}" style="width:100%;padding:6px;"></td>
-      <td style="text-align:center;"><input type="checkbox" class="bancos-ocr-chk" checked></td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = html;
+
+  // Preseleccionar parents según parentHint del OCR
+  setTimeout(() => {
+    document.querySelectorAll('#bancosOcrTbody tr[data-tipo="subcuenta"]').forEach((tr, i) => {
+      const sc = subcuentas[i];
+      if (!sc) return;
+      const parentIdx = cuentas.findIndex(c => c.etiqueta.toLowerCase() === (sc.parentHint||'').toLowerCase());
+      if (parentIdx >= 0) {
+        const sel = tr.querySelector('.bancos-ocr-parent');
+        if (sel) sel.value = 'cuenta-' + parentIdx;
+      }
+    });
+  }, 0);
 }
 
 function bancosParsearFecha(str) {
@@ -3149,28 +3219,60 @@ async function bancosConfirmarOCR() {
   const fecha = document.getElementById('bancosOcrFecha').value;
   if (!fecha) { showToast('Ingresá la fecha del extracto', 'error'); return; }
 
-  const filas = document.querySelectorAll('#bancosOcrTbody tr');
-  const items = [];
+  const filas = document.querySelectorAll('#bancosOcrTbody tr[data-tipo]');
+
+  // 1) Cuentas que suman al total
+  const cuentasConfirmadas = []; // [{ bancoId, saldo, cuentaIdx }]
   filas.forEach(tr => {
+    if (tr.dataset.tipo !== 'cuenta') return;
     const chk = tr.querySelector('.bancos-ocr-chk');
     if (!chk || !chk.checked) return;
     const bancoId = tr.querySelector('.bancos-ocr-sel').value;
     const saldo   = Number(tr.querySelector('.bancos-ocr-saldo').value);
     if (!bancoId || isNaN(saldo)) return;
-    items.push({
-      bancoId, fecha, saldo,
-      fuente: 'OCR',
-      archivo: (BANCOS_STATE.ocrResultado && BANCOS_STATE.ocrResultado.archivoUrl) || ''
+    cuentasConfirmadas.push({
+      bancoId, saldo,
+      cuentaIdx: Number(tr.dataset.idx)
     });
   });
 
-  if (items.length === 0) { showToast('No marcaste ninguna fila para guardar', 'error'); return; }
+  // 2) Subcuentas agrupadas por parent
+  const desglosePorCuentaIdx = {}; // { cuentaIdx: [{label, monto}, ...] }
+  filas.forEach(tr => {
+    if (tr.dataset.tipo !== 'subcuenta') return;
+    const chk = tr.querySelector('.bancos-ocr-chk');
+    if (!chk || !chk.checked) return;
+    const parentVal = (tr.querySelector('.bancos-ocr-parent') || {}).value || '';
+    if (!parentVal.startsWith('cuenta-')) return;
+    const parentIdx = Number(parentVal.replace('cuenta-', ''));
+    const label = (tr.children[1].dataset.etiqueta || '').trim();
+    const monto = Number(tr.querySelector('.bancos-ocr-saldo').value);
+    if (!label || isNaN(monto)) return;
+    if (!desglosePorCuentaIdx[parentIdx]) desglosePorCuentaIdx[parentIdx] = [];
+    desglosePorCuentaIdx[parentIdx].push({ label, monto });
+  });
+
+  // 3) Combinar
+  const items = cuentasConfirmadas.map(c => ({
+    bancoId: c.bancoId,
+    fecha,
+    saldo:   c.saldo,
+    fuente:  'OCR',
+    archivo: (BANCOS_STATE.ocrResultado && BANCOS_STATE.ocrResultado.archivoUrl) || '',
+    desglose: desglosePorCuentaIdx[c.cuentaIdx] || []
+  }));
+
+  if (items.length === 0) {
+    showToast('No marcaste ninguna cuenta para guardar', 'error');
+    return;
+  }
 
   showToast('Guardando snapshots...', 'info');
   const r = await api('guardarSnapshotsBulk', { items });
   if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
 
-  showToast('✅ ' + r.data.total + ' snapshot(s) guardados', 'success');
+  const totalDesgloses = Object.values(desglosePorCuentaIdx).reduce((s,arr) => s + arr.length, 0);
+  showToast(`✅ ${r.data.total} cuenta(s) + ${totalDesgloses} subcuenta(s) guardadas`, 'success');
   closeModal('modalBancosOCR');
   await bancosRefresh();
   await bancosCargarEvolucion();
@@ -3183,7 +3285,49 @@ function bancosAbrirManual() {
   document.getElementById('bancosManualSaldo').value = '';
   document.getElementById('bancosManualNotas').value = '';
   document.getElementById('bancosManualBanco').value = '';
+  document.getElementById('bancosManualDesglose').innerHTML = '';
+  document.getElementById('bancosManualDesgloseSumaInfo').textContent = '';
   openModal('modalBancosManual');
+}
+
+// === Desglose informativo (sub-cuentas que NO suman) ===
+function bancosDesgloseAgregar(label, monto) {
+  const cont = document.getElementById('bancosManualDesglose');
+  const idx = cont.children.length;
+  const div = document.createElement('div');
+  div.className = 'bancos-desglose-row';
+  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+  div.innerHTML = `
+    <input type="text" class="bancos-desg-label" placeholder="Etiqueta (ej. Cash Account)" value="${label||''}" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;">
+    <input type="number" step="0.01" class="bancos-desg-monto" placeholder="0.00" value="${monto||''}" oninput="bancosDesgloseActualizarSuma()" style="width:130px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-size:13px;text-align:right;">
+    <button class="btn btn-outline" style="padding:6px 10px;" onclick="this.parentElement.remove();bancosDesgloseActualizarSuma();" title="Quitar">🗑</button>
+  `;
+  cont.appendChild(div);
+  bancosDesgloseActualizarSuma();
+}
+
+function bancosDesgloseActualizarSuma() {
+  const rows = document.querySelectorAll('#bancosManualDesglose .bancos-desglose-row');
+  let suma = 0; let count = 0;
+  rows.forEach(r => {
+    const m = Number(r.querySelector('.bancos-desg-monto').value);
+    if (!isNaN(m) && m !== 0) { suma += m; count++; }
+  });
+  const info = document.getElementById('bancosManualDesgloseSumaInfo');
+  if (!info) return;
+  if (count === 0) { info.textContent = ''; return; }
+  info.textContent = `Suma del desglose: ${bancosFmt(suma)} · ${count} ítem${count>1?'s':''} (solo informativo)`;
+}
+
+function bancosDesgloseRecolectar() {
+  const rows = document.querySelectorAll('#bancosManualDesglose .bancos-desglose-row');
+  const out = [];
+  rows.forEach(r => {
+    const label = r.querySelector('.bancos-desg-label').value.trim();
+    const monto = Number(r.querySelector('.bancos-desg-monto').value);
+    if (label && !isNaN(monto)) out.push({ label, monto });
+  });
+  return out;
 }
 
 async function bancosGuardarManual() {
@@ -3191,12 +3335,13 @@ async function bancosGuardarManual() {
   const fecha   = document.getElementById('bancosManualFecha').value;
   const saldo   = Number(document.getElementById('bancosManualSaldo').value);
   const notas   = document.getElementById('bancosManualNotas').value;
+  const desglose = bancosDesgloseRecolectar();
 
   if (!bancoId) { showToast('Elegí una cuenta', 'error'); return; }
   if (!fecha)   { showToast('Ingresá la fecha',  'error'); return; }
   if (isNaN(saldo)) { showToast('Saldo inválido', 'error'); return; }
 
-  const r = await api('guardarSnapshot', { bancoId, fecha, saldo, notas, fuente: 'Manual' });
+  const r = await api('guardarSnapshot', { bancoId, fecha, saldo, notas, fuente: 'Manual', desglose });
   if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
 
   showToast('✅ Saldo guardado', 'success');
