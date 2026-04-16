@@ -1044,11 +1044,11 @@ let PRICEBOOK_DATA = [];
 // ── Helper universal para llamar al backend ────────────────
 async function api(action, params = {}) {
   try {
-    const res = await fetch(SCRIPT_URL, {
-      method:  'POST',
-      body:    JSON.stringify({ action, params }),
-    });
-    return await res.json();
+    const formData = new FormData();
+    formData.append('payload', JSON.stringify({ action, params }));
+    const res  = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+    const text = await res.text();
+    return JSON.parse(text);
   } catch(e) {
     return { ok: false, error: 'Error de red: ' + e.message };
   }
