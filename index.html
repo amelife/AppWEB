@@ -542,85 +542,126 @@
 
       <!-- ===== DASHBOARD ===== -->
       <div class="panel active" id="panel-dashboard">
-        <div class="stats-grid">
-          <div class="stat-card">
+        <!-- Header con info de última actualización y botón refresh -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <div id="dashLastUpdate" style="font-size:12px;color:var(--muted);">🔄 Cargando datos...</div>
+          <button class="btn btn-outline" onclick="loadDashboard()" style="padding:6px 14px;font-size:12px;">🔄 Actualizar</button>
+        </div>
+
+        <!-- Stats cards (clickeables) -->
+        <div class="stats-grid" id="dashStats">
+          <div class="stat-card" style="cursor:pointer;" onclick="showPanel('inventario',document.querySelector('[onclick*=\'inventario\']'))">
             <div class="stat-icon">📦</div>
-            <div class="stat-label">Ítems en Stock</div>
-            <div class="stat-value" style="color:var(--green)">24</div>
-            <div class="stat-sub">↑ 3 ingresados este mes</div>
+            <div class="stat-label">Ítems en Inventario</div>
+            <div class="stat-value" id="dashItemsTotal" style="color:var(--green)">—</div>
+            <div class="stat-sub" id="dashValorInv">—</div>
           </div>
-          <div class="stat-card warning">
+          <div class="stat-card warning" style="cursor:pointer;" onclick="document.getElementById('dashStockBajoSection').scrollIntoView({behavior:'smooth'})">
             <div class="stat-icon">⚠️</div>
-            <div class="stat-label">Stock Bajo</div>
-            <div class="stat-value" style="color:var(--warning)">3</div>
+            <div class="stat-label">Stock Bajo (≤5)</div>
+            <div class="stat-value" id="dashStockBajoCount" style="color:var(--warning)">—</div>
             <div class="stat-sub">Requieren reposición</div>
           </div>
-          <div class="stat-card info">
+          <div class="stat-card info" style="cursor:pointer;" onclick="showPanel('cotizaciones',document.querySelector('[onclick*=\'cotizaciones\']'))">
             <div class="stat-icon">📄</div>
-            <div class="stat-label">Cotizaciones activas</div>
-            <div class="stat-value" style="color:var(--info)">7</div>
-            <div class="stat-sub">2 pendientes de respuesta</div>
+            <div class="stat-label">Cotizaciones Activas</div>
+            <div class="stat-value" id="dashCotsActivas" style="color:var(--info)">—</div>
+            <div class="stat-sub" id="dashCotsMonto">—</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" style="cursor:pointer;" onclick="showPanel('trackings',document.querySelector('[onclick*=\'trackings\']'))">
             <div class="stat-icon">✈️</div>
-            <div class="stat-label">Trackings Activos</div>
-            <div class="stat-value" style="color:var(--green)">5</div>
-            <div class="stat-sub">3 en tránsito</div>
+            <div class="stat-label">Trackings Pendientes</div>
+            <div class="stat-value" id="dashTracksCount" style="color:var(--green)">—</div>
+            <div class="stat-sub" id="dashTracksPorLlegar">—</div>
           </div>
         </div>
 
-        <div class="dash-grid">
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">⚡ Actividad reciente</div>
-              <span class="card-action">Ver todo</span>
+        <!-- Alertas prioritarias (trackings vencidos, por llegar, stock bajo, seguimiento) -->
+        <div class="dash-grid" style="margin-top:16px;">
+          <!-- COLUMNA 1: ALERTAS -->
+          <div>
+            <!-- Trackings vencidos -->
+            <div class="card" id="dashTracksVencidosCard" style="border-left:3px solid var(--danger);display:none;margin-bottom:14px;">
+              <div class="card-header">
+                <div class="card-title" style="color:var(--danger);">🚨 Trackings Vencidos</div>
+                <span class="card-action" id="dashTracksVencidosCount">0</span>
+              </div>
+              <div id="dashTracksVencidosList" style="padding:4px 16px 14px;"></div>
             </div>
-            <div class="activity-item">
-              <div class="act-icon g">📦</div>
-              <div class="act-text"><b>Ingreso al inventario</b><span>X Series Advanced SpO2 · 1 unidad · WH-041</span></div>
-              <span class="act-time">Hoy 09:15</span>
+
+            <!-- Trackings por llegar -->
+            <div class="card" id="dashTracksPorLlegarCard" style="border-left:3px solid var(--info);margin-bottom:14px;">
+              <div class="card-header">
+                <div class="card-title">✈️ Trackings por llegar (≤2 días)</div>
+                <span class="card-action" id="dashTracksPorLlegarCountLabel">0</span>
+              </div>
+              <div id="dashTracksPorLlegarList" style="padding:4px 16px 14px;"></div>
             </div>
-            <div class="activity-item">
-              <div class="act-icon i">📄</div>
-              <div class="act-text"><b>Cotización enviada</b><span>Cmd. Conjunto FFAA Ecuador · EMV+ x1</span></div>
-              <span class="act-time">Ayer</span>
+
+            <!-- Stock bajo -->
+            <div class="card" id="dashStockBajoSection" style="border-left:3px solid var(--warning);margin-bottom:14px;">
+              <div class="card-header">
+                <div class="card-title">📦 Stock Bajo</div>
+                <span class="card-action" id="dashStockBajoCountLabel">0</span>
+              </div>
+              <div id="dashStockBajoList" style="padding:4px 16px 14px;"></div>
             </div>
-            <div class="activity-item">
-              <div class="act-icon w">✈️</div>
-              <div class="act-text"><b>Tracking actualizado</b><span>TRK-2026-012 · En Miami</span></div>
-              <span class="act-time">03 Mar</span>
-            </div>
-            <div class="activity-item">
-              <div class="act-icon g">🤝</div>
-              <div class="act-text"><b>Subdistribuidor · Pedido</b><span>Dist. Perú · R Series ALS x2</span></div>
-              <span class="act-time">01 Mar</span>
+
+            <!-- Cotizaciones para seguimiento -->
+            <div class="card" style="border-left:3px solid var(--green);margin-bottom:14px;">
+              <div class="card-header">
+                <div class="card-title">📋 Cotizaciones para dar seguimiento</div>
+                <span class="card-action" id="dashCotsSeguimientoCountLabel">0</span>
+              </div>
+              <div id="dashCotsSeguimientoList" style="padding:4px 16px 14px;"></div>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">🚀 Accesos rápidos</div>
+          <!-- COLUMNA 2: RESUMEN + ACCIONES -->
+          <div>
+            <!-- Resumen por estado de cotizaciones -->
+            <div class="card" style="margin-bottom:14px;">
+              <div class="card-header">
+                <div class="card-title">📊 Cotizaciones por estado</div>
+              </div>
+              <div id="dashCotsEstadosList" style="padding:10px 16px 16px;"></div>
             </div>
-            <div class="quick-actions">
-              <div class="qa-btn" onclick="showPanel('cotizaciones',null); openModal('modalCotizacion')">
-                <div class="qa-icon">📄</div>
-                <b>Nueva Cotización</b>
-                <span>Con template AMELIFE</span>
+
+            <!-- Finanzas rápidas (último total consolidado bancos) -->
+            <div class="card" id="dashFinanzasCard" style="margin-bottom:14px;display:none;">
+              <div class="card-header">
+                <div class="card-title">💰 Bancos (consolidado)</div>
+                <span class="card-action" style="cursor:pointer;" onclick="showPanel('bancos',document.querySelector('[onclick*=\'bancos\']'))">Ver →</span>
               </div>
-              <div class="qa-btn" onclick="showPanel('inventario',null); openModal('modalItem')">
-                <div class="qa-icon">➕</div>
-                <b>Agregar Item</b>
-                <span>Al inventario</span>
+              <div id="dashFinanzasContent" style="padding:14px 16px;"></div>
+            </div>
+
+            <!-- Accesos rápidos -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">🚀 Accesos rápidos</div>
               </div>
-              <div class="qa-btn" onclick="showPanel('clientes',null); openModal('modalCliente')">
-                <div class="qa-icon">👤</div>
-                <b>Nuevo Cliente</b>
-                <span>Autoguardado</span>
-              </div>
-              <div class="qa-btn" onclick="showPanel('trackings',null)">
-                <div class="qa-icon">✈️</div>
-                <b>Ver Trackings</b>
-                <span>Estado de envíos</span>
+              <div class="quick-actions">
+                <div class="qa-btn" onclick="showPanel('cotizaciones',null); openModal('modalCotizacion')">
+                  <div class="qa-icon">📄</div>
+                  <b>Nueva Cotización</b>
+                  <span>Con template AMELIFE</span>
+                </div>
+                <div class="qa-btn" onclick="showPanel('inventario',null); openModal('modalItem')">
+                  <div class="qa-icon">➕</div>
+                  <b>Agregar Ítem</b>
+                  <span>Al inventario</span>
+                </div>
+                <div class="qa-btn" onclick="showPanel('clientes',null); openModal('modalCliente')">
+                  <div class="qa-icon">👤</div>
+                  <b>Nuevo Cliente</b>
+                  <span>Autoguardado</span>
+                </div>
+                <div class="qa-btn" onclick="showPanel('trackings',null)">
+                  <div class="qa-icon">✈️</div>
+                  <b>Ver Trackings</b>
+                  <span>Estado de envíos</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1490,12 +1531,8 @@ async function loadAllData() {
   if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
   if (rPB.ok)  { PRICEBOOK_DATA = rPB.data;  renderPriceBook();  }
 
-  // Si Bancos ya estaba desbloqueado en esta sesión de navegador, revelar contenido
-  if (BANCOS_UNLOCKED && currentUser && ['admin','finanzas'].includes(currentUser.rol)) {
-    const bc = document.getElementById('bancosContent');
-    const bl = document.getElementById('bancosLocked');
-    if (bc && bl) { bl.style.display = 'none'; bc.style.display = 'block'; }
-  }
+  // Cargar dashboard al arrancar
+  if (typeof loadDashboard === 'function') loadDashboard();
 }
 
 // ── Indicador de carga ─────────────────────────────────────
@@ -1514,7 +1551,6 @@ function doLogout() {
   if (bc) bc.style.display = 'none';
   if (bl) bl.style.display = 'block';
   BANCOS_UNLOCKED = false;
-  try { sessionStorage.removeItem('bancosUnlocked'); } catch(e){}
   currentUser = null;
 }
 
@@ -1535,10 +1571,19 @@ function showPanel(id, el) {
   };
   document.getElementById('topbarTitle').textContent = titles[id] || id;
 
-  // Auto-init de Bancos SOLO si ya está desbloqueado
-  if (id === 'bancos' && typeof bancosInit === 'function' && BANCOS_UNLOCKED) {
-    bancosSetupDropzone();
-    bancosInit();
+  // Bancos: SIEMPRE requiere PIN al entrar, reseteamos el estado
+  if (id === 'bancos') {
+    BANCOS_UNLOCKED = false;
+    const bc = document.getElementById('bancosContent');
+    const bl = document.getElementById('bancosLocked');
+    if (bc && bl) { bc.style.display = 'none'; bl.style.display = 'block'; }
+    const pinInput = document.getElementById('bancosPin');
+    if (pinInput) { pinInput.value = ''; setTimeout(() => pinInput.focus(), 100); }
+  }
+
+  // Auto-load de Dashboard al entrar
+  if (id === 'dashboard' && typeof loadDashboard === 'function') {
+    loadDashboard();
   }
 }
 
@@ -1853,13 +1898,9 @@ function searchForQuote(q) {
 // ============================================
 //  BANCOS — GATE DE PIN
 // ============================================
-// Flag global: true si el PIN fue validado en esta sesión
+// Flag global: true solo durante la sesión activa de Bancos.
+// SIEMPRE pide PIN al entrar — no persiste entre navegaciones ni reloads.
 let BANCOS_UNLOCKED = false;
-
-// Restaurar estado si ya fue desbloqueado en esta sesión del navegador
-try {
-  if (sessionStorage.getItem('bancosUnlocked') === '1') BANCOS_UNLOCKED = true;
-} catch(e){}
 
 function unlockBancos() {
   // Solo admin/finanzas pueden desbloquear (doble chequeo por si tocan el DOM)
@@ -1873,7 +1914,6 @@ function unlockBancos() {
   api('validateFinPin', { pin }).then(r => {
     if (!r.ok) { showToast('❌ PIN incorrecto', 'error'); return; }
     BANCOS_UNLOCKED = true;
-    try { sessionStorage.setItem('bancosUnlocked', '1'); } catch(e){}
     document.getElementById('bancosLocked').style.display  = 'none';
     document.getElementById('bancosContent').style.display = 'block';
     document.getElementById('bancosPin').value = '';
@@ -1888,9 +1928,10 @@ function unlockBancos() {
 
 function lockBancos() {
   BANCOS_UNLOCKED = false;
-  try { sessionStorage.removeItem('bancosUnlocked'); } catch(e){}
   document.getElementById('bancosContent').style.display = 'none';
   document.getElementById('bancosLocked').style.display  = 'block';
+  const pinInput = document.getElementById('bancosPin');
+  if (pinInput) pinInput.value = '';
   showToast('🔒 Módulo Bancario bloqueado', 'info');
 }
 
@@ -3760,6 +3801,265 @@ async function bancosEliminarCuenta(id) {
   showToast('✅ Cuenta eliminada', 'success');
   await bancosRefresh();
   await bancosRenderGestion();
+}
+
+// ============================================================
+// ====================== MÓDULO DASHBOARD ====================
+// v1.0 · 2026-04-16 22:30 ARG
+// ============================================================
+
+const DASHBOARD_STATE = {
+  data: null,
+  autoRefreshTimer: null,
+  autoRefreshSeconds: 90 // cada 1.5 min
+};
+
+const DASHBOARD_ESTADOS_COT = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada', 'Cerrada'];
+const DASHBOARD_ESTADOS_COLOR = {
+  'Borrador':  '#6B7E94',
+  'Enviada':   '#2980B9',
+  'Aprobada':  '#4A9A2A',
+  'Rechazada': '#D94040',
+  'Cerrada':   '#8E44AD'
+};
+
+function dashFmt(n) {
+  const v = Number(n) || 0;
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function dashFmtShort(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) >= 1_000_000) return '$' + (v/1_000_000).toFixed(2) + 'M';
+  if (Math.abs(v) >= 1_000)     return '$' + (v/1_000).toFixed(1) + 'K';
+  return '$' + v.toFixed(0);
+}
+
+async function loadDashboard() {
+  const lastUpd = document.getElementById('dashLastUpdate');
+  if (lastUpd) lastUpd.textContent = '🔄 Cargando datos...';
+
+  const r = await api('getDashboardData', { umbralStock: 5, diasETA: 2 });
+  if (!r.ok) {
+    if (lastUpd) lastUpd.textContent = '❌ Error: ' + (r.error || 'desconocido');
+    return;
+  }
+  DASHBOARD_STATE.data = r.data;
+  dashRender();
+
+  const now = new Date();
+  if (lastUpd) {
+    lastUpd.innerHTML = `✅ Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})} · <span style="color:var(--muted);">auto-refresh cada ${DASHBOARD_STATE.autoRefreshSeconds}s</span>`;
+  }
+
+  // Auto-refresh: si ya hay un timer, se reinicia
+  if (DASHBOARD_STATE.autoRefreshTimer) clearTimeout(DASHBOARD_STATE.autoRefreshTimer);
+  DASHBOARD_STATE.autoRefreshTimer = setTimeout(() => {
+    // Solo refrescar si sigue en dashboard
+    const panel = document.getElementById('panel-dashboard');
+    if (panel && panel.classList.contains('active')) loadDashboard();
+  }, DASHBOARD_STATE.autoRefreshSeconds * 1000);
+}
+
+function dashRender() {
+  const d = DASHBOARD_STATE.data;
+  if (!d) return;
+
+  // ── Stats
+  const s = d.stats || {};
+  document.getElementById('dashItemsTotal').textContent   = s.itemsTotal || 0;
+  document.getElementById('dashValorInv').textContent     = 'Valor: ' + dashFmtShort(s.valorInventario || 0) + (s.itemsSinWHCount ? ` · ${s.itemsSinWHCount} sin WH` : '');
+  document.getElementById('dashStockBajoCount').textContent = s.stockBajoCount || 0;
+  document.getElementById('dashCotsActivas').textContent  = s.cotsActivasCount || 0;
+  document.getElementById('dashCotsMonto').textContent    = 'Monto: ' + dashFmtShort(s.cotsActivasMonto || 0);
+  document.getElementById('dashTracksCount').textContent  = s.tracksPendientesCount || 0;
+  document.getElementById('dashTracksPorLlegar').textContent =
+    (s.tracksPorLlegarCount ? `⚠️ ${s.tracksPorLlegarCount} por llegar` : 'Ninguno urgente') +
+    (s.tracksVencidosCount ? ` · 🚨 ${s.tracksVencidosCount} vencidos` : '');
+
+  // ── Trackings vencidos
+  const vencCard = document.getElementById('dashTracksVencidosCard');
+  const vencList = document.getElementById('dashTracksVencidosList');
+  const vencidos = d.tracksVencidos || [];
+  document.getElementById('dashTracksVencidosCount').textContent = vencidos.length + ' tracking' + (vencidos.length!==1?'s':'');
+  if (vencidos.length > 0) {
+    vencCard.style.display = '';
+    vencList.innerHTML = vencidos.map(t => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border2);gap:10px;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-weight:600;font-size:13px;color:var(--text);">${t.numero||'(sin número)'} · ${t.carrier||''}</div>
+          <div style="font-size:11px;color:var(--danger);">🚨 Vencido hace ${t.diasVencido} día${t.diasVencido!==1?'s':''} · ETA: ${t.eta||'—'}</div>
+        </div>
+        <button class="btn btn-outline" style="padding:6px 10px;font-size:11px;" onclick="dashMarcarRecibido('${t.id}')">✓ Recibido</button>
+      </div>
+    `).join('');
+  } else {
+    vencCard.style.display = 'none';
+  }
+
+  // ── Trackings por llegar
+  const porLlegar = d.tracksPorLlegar || [];
+  document.getElementById('dashTracksPorLlegarCountLabel').textContent = porLlegar.length + ' tracking' + (porLlegar.length!==1?'s':'');
+  const porLlegarList = document.getElementById('dashTracksPorLlegarList');
+  if (porLlegar.length > 0) {
+    porLlegarList.innerHTML = porLlegar.map(t => {
+      const diasTexto = t.diasRestantes === 0 ? '🔥 HOY' :
+                         t.diasRestantes === 1 ? '⚡ Mañana' :
+                         `En ${t.diasRestantes} días`;
+      const colorDias = t.diasRestantes === 0 ? 'var(--danger)' :
+                         t.diasRestantes === 1 ? 'var(--warning)' : 'var(--info)';
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border2);gap:10px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:600;font-size:13px;color:var(--text);">${t.numero||'(sin número)'} · ${t.carrier||''}</div>
+            <div style="font-size:11px;color:var(--muted);">${t.origen||'?'} → ${t.destino||'?'} · ETA: ${t.eta||'—'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;color:${colorDias};font-size:12px;">${diasTexto}</div>
+            <button class="btn btn-outline" style="padding:4px 8px;font-size:10px;margin-top:4px;" onclick="dashMarcarRecibido('${t.id}')">✓ Recibido</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    porLlegarList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>No hay trackings por llegar en los próximos 2 días</em></div>';
+  }
+
+  // ── Stock bajo
+  const stockBajo = d.stockBajo || [];
+  document.getElementById('dashStockBajoCountLabel').textContent = stockBajo.length + ' ítem' + (stockBajo.length!==1?'s':'');
+  const stockList = document.getElementById('dashStockBajoList');
+  if (stockBajo.length > 0) {
+    stockList.innerHTML = stockBajo.map(i => {
+      const stockClass = (i.stock || 0) === 0 ? 'var(--danger)' : (i.stock || 0) <= 2 ? 'var(--warning)' : 'var(--muted)';
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border2);gap:10px;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-weight:600;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;">${i.pn||'—'}</div>
+            <div style="font-size:11px;color:var(--muted);">${(i.desc||'').substring(0,60)}${(i.desc||'').length>60?'…':''}</div>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;" onclick="dashAjustarStock('${i.id}',-1)" title="Restar 1">−</button>
+            <div style="min-width:40px;text-align:center;font-weight:800;font-size:15px;color:${stockClass};">${i.stock||0}</div>
+            <button class="btn btn-outline" style="padding:4px 8px;font-size:11px;" onclick="dashAjustarStock('${i.id}',1)" title="Sumar 1">+</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    stockList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>✅ No hay ítems con stock bajo</em></div>';
+  }
+
+  // ── Cotizaciones para seguimiento
+  const cotsSeg = d.cotsSeguimiento || [];
+  document.getElementById('dashCotsSeguimientoCountLabel').textContent = cotsSeg.length + ' cotización' + (cotsSeg.length!==1?'es':'');
+  const cotsList = document.getElementById('dashCotsSeguimientoList');
+  if (cotsSeg.length > 0) {
+    cotsList.innerHTML = cotsSeg.map(c => {
+      const selectOpts = DASHBOARD_ESTADOS_COT.map(e =>
+        `<option value="${e}"${e===c.estado?' selected':''}>${e}</option>`
+      ).join('');
+      return `
+        <div style="padding:10px 0;border-bottom:1px dashed var(--border2);">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+            <div style="min-width:0;flex:1;">
+              <div style="font-weight:600;font-size:13px;color:var(--text);">${c.numero||c.id} · ${c.cliente||'(sin cliente)'}</div>
+              <div style="font-size:11px;color:var(--muted);">
+                ${dashFmt(c.total)} · Enviada hace ${c.diasEnviada||0} día${c.diasEnviada!==1?'s':''} · ${c.fecha||''}
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select data-cot-id="${c.id}" onchange="dashCambiarEstadoCotizacion('${c.id}', this.value)"
+              style="padding:5px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text);flex:1;">
+              ${selectOpts}
+            </select>
+            <button class="btn btn-outline" style="padding:5px 8px;font-size:11px;" onclick="dashNotaSeguimiento('${c.id}')" title="Agregar nota de seguimiento">📝</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } else {
+    cotsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>✅ No hay cotizaciones pendientes de seguimiento</em></div>';
+  }
+
+  // ── Resumen por estado de cotizaciones
+  const estadosDiv = document.getElementById('dashCotsEstadosList');
+  const estados = d.cotsPorEstado || {};
+  const totalCots = DASHBOARD_ESTADOS_COT.reduce((s,e) => s + (estados[e]||0), 0);
+  estadosDiv.innerHTML = DASHBOARD_ESTADOS_COT.map(e => {
+    const cnt = estados[e] || 0;
+    const pct = totalCots > 0 ? Math.round(cnt/totalCots*100) : 0;
+    const color = DASHBOARD_ESTADOS_COLOR[e] || 'var(--muted)';
+    return `
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--text);font-weight:600;">${e}</span>
+          <span style="color:var(--muted);">${cnt} · ${pct}%</span>
+        </div>
+        <div style="height:6px;background:var(--card2);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${color};transition:width 0.3s;"></div>
+        </div>
+      </div>
+    `;
+  }).join('') + (totalCots === 0 ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:6px;"><em>Sin cotizaciones todavía</em></div>' : '');
+
+  // ── Finanzas/Bancos (si hay data)
+  const finCard = document.getElementById('dashFinanzasCard');
+  const finDiv  = document.getElementById('dashFinanzasContent');
+  if (d.finanzas && d.finanzas.totalUSD > 0) {
+    finCard.style.display = '';
+    finDiv.innerHTML = `
+      <div style="text-align:center;">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Total Consolidado USD</div>
+        <div style="font-size:24px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;margin:4px 0;">${dashFmt(d.finanzas.totalUSD)}</div>
+        <div style="font-size:11px;color:var(--muted);">${d.finanzas.cuentas} cuentas · ${d.finanzas.bancos} bancos</div>
+      </div>
+    `;
+  } else {
+    finCard.style.display = 'none';
+  }
+}
+
+// ---- Acciones desde el dashboard ----
+
+async function dashMarcarRecibido(id) {
+  if (!confirm('¿Marcar este tracking como RECIBIDO?')) return;
+  const r = await api('marcarTrackingRecibido', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast('✅ Tracking marcado como recibido', 'success');
+  loadDashboard();
+}
+
+async function dashAjustarStock(id, delta) {
+  const r = await api('ajustarStockItem', { id, delta });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast(`✅ Stock ${delta>0?'+':''}${delta}`, 'success');
+  loadDashboard();
+  // Refrescar inventario en memoria si está cargado
+  try {
+    const rInv = await api('getInventario');
+    if (rInv.ok) { INVENTARIO = rInv.data; renderInventario(); }
+  } catch(e){}
+}
+
+async function dashCambiarEstadoCotizacion(id, estado) {
+  const r = await api('actualizarEstadoCotizacion', { id, estado, usuario: (currentUser||{}).nombre || '' });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); loadDashboard(); return; }
+  showToast(`✅ Cotización → ${estado}`, 'success');
+  loadDashboard();
+}
+
+async function dashNotaSeguimiento(id) {
+  const nota = prompt('Agregar nota de seguimiento para esta cotización:');
+  if (!nota || !nota.trim()) return;
+  // Releer estado actual del select
+  const sel = document.querySelector(`select[data-cot-id="${id}"]`);
+  const estado = sel ? sel.value : 'Enviada';
+  const r = await api('actualizarEstadoCotizacion', { id, estado, nota: nota.trim(), usuario: (currentUser||{}).nombre || '' });
+  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  showToast('✅ Nota registrada', 'success');
+  loadDashboard();
 }
 </script>
 
