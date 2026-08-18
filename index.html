@@ -1328,10 +1328,24 @@
         <textarea id="cotIAPedido" rows="5" placeholder="Ej: Cotizá 2 desfibriladores AED 3 y 10 pares de electrodos para el Hospital San Martín de Lima, con 25% de markup"
           style="width:100%;padding:12px 14px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;resize:vertical"></textarea>
       </div>
+      <div class="field">
+        <label>Adjuntar proforma, foto o lista de precios <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <div id="cotIADrop" onclick="document.getElementById('cotIAFile').click()"
+             style="border:2px dashed var(--border);border-radius:var(--radius);padding:16px;text-align:center;cursor:pointer;background:var(--card2)">
+          <input type="file" id="cotIAFile" multiple accept="application/pdf,image/png,image/jpeg,image/webp"
+                 style="display:none" onchange="cotIAArchivos(event)">
+          <div style="font-size:22px">📎</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">
+            Arrastrá o hacé clic · PDF, PNG o JPG · hasta 3 archivos de 5 MB
+          </div>
+        </div>
+        <div id="cotIAAdjuntos" style="margin-top:8px"></div>
+      </div>
+
       <div style="font-size:12px;color:var(--muted);line-height:1.7;background:var(--card2);padding:12px 14px;border-radius:var(--radius);border-left:3px solid var(--info)">
-        Escribilo como se lo dirías a un colega. La IA busca los part numbers en el Price Book
-        y el cliente en tu base, y arma la cotización. <b>Vos revisás y confirmás antes de guardar</b> —
-        nunca guarda sola.
+        Escribilo como se lo dirías a un colega. Si adjuntás una proforma vieja podés pedirle
+        <i>«igual a esta pero para otro cliente»</i> o <i>«agregale 5 electrodos»</i>.
+        <b>Vos revisás y confirmás antes de guardar</b> — nunca guarda sola.
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('modalCotIA')">Cancelar</button>
@@ -4719,6 +4733,9 @@ function cotIAAbrir() {
 
 function cotIAReset() {
   COT_IA_STATE.propuesta = null;
+  COT_IA_ADJ.archivos = [];
+  const caja = document.getElementById('cotIAAdjuntos');
+  if (caja) caja.innerHTML = '';
   document.getElementById('cotIAPaso1').style.display = 'block';
   document.getElementById('cotIAPaso2').style.display = 'none';
   document.getElementById('cotIAPaso3').style.display = 'none';
@@ -4728,13 +4745,16 @@ async function cotIAProcesar() {
   if (COT_IA_STATE.procesando) return;
 
   const pedido = document.getElementById('cotIAPedido').value.trim();
-  if (!pedido) { showToast('Escribí qué querés cotizar', 'error'); return; }
+  if (!pedido && !COT_IA_ADJ.archivos.length) {
+    showToast('Escribí qué querés cotizar, o adjuntá una proforma', 'error');
+    return;
+  }
 
   COT_IA_STATE.procesando = true;
   document.getElementById('cotIAPaso1').style.display = 'none';
   document.getElementById('cotIAPaso2').style.display = 'block';
 
-  const r = await api('cotizarConIA', { pedido });
+  const r = await api('cotizarConIA', { pedido, adjuntos: COT_IA_ADJ.archivos });
 
   COT_IA_STATE.procesando = false;
 
@@ -4968,6 +4988,75 @@ function cotBajarBase64(base64, nombre) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
+
+
+// ---------- Adjuntos del cotizador IA ----------
+
+const COT_IA_ADJ = { archivos: [] };
+
+function cotIAArchivos(ev) {
+  const nuevos = Array.from(ev.target.files || []);
+  ev.target.value = '';   // permite volver a elegir el mismo archivo
+  cotIASumarArchivos(nuevos);
+}
+
+function cotIASumarArchivos(lista) {
+  const TIPOS = ['application/pdf','image/png','image/jpeg','image/webp'];
+  const MAX   = 5 * 1024 * 1024;
+
+  lista.forEach(f => {
+    if (COT_IA_ADJ.archivos.length >= 3) { showToast('Máximo 3 archivos', 'error'); return; }
+    if (!TIPOS.includes(f.type))  { showToast(f.name + ': subí PDF, PNG o JPG', 'error'); return; }
+    if (f.size > MAX)             { showToast(f.name + ' pesa más de 5 MB', 'error'); return; }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      COT_IA_ADJ.archivos.push({
+        nombre: f.name, mimeType: f.type,
+        base64: reader.result.split(',')[1],
+        kb: Math.round(f.size / 1024)
+      });
+      cotIARenderAdjuntos();
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function cotIARenderAdjuntos() {
+  const box = document.getElementById('cotIAAdjuntos');
+  box.innerHTML = COT_IA_ADJ.archivos.map((a, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--green-glow);border-radius:6px;margin-bottom:5px;font-size:12px">
+      <span>${a.mimeType === 'application/pdf' ? '📄' : '🖼'}</span>
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cotEsc(a.nombre)}</span>
+      <span style="color:var(--muted)">${a.kb} KB</span>
+      <button class="tbl-action" title="Quitar" onclick="cotIAQuitarAdjunto(${i})">✕</button>
+    </div>`).join('');
+}
+
+function cotIAQuitarAdjunto(i) {
+  COT_IA_ADJ.archivos.splice(i, 1);
+  cotIARenderAdjuntos();
+}
+
+// Arrastrar y soltar sobre la zona
+(function () {
+  const zona = () => document.getElementById('cotIADrop');
+  document.addEventListener('dragover', e => {
+    const z = zona();
+    if (z && z.contains(e.target)) { e.preventDefault(); z.style.borderColor = 'var(--green)'; }
+  });
+  document.addEventListener('dragleave', e => {
+    const z = zona();
+    if (z && z.contains(e.target)) z.style.borderColor = 'var(--border)';
+  });
+  document.addEventListener('drop', e => {
+    const z = zona();
+    if (!z || !z.contains(e.target)) return;
+    e.preventDefault();
+    z.style.borderColor = 'var(--border)';
+    cotIASumarArchivos(Array.from(e.dataTransfer.files || []));
+  });
+})();
 
 </script>
 
