@@ -4439,6 +4439,54 @@ function cotEsc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * Fecha legible: "18 AGO 2026 · 18:37"
+ *
+ * Hay dos formatos y se tratan distinto, que es de donde salía el error:
+ *
+ *  · "2026-08-18T21:13:00.000Z" — la Z dice que es UTC. Sheets guardó
+ *    18:13 hora de Argentina y al serializar lo pasó a UTC. Hay que
+ *    restarle 3 horas para volver a la hora que se ve en la planilla.
+ *
+ *  · "2026-08-18 18:13" — texto sin huso. tsARG() ya lo escribió en hora
+ *    argentina, así que se leen los dígitos tal cual. Convertirlo acá
+ *    lo correría de nuevo.
+ *
+ * Argentina no tiene horario de verano, por eso el -3 fijo es seguro.
+ */
+const COT_MESES = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+
+function cotFecha(f, conHora) {
+  if (!f) return '—';
+  const s = String(f).trim();
+
+  let a, me, d, h, mi;
+
+  if (/\d{2}:\d{2}.*Z$/.test(s) || /T.*Z$/.test(s)) {
+    // Instante en UTC: pasarlo a hora de Argentina
+    const t = new Date(s);
+    if (isNaN(t.getTime())) return s;
+    const arg = new Date(t.getTime() - 3 * 60 * 60 * 1000);
+    a  = arg.getUTCFullYear();
+    me = arg.getUTCMonth() + 1;
+    d  = arg.getUTCDate();
+    h  = String(arg.getUTCHours()).padStart(2, '0');
+    mi = String(arg.getUTCMinutes()).padStart(2, '0');
+  } else {
+    // Texto plano ya en hora argentina: leer los dígitos
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (!m) {
+      m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ ](\d{2}):(\d{2}))?/);
+      if (m) m = [m[0], m[3], m[2], m[1], m[4], m[5]];
+    }
+    if (!m) return s;
+    a = Number(m[1]); me = Number(m[2]); d = Number(m[3]); h = m[4]; mi = m[5];
+  }
+
+  const txt = String(d).padStart(2, '0') + ' ' + (COT_MESES[me - 1] || me) + ' ' + a;
+  return (conHora !== false && h !== undefined && h !== null) ? txt + ' · ' + h + ':' + mi : txt;
+}
+
 function cotEstadoNorm(e) {
   const s = String(e || '').trim();
   if (s === 'Pendiente') return 'Borrador';
@@ -4505,7 +4553,7 @@ function cotRender(lista) {
       <td>${cotEsc(c.cliente_nom) || '—'}</td>
       <td style="font-size:12px;max-width:200px;white-space:normal">${resumen || '—'}</td>
       <td><b>${cotFmt(c.total)}</b></td>
-      <td style="font-size:12px">${cotEsc(c.fecha) || '—'}</td>
+      <td style="font-size:12px;white-space:nowrap">${cotEsc(cotFecha(c.fecha))}</td>
       <td>
         <select onchange="cotCambiarEstado('${c.id}', this.value)"
           style="padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text)">
@@ -4551,7 +4599,7 @@ async function cotVerDetalle(id) {
   body.innerHTML = `
     <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:0 14px 12px">
       <span>Estado: <b style="color:var(--text)">${cotEsc(c.estado)}</b></span>
-      <span>Fecha: <b style="color:var(--text)">${cotEsc(c.fecha)}</b></span>
+      <span>Fecha: <b style="color:var(--text)">${cotEsc(cotFecha(c.fecha))}</b></span>
       ${c.notas ? '<span>Notas: <b style="color:var(--text)">' + cotEsc(c.notas) + '</b></span>' : ''}
     </div>
     <table class="data-table">
@@ -5268,10 +5316,9 @@ async function cotEnviarPorWhatsApp() {
 }
 
 /**
- * Texto del mensaje de WhatsApp.
- * Los *asteriscos* son el marcado de negrita de WhatsApp: no son adorno,
- * no los saques ni los escapes.
- * La firma sale de quién está logueado.
+ * Texto del mensaje de WhatsApp, tal cual lo definió Germán.
+ * Sin marcado de negrita: va en texto plano.
+ * El nombre de quien firma sale de la sesión.
  */
 function cotTextoWhatsApp(d) {
   const total = Number(d.total || 0)
@@ -5279,12 +5326,13 @@ function cotTextoWhatsApp(d) {
 
   const quien = (d.remitente && d.remitente.nombre) ? d.remitente.nombre + '\n' : '';
 
-  return `Hola *${d.cliente || 'Cliente'}*,\n\n` +
-    `Les enviamos la *factura proforma ${d.numero}*, por un total de *US$ ${total}*\n` +
+  return `Hola ${d.cliente || 'Cliente'},\n\n` +
+    `Les enviamos la factura proforma ${d.numero}, por un total de US$ ${total}\n` +
     `Adjuntamos el PDF con el detalle de la proforma y nuestros datos bancarios para realizar el pago.\n` +
     `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n\n` +
     `Saludos cordiales,\n` +
-    `*${quien}AMELIFE*\n` +
+    quien +
+    `AMELIFE\n` +
     `amelife@amelife-911.com`;
 }
 
