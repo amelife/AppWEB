@@ -860,9 +860,9 @@
         </div>
         <div class="table-container">
           <table class="data-table">
-            <thead><tr><th>#</th><th>Cliente</th><th>Ítems</th><th>Markup</th><th>Total USD</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>#</th><th>Cliente</th><th>Ítems</th><th>Total USD</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
             <tbody id="cotBody">
-              <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>
+              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>
             </tbody>
           </table>
           <div class="table-footer"><span id="cotCount">—</span></div>
@@ -1007,7 +1007,7 @@
               <th style="min-width:120px">Vencimiento</th>
               <th style="min-width:120px">N° Serie</th>
             </tr></thead>
-            <tbody id="whBody"><tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr></tbody>
+            <tbody id="whBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr></tbody>
           </table>
           <div class="table-footer"><span id="whCount">—</span></div>
         </div>
@@ -1202,6 +1202,8 @@
       <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="cliTel" placeholder="+1 305 XXX XXXX" /></div>
       <div class="field"><label>País</label><select id="cliPais"><option>Ecuador</option><option>Perú</option><option>Colombia</option><option>Argentina</option><option>EEUU</option><option>México</option><option>Otro</option></select></div>
       <div class="field"><label>Ciudad</label><input type="text" id="cliCiudad" placeholder="Ciudad" /></div>
+      <div class="field"><label>RUC / Tax ID <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label><input type="text" id="cliRuc" placeholder="20607536563" /></div>
+      <div class="field"><label>Domicilio fiscal <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label><input type="text" id="cliDirFiscal" placeholder="Av. Ejemplo 123, Lima" /></div>
       <div class="field" style="grid-column:1/-1"><label>Notas</label><input type="text" id="cliNotas" placeholder="Notas adicionales sobre el cliente" /></div>
     </div>
     <div class="modal-footer">
@@ -1219,12 +1221,16 @@
       <button class="modal-close" onclick="closeModal('modalCotizacion')">✕</button>
     </div>
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">
-      <div class="field">
+      <div class="field" style="position:relative">
         <label>Cliente</label>
-        <select id="cotCliente"><option value="">— Cargando clientes... —</option></select>
+        <input type="text" id="cotClienteTexto" autocomplete="off" placeholder="Escribí el nombre del cliente…"
+               oninput="cotClienteFiltrar(this.value)" onfocus="cotClienteFiltrar(this.value)" />
+        <input type="hidden" id="cotCliente" />
+        <div id="cotClienteLista"
+             style="display:none;position:absolute;left:0;right:0;top:100%;z-index:30;max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.18);margin-top:2px"></div>
       </div>
       <div class="field">
-        <label>% Markup sobre lista</label>
+        <label>% Markup <span style="font-weight:400;text-transform:none;letter-spacing:0">(interno)</span></label>
         <input type="number" id="cotMarkup" min="0" step="1" oninput="cotRenderItems()" />
       </div>
       <div class="field" style="grid-column:1/-1;margin-bottom:0">
@@ -1952,6 +1958,8 @@ function saveCliente() {
     pais:    document.getElementById('cliPais').value,
     ciudad:  document.getElementById('cliCiudad').value.trim(),
     notas:   document.getElementById('cliNotas').value.trim(),
+    ruc:        document.getElementById('cliRuc').value.trim(),
+    dir_fiscal: document.getElementById('cliDirFiscal').value.trim(),
   };
   if (!data.nombre) { showToast('El nombre es requerido', 'error'); return; }
   const editId = document.getElementById('modalCliente').dataset.editId;
@@ -1979,6 +1987,8 @@ function openEditCliente(id) {
   document.getElementById('cliPais').value    = c.pais;
   document.getElementById('cliCiudad').value  = c.ciudad;
   document.getElementById('cliNotas').value   = c.notas || '';
+  document.getElementById('cliRuc').value        = c.ruc || '';
+  document.getElementById('cliDirFiscal').value  = c.dir_fiscal || '';
   document.getElementById('modalCliente').dataset.editId = id;
   openModal('modalCliente');
 }
@@ -4200,11 +4210,11 @@ function cotEstadoNorm(e) {
 
 async function cotCargar() {
   const tbody = document.getElementById('cotBody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>';
 
   const r = await api('getCotizaciones');
   if (!r.ok) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--danger)">❌ ' + cotEsc(r.error || 'Error') + '</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)">❌ ' + cotEsc(r.error || 'Error') + '</td></tr>';
     return;
   }
   COT_STATE.lista = (r.data || []).map(c => {
@@ -4239,7 +4249,7 @@ function cotRender(lista) {
   if (!tbody) return;
 
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Sin cotizaciones. Creá la primera con “+ Nueva cotización”.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Sin cotizaciones. Creá la primera con “+ Nueva cotización”.</td></tr>';
     if (count) count.textContent = '0 cotizaciones';
     return;
   }
@@ -4254,7 +4264,6 @@ function cotRender(lista) {
       <td class="pn" style="cursor:pointer" onclick="cotVerDetalle('${c.id}')">${cotEsc(c.numero || c.id)}</td>
       <td>${cotEsc(c.cliente_nom) || '—'}</td>
       <td style="font-size:12px;max-width:200px;white-space:normal">${resumen || '—'}</td>
-      <td>+${Number(c.markup) || 0}%</td>
       <td><b>${cotFmt(c.total)}</b></td>
       <td style="font-size:12px">${cotEsc(c.fecha) || '—'}</td>
       <td>
@@ -4299,7 +4308,6 @@ async function cotVerDetalle(id) {
   body.innerHTML = `
     <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:0 14px 12px">
       <span>Estado: <b style="color:var(--text)">${cotEsc(c.estado)}</b></span>
-      <span>Markup: <b style="color:var(--text)">+${Number(c.markup)||0}%</b></span>
       <span>Fecha: <b style="color:var(--text)">${cotEsc(c.fecha)}</b></span>
       ${c.notas ? '<span>Notas: <b style="color:var(--text)">' + cotEsc(c.notas) + '</b></span>' : ''}
     </div>
@@ -4349,6 +4357,9 @@ async function cotAbrirNueva() {
   document.getElementById('cotBuscar').value = '';
   document.getElementById('cotResultados').innerHTML = '';
   document.getElementById('cotNotas').value = '';
+  document.getElementById('cotCliente').value = '';
+  document.getElementById('cotClienteTexto').value = '';
+  cotClienteCerrar();
   openModal('modalCotizacion');
 
   // Markup por defecto desde la hoja Parametros
@@ -4361,20 +4372,96 @@ async function cotAbrirNueva() {
 }
 
 async function cotCargarClientes() {
-  const sel = document.getElementById('cotCliente');
   const r = await api('getClientes');
-  if (!r.ok) { sel.innerHTML = '<option value="">— Error cargando clientes —</option>'; return; }
-
+  if (!r.ok) { showToast('No se pudieron cargar los clientes', 'error'); return; }
   COT_STATE.clientes = (r.data || []).filter(c => c.nombre);
   COT_STATE.clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+}
 
-  sel.innerHTML = '<option value="">— Elegí un cliente —</option>' +
-    COT_STATE.clientes.map(c => {
-      const etiqueta = c.empresa && c.empresa !== c.nombre
-        ? c.nombre + ' · ' + c.empresa
-        : c.nombre;
-      return `<option value="${cotEsc(c.id)}">${cotEsc(etiqueta)}</option>`;
-    }).join('');
+// ---------- Buscador de cliente (reemplaza al desplegable) ----------
+
+function cotClienteEtiqueta(c) {
+  return (c.empresa && c.empresa !== c.nombre) ? c.nombre + ' · ' + c.empresa : c.nombre;
+}
+
+function cotClienteFiltrar(q) {
+  const caja = document.getElementById('cotClienteLista');
+  const t = String(q || '').toLowerCase().trim();
+
+  // Escribir invalida la selección previa: evita guardar un cliente
+  // distinto del que quedó escrito en pantalla.
+  document.getElementById('cotCliente').value = '';
+
+  let hits = COT_STATE.clientes;
+  if (t) {
+    hits = COT_STATE.clientes.filter(c =>
+      String(c.nombre).toLowerCase().includes(t) ||
+      String(c.empresa || '').toLowerCase().includes(t));
+  }
+  hits = hits.slice(0, 40);
+
+  let html = hits.map(c => `
+    <div onmousedown="cotClienteElegir('${cotEsc(c.id)}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border2)"
+      onmouseover="this.style.background='var(--card2)'" onmouseout="this.style.background=''">
+      ${cotEsc(cotClienteEtiqueta(c))}
+      ${c.pais ? `<span style="color:var(--muted);font-size:11px"> · ${cotEsc(c.pais)}</span>` : ''}
+    </div>`).join('');
+
+  if (t && t.length >= 2) {
+    html += `
+      <div onmousedown="cotClienteCrear()"
+        style="padding:9px 12px;cursor:pointer;font-size:13px;color:var(--green);font-weight:700;background:var(--card2)">
+        + Crear cliente «${cotEsc(q)}»
+      </div>`;
+  } else if (!hits.length) {
+    html = '<div style="padding:10px 12px;color:var(--muted);font-size:12px">Escribí al menos 2 letras</div>';
+  }
+
+  caja.innerHTML = html;
+  caja.style.display = 'block';
+}
+
+function cotClienteElegir(id) {
+  const c = COT_STATE.clientes.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('cotCliente').value      = c.id;
+  document.getElementById('cotClienteTexto').value = cotClienteEtiqueta(c);
+  cotClienteCerrar();
+}
+
+function cotClienteCerrar() {
+  const caja = document.getElementById('cotClienteLista');
+  if (caja) caja.style.display = 'none';
+}
+
+// Cerrar la lista al hacer clic fuera del buscador
+document.addEventListener('click', (e) => {
+  const inp  = document.getElementById('cotClienteTexto');
+  const caja = document.getElementById('cotClienteLista');
+  if (!inp || !caja) return;
+  if (e.target !== inp && !caja.contains(e.target)) cotClienteCerrar();
+});
+
+// Da de alta el cliente con lo escrito. Los datos fiscales se completan
+// después desde Clientes: acá sólo hace falta el nombre para no frenar la venta.
+async function cotClienteCrear() {
+  const nombre = document.getElementById('cotClienteTexto').value.trim();
+  if (nombre.length < 2) return;
+
+  cotClienteCerrar();
+  showToast('Creando cliente…', 'info');
+
+  const r = await api('addCliente', { data: { nombre } });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  const nuevo = { id: r.data.id, nombre: nombre, empresa: '', pais: '' };
+  COT_STATE.clientes.push(nuevo);
+  COT_STATE.clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+
+  document.getElementById('cotCliente').value      = nuevo.id;
+  document.getElementById('cotClienteTexto').value = nombre;
+  showToast('✅ Cliente «' + nombre + '» creado', 'success');
 }
 
 function cotBuscarPB(q) {
@@ -4458,11 +4545,11 @@ function cotRenderItems() {
 async function cotGuardar() {
   if (COT_STATE.guardando) return;
 
-  const sel     = document.getElementById('cotCliente');
-  const cliente = COT_STATE.clientes.find(c => c.id === sel.value);
+  const idCli   = document.getElementById('cotCliente').value;
+  const cliente = COT_STATE.clientes.find(c => c.id === idCli);
   const markup  = Number(document.getElementById('cotMarkup').value);
 
-  if (!cliente)                { showToast('Elegí un cliente', 'error'); return; }
+  if (!cliente)                { showToast('Elegí un cliente de la lista, o creá uno nuevo', 'error'); return; }
   if (!COT_STATE.items.length) { showToast('Agregá al menos un ítem', 'error'); return; }
   if (!(markup >= 0))          { showToast('El markup tiene que ser un número', 'error'); return; }
 
@@ -4587,10 +4674,7 @@ function cotIARenderPropuesta(data) {
           ${clienteOk ? cotEsc(cli.nombre) : '⚠️ No identificado — elegilo a mano'}
         </div>
       </div>
-      <div style="text-align:right">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Markup</div>
-        <div style="font-weight:700">+${Number(p.markup) || 0}%</div>
-      </div>
+
     </div>
 
     <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border2);border-radius:var(--radius)">
@@ -4637,10 +4721,7 @@ async function cotIAUsar() {
   document.getElementById('cotMarkup').value = Number(p.markup) || COT_STATE.markupDefault;
   if (p.notas) document.getElementById('cotNotas').value = p.notas;
 
-  const sel = document.getElementById('cotCliente');
-  if (p.cliente && p.cliente.id && [...sel.options].some(o => o.value === p.cliente.id)) {
-    sel.value = p.cliente.id;
-  }
+  if (p.cliente && p.cliente.id) cotClienteElegir(p.cliente.id);
 
   cotRenderItems();
 
