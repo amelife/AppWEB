@@ -1393,6 +1393,12 @@ let CLIENTES       = [];
 let PRICEBOOK_DATA = [];
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw577_aLhl42DkpN7or4ejTC7XyxCCWLGBjXxsLNfQTPNlaRJ2cL3ViOGV0KR_TaRY/exec';
 
+// ── Sesión ─────────────────────────────────────────────────
+// Token emitido por el backend en validateUser(). Viaja en cada
+// llamada de api(). Vive sólo en memoria: si se recarga la página
+// hay que volver a loguearse (a propósito — no queda en localStorage).
+let SESSION_TOKEN = null;
+
 // ── Estado depósito activo ─────────────────────────────────
 let depositoActivo = 'TODOS';
 
@@ -1459,16 +1465,65 @@ function filterInventario() {
 }
 
 // ── Helper universal para llamar al backend ────────────────
+// El token de sesión viaja fuera de params, en la raíz del payload.
+// Si el backend responde SESION_INVALIDA se vuelve al login;
+// si responde PIN_REQUERIDO se rebloquea el módulo Bancos.
 async function api(action, params = {}) {
   try {
     const formData = new FormData();
-    formData.append('payload', JSON.stringify({ action, params }));
+    formData.append('payload', JSON.stringify({ action, params, token: SESSION_TOKEN }));
     const res  = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
     const text = await res.text();
-    return JSON.parse(text);
+    const json = JSON.parse(text);
+
+    if (json && json.code === 'SESION_INVALIDA') {
+      forzarLogout('Tu sesión expiró. Volvé a ingresar.');
+    } else if (json && json.code === 'PIN_REQUERIDO') {
+      relockBancos();
+    }
+    return json;
   } catch(e) {
     return { ok: false, error: 'Error de red: ' + e.message };
   }
+}
+
+// ── Volver al login limpiando todo el estado de sesión ─────
+function forzarLogout(msg) {
+  SESSION_TOKEN = null;
+  currentUser   = null;
+
+  // Frenar el auto-refresh del dashboard (si está corriendo)
+  if (typeof DASHBOARD_STATE !== 'undefined' && DASHBOARD_STATE.autoRefreshTimer) {
+    clearTimeout(DASHBOARD_STATE.autoRefreshTimer);
+    DASHBOARD_STATE.autoRefreshTimer = null;
+  }
+
+  relockBancos();
+
+  const app   = document.getElementById('app');
+  const login = document.getElementById('loginScreen');
+  if (app)   app.classList.remove('visible');
+  if (login) login.style.display = 'flex';
+
+  const pass = document.getElementById('loginPass');
+  if (pass) pass.value = '';
+
+  // Volver a mostrar Bancos en el nav para el próximo login
+  const navB = document.getElementById('navBancos');
+  if (navB) navB.style.display = '';
+
+  if (msg) showToast(msg, 'error');
+}
+
+// ── Rebloquear el módulo Bancos ────────────────────────────
+function relockBancos() {
+  BANCOS_UNLOCKED = false;
+  const bc = document.getElementById('bancosContent');
+  const bl = document.getElementById('bancosLocked');
+  if (bc) bc.style.display = 'none';
+  if (bl) bl.style.display = 'block';
+  const pinInput = document.getElementById('bancosPin');
+  if (pinInput) pinInput.value = '';
 }
 
 // ============================================
@@ -1501,6 +1556,13 @@ async function doLogin() {
   }
 
   const found = res.data;
+  if (!found || !found.token) {
+    errEl.textContent   = 'El backend no devolvió un token de sesión. Verificá que esté deployado 01_Auth.gs v2.0.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  SESSION_TOKEN = found.token;
   currentUser = found;
   document.getElementById('userName').textContent = found.nombre;
   document.getElementById('userRole').textContent = found.rol.charAt(0).toUpperCase() + found.rol.slice(1);
@@ -1513,7 +1575,8 @@ async function doLogin() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
   updateClock();
-  setInterval(updateClock, 60000);
+  // Un solo intervalo aunque se entre y salga varias veces
+  if (!window._clockTimer) window._clockTimer = setInterval(updateClock, 60000);
   loadAllData();
   showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
 }
@@ -1543,15 +1606,11 @@ function setLoading(elId, on) {
 }
 
 function doLogout() {
-  document.getElementById('app').classList.remove('visible');
-  document.getElementById('loginScreen').style.display = 'flex';
-  // Resetear lock de Bancos
-  const bc = document.getElementById('bancosContent');
-  const bl = document.getElementById('bancosLocked');
-  if (bc) bc.style.display = 'none';
-  if (bl) bl.style.display = 'block';
-  BANCOS_UNLOCKED = false;
-  currentUser = null;
+  // Invalidar la sesión también del lado del servidor.
+  // No esperamos la respuesta: el logout local es inmediato.
+  if (SESSION_TOKEN) api('cerrarSesion');
+  forzarLogout();
+  showToast('Sesión cerrada', 'info');
 }
 
 // ============================================
@@ -1912,7 +1971,7 @@ function unlockBancos() {
   if (!pin) { showToast('Ingresá el PIN', 'error'); return; }
 
   api('validateFinPin', { pin }).then(r => {
-    if (!r.ok) { showToast('❌ PIN incorrecto', 'error'); return; }
+    if (!r.ok) { showToast('❌ ' + (r.error || 'PIN incorrecto'), 'error'); return; }
     BANCOS_UNLOCKED = true;
     document.getElementById('bancosLocked').style.display  = 'none';
     document.getElementById('bancosContent').style.display = 'block';
