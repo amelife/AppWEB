@@ -881,6 +881,22 @@
       </div>
       </div>
 
+      <!-- ===== EN CONSTRUCCIÓN (roles con acceso acotado) ===== -->
+      <div class="panel" id="panel-construccion">
+        <div class="empty" style="padding:80px 20px">
+          <div class="empty-icon">🚧</div>
+          <h3 id="construccionTitulo">Módulo en construcción</h3>
+          <p style="max-width:420px;margin:8px auto 0">
+            Esta sección todavía no está habilitada para tu usuario.<br>
+            Por ahora trabajás sobre <b>Cotizaciones</b>.
+          </p>
+          <button class="btn btn-primary" style="margin:22px auto 0"
+                  onclick="showPanel('cotizaciones', document.querySelector('[onclick*=\'cotizaciones\']'))">
+            Ir a Cotizaciones
+          </button>
+        </div>
+      </div>
+
       <!-- ===== ÓRDENES ===== -->
       <div class="panel" id="panel-ordenes">
         <div class="empty">
@@ -1214,7 +1230,7 @@
 </div>
 
 <!-- Modal: Nueva Cotización -->
-<div class="modal-overlay" id="modalCotizacion">
+<div class="modal-overlay" id="modalCotizacion" data-no-cerrar-fuera>
   <div class="modal" style="max-width:700px">
     <div class="modal-header">
       <div class="modal-title">📄 Nueva Cotización AMELIFE</div>
@@ -1269,7 +1285,7 @@
 </div>
 
 <!-- Modal: Cotizar con IA -->
-<div class="modal-overlay" id="modalCotIA">
+<div class="modal-overlay" id="modalCotIA" data-no-cerrar-fuera>
   <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <div class="modal-title">✨ Cotizar con IA</div>
@@ -1656,16 +1672,19 @@ async function loadAllData() {
   setLoading('invBody', true);
   setLoading('clientGrid', true);
 
-  const [rInv, rPB] = await Promise.all([
-    api('getInventario'),
+  // El Price Book lo necesita el constructor de cotizaciones: lo pide todo el mundo.
+  // El inventario y el dashboard sólo los roles que pueden verlos.
+  const completo = panelPermitido('inventario');
+
+  const [rPB, rInv] = await Promise.all([
     api('getPriceBook'),
+    completo ? api('getInventario') : Promise.resolve({ ok: false })
   ]);
 
-  if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
   if (rPB.ok)  { PRICEBOOK_DATA = rPB.data;  renderPriceBook();  }
+  if (rInv.ok) { INVENTARIO     = rInv.data; renderInventario(); }
 
-  // Cargar dashboard al arrancar
-  if (typeof loadDashboard === 'function') loadDashboard();
+  if (completo && typeof loadDashboard === 'function') loadDashboard();
 }
 
 // ── Indicador de carga ─────────────────────────────────────
@@ -1686,19 +1705,42 @@ function doLogout() {
 // ============================================
 //  NAVIGATION
 // ============================================
+// Módulos habilitados por rol. Sólo admin ve todo.
+// Espeja ACCIONES_STAFF en 01_Auth.gs: si acá se abre un módulo, allá también
+// hay que habilitar sus acciones, o la pantalla carga y el backend rechaza.
+const PANELES_POR_ROL = {
+  staff: ['cotizaciones']
+};
+
+function panelPermitido(id) {
+  const rol = (currentUser || {}).rol;
+  const permitidos = PANELES_POR_ROL[rol];
+  return !permitidos || permitidos.indexOf(id) !== -1;
+}
+
 function showPanel(id, el) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const panel = document.getElementById('panel-'+id);
-  if (panel) panel.classList.add('active');
-  if (el) el.classList.add('active');
   const titles = {
     dashboard:'Dashboard', inventario:'Inventario', pricebook:'Price Book ZOLL',
     clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
     trackings:'Trackings', warehouse:'Warehouse', subdist:'Subdistribuidores',
     goldway:'Goldway Inventory', bancos:'Bancos'
   };
+
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
   document.getElementById('topbarTitle').textContent = titles[id] || id;
+
+  // Rol con acceso acotado: se ve el módulo en el menú, pero el contenido
+  // se reemplaza por el cartel de obra. No se carga ningún dato.
+  if (!panelPermitido(id)) {
+    document.getElementById('construccionTitulo').textContent = (titles[id] || id) + ' — en construcción';
+    document.getElementById('panel-construccion').classList.add('active');
+    return;
+  }
+
+  const panel = document.getElementById('panel-'+id);
+  if (panel) panel.classList.add('active');
 
   // Bancos: SIEMPRE requiere PIN al entrar, reseteamos el estado
   if (id === 'bancos') {
@@ -2045,10 +2087,26 @@ function openModal(id) {
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
-// Cerrar modal al click fuera
+// Cerrar modal al click fuera.
+//
+// Un `click` se registra donde se SUELTA el botón, no donde se apretó. Si el
+// usuario selecciona texto adentro del modal y arrastra apenas fuera del borde,
+// el mouseup cae en el fondo y el modal se cerraba con todo el trabajo adentro.
+// Por eso exigimos que el gesto EMPIECE y TERMINE en el fondo.
+//
+// Los modales marcados con data-no-cerrar-fuera no se cierran así ni aunque el
+// clic sea legítimo: son los que tienen trabajo cargado y perderlo duele.
 document.querySelectorAll('.modal-overlay').forEach(o => {
+  let empezoEnFondo = false;
+
+  o.addEventListener('mousedown', function(e) {
+    empezoEnFondo = (e.target === o);
+  });
+
   o.addEventListener('click', function(e) {
-    if (e.target === o) o.classList.remove('open');
+    const cerrar = (e.target === o) && empezoEnFondo && !o.hasAttribute('data-no-cerrar-fuera');
+    empezoEnFondo = false;
+    if (cerrar) o.classList.remove('open');
   });
 });
 
@@ -2199,6 +2257,7 @@ let trkSelected  = [];
 const _origShowPanel = showPanel;
 showPanel = function(id, el) {
   _origShowPanel(id, el);
+  if (!panelPermitido(id)) return;
   if (id === 'trackings')    loadTrackings();
   if (id === 'warehouse')    { loadWHItems(); loadTrackings(); }
   if (id === 'clientes')     loadClientesRecientes();
@@ -4174,7 +4233,8 @@ const COT_STATE = {
   items: [],           // ítems del constructor abierto
   clientes: [],        // clientes para el selector
   resultados: [],      // resultados de la búsqueda del Price Book
-  markupDefault: 20,
+  markupDefault: null,   // null = todavía no se consultó a Parametros
+  editandoId: null,      // si tiene valor, el constructor está editando y no creando
   guardando: false
 };
 
@@ -4274,7 +4334,10 @@ function cotRender(lista) {
       </td>
       <td style="white-space:nowrap">
         <button class="tbl-action" title="Ver detalle" onclick="cotVerDetalle('${c.id}')">👁</button>
+        <button class="tbl-action" title="Descargar proforma PDF" onclick="cotDescargarPDF('${c.id}')">📄</button>
         <button class="tbl-action" title="Enviar por email" onclick="cotEnviarEmail('${c.id}')">📧</button>
+        <button class="tbl-action" title="Editar" onclick="cotEditar('${c.id}')">✏️</button>
+        <button class="tbl-action" title="Eliminar" onclick="cotEliminar('${c.id}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -4353,6 +4416,9 @@ async function cotEnviarEmail(id) {
 async function cotAbrirNueva() {
   COT_STATE.items = [];
   COT_STATE.resultados = [];
+  COT_STATE.editandoId = null;
+  document.querySelector('#modalCotizacion .modal-title').textContent = '📄 Nueva Cotización AMELIFE';
+  document.getElementById('cotBtnGuardar').textContent = '💾 Guardar cotización';
 
   document.getElementById('cotBuscar').value = '';
   document.getElementById('cotResultados').innerHTML = '';
@@ -4362,13 +4428,21 @@ async function cotAbrirNueva() {
   cotClienteCerrar();
   openModal('modalCotizacion');
 
-  // Markup por defecto desde la hoja Parametros
-  const rc = await api('getConfigApp');
-  if (rc.ok && rc.data && rc.data.markupDefault) COT_STATE.markupDefault = rc.data.markupDefault;
-  document.getElementById('cotMarkup').value = COT_STATE.markupDefault;
-
-  await cotCargarClientes();
   cotRenderItems();
+
+  // Las dos llamadas van juntas, no una tras otra. Y los clientes se piden
+  // una sola vez por sesión: son 294 filas que no cambian entre cotizaciones.
+  const pendientes = [];
+  if (COT_STATE.markupDefault === null) pendientes.push(api('getConfigApp'));
+  if (!COT_STATE.clientes.length)       pendientes.push(cotCargarClientes());
+
+  if (pendientes.length) {
+    const res = await Promise.all(pendientes);
+    const rc  = res.find(r => r && r.ok && r.data && r.data.markupDefault !== undefined);
+    if (rc) COT_STATE.markupDefault = rc.data.markupDefault;
+  }
+  if (COT_STATE.markupDefault === null) COT_STATE.markupDefault = 20;
+  document.getElementById('cotMarkup').value = COT_STATE.markupDefault;
 }
 
 async function cotCargarClientes() {
@@ -4558,7 +4632,11 @@ async function cotGuardar() {
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
-  const r = await api('saveCotizacion', {
+  const editando = COT_STATE.editandoId;
+  const accion   = editando ? 'updateCotizacion' : 'saveCotizacion';
+
+  const r = await api(accion, {
+    id: editando || undefined,
     data: {
       cliente_id:  cliente.id,
       cliente_nom: cliente.empresa || cliente.nombre,
@@ -4576,9 +4654,10 @@ async function cotGuardar() {
 
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
 
-  showToast('✅ ' + r.data.numero + ' guardada · ' + cotFmt(r.data.total), 'success');
+  showToast(editando ? '✅ Cambios guardados' : '✅ ' + r.data.numero + ' guardada · ' + cotFmt(r.data.total), 'success');
   closeModal('modalCotizacion');
   COT_STATE.items = [];
+  COT_STATE.editandoId = null;
   cotCargar();
 }
 
@@ -4719,7 +4798,6 @@ async function cotIAUsar() {
   }));
 
   document.getElementById('cotMarkup').value = Number(p.markup) || COT_STATE.markupDefault;
-  if (p.notas) document.getElementById('cotNotas').value = p.notas;
 
   if (p.cliente && p.cliente.id) cotClienteElegir(p.cliente.id);
 
@@ -4730,6 +4808,67 @@ async function cotIAUsar() {
   } else {
     showToast('✨ Propuesta cargada — revisá y guardá', 'success');
   }
+}
+
+
+// ---------- PDF, editar y eliminar ----------
+
+async function cotDescargarPDF(id) {
+  const c = COT_STATE.lista.find(x => x.id === id);
+  showToast('📄 Generando proforma…', 'info');
+
+  const r = await api('getProformaPDF', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  // El backend manda el PDF en base64; acá se reconstruye y se dispara la descarga.
+  const bytes = Uint8Array.from(atob(r.data.base64), ch => ch.charCodeAt(0));
+  const url   = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a     = document.createElement('a');
+  a.href = url;
+  a.download = r.data.nombre || 'proforma.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+  showToast('✅ ' + (r.data.nombre || 'Proforma descargada'), 'success');
+}
+
+async function cotEditar(id) {
+  const r = await api('getCotizacion', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  const c = r.data;
+
+  await cotAbrirNueva();
+
+  COT_STATE.editandoId = id;
+  COT_STATE.items = (c.items || []).map(i => ({
+    pn:   i.pn,
+    desc: i.desc,
+    qty:  Number(i.qty) || 1,
+    precio_lista: Number(i.precio_lista) || 0
+  }));
+
+  document.getElementById('cotMarkup').value = Number(c.markup) || 0;
+  document.getElementById('cotNotas').value  = c.notas || '';
+  if (c.cliente_id) cotClienteElegir(c.cliente_id);
+  else document.getElementById('cotClienteTexto').value = c.cliente_nom || '';
+
+  document.querySelector('#modalCotizacion .modal-title').textContent = '✏️ Editar ' + (c.numero || '');
+  document.getElementById('cotBtnGuardar').textContent = '💾 Guardar cambios';
+  cotRenderItems();
+}
+
+async function cotEliminar(id) {
+  const c = COT_STATE.lista.find(x => x.id === id);
+  const etiqueta = (c && c.numero) || id;
+  if (!confirm('¿Eliminar la cotización ' + etiqueta + '?\n\nSe borran también sus ítems. No se puede deshacer.')) return;
+
+  const r = await api('deleteCotizacion', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  showToast('🗑 ' + etiqueta + ' eliminada', 'success');
+  document.getElementById('cotDetalle').style.display = 'none';
+  cotCargar();
 }
 
 </script>
