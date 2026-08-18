@@ -4487,6 +4487,25 @@ function cotFecha(f, conHora) {
   return (conHora !== false && h !== undefined && h !== null) ? txt + ' · ' + h + ':' + mi : txt;
 }
 
+/**
+ * Marca de "enviado" bajo la fecha. Muestra a cuántos correos fue y, al pasar
+ * el mouse, la lista completa con la fecha de envío.
+ */
+function cotMarcaEnvio(c) {
+  const dest = String(c.enviado_a || '').trim();
+  if (!dest) return '';
+
+  const lista = dest.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  const cuando = c.enviado_el ? cotFecha(c.enviado_el) : '';
+  const titulo = 'Enviada a:\n' + lista.join('\n') + (cuando ? '\n\n' + cuando : '');
+  const texto  = lista.length === 1 ? lista[0] : lista.length + ' correos';
+
+  return `<div title="${cotEsc(titulo)}" style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;color:var(--green);font-weight:600;max-width:190px">
+      <span>📧</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cotEsc(texto)}</span>
+    </div>`;
+}
+
 function cotEstadoNorm(e) {
   const s = String(e || '').trim();
   if (s === 'Pendiente') return 'Borrador';
@@ -4553,7 +4572,7 @@ function cotRender(lista) {
       <td>${cotEsc(c.cliente_nom) || '—'}</td>
       <td style="font-size:12px;max-width:200px;white-space:normal">${resumen || '—'}</td>
       <td><b>${cotFmt(c.total)}</b></td>
-      <td style="font-size:12px;white-space:nowrap">${cotEsc(cotFecha(c.fecha))}</td>
+      <td style="font-size:12px;white-space:nowrap">${cotEsc(cotFecha(c.fecha))}${cotMarcaEnvio(c)}</td>
       <td>
         <select onchange="cotCambiarEstado('${c.id}', this.value)"
           style="padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text)">
@@ -4601,6 +4620,7 @@ async function cotVerDetalle(id) {
       <span>Estado: <b style="color:var(--text)">${cotEsc(c.estado)}</b></span>
       <span>Fecha: <b style="color:var(--text)">${cotEsc(cotFecha(c.fecha))}</b></span>
       ${c.notas ? '<span>Notas: <b style="color:var(--text)">' + cotEsc(c.notas) + '</b></span>' : ''}
+      ${c.enviado_a ? '<span style="color:var(--green)">📧 Enviada a <b>' + cotEsc(c.enviado_a) + '</b>' + (c.enviado_el ? ' · ' + cotEsc(cotFecha(c.enviado_el)) : '') + '</span>' : ''}
     </div>
     <table class="data-table">
       <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Lista</th><th style="text-align:right">P. Final</th></tr></thead>
@@ -5273,6 +5293,7 @@ async function cotEmailConfirmar() {
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   closeModal('modalCotEmail');
   showToast('✅ Enviada a ' + (r.data.enviado || ''), 'success');
+  cotCargar();   // refresca para mostrar la marca y el estado nuevo
 }
 
 async function cotEnviarPorWhatsApp() {
@@ -5316,23 +5337,27 @@ async function cotEnviarPorWhatsApp() {
 }
 
 /**
- * Texto del mensaje de WhatsApp, tal cual lo definió Germán.
- * Sin marcado de negrita: va en texto plano.
+ * Texto del mensaje de WhatsApp.
+ *
+ * Los *asteriscos* son el marcado de negrita de WhatsApp: no son adorno.
+ * OJO: la negrita NO cruza saltos de línea — cada renglón que va en negrita
+ * necesita su propio par de asteriscos, o WhatsApp los muestra literales.
+ *
  * El nombre de quien firma sale de la sesión.
  */
 function cotTextoWhatsApp(d) {
   const total = Number(d.total || 0)
     .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const quien = (d.remitente && d.remitente.nombre) ? d.remitente.nombre + '\n' : '';
+  const quien = (d.remitente && d.remitente.nombre) ? `*${d.remitente.nombre}*\n` : '';
 
-  return `Hola ${d.cliente || 'Cliente'},\n\n` +
-    `Les enviamos la factura proforma ${d.numero}, por un total de US$ ${total}\n` +
+  return `Hola *${d.cliente || 'Cliente'}*,\n\n` +
+    `Les enviamos la *factura proforma ${d.numero}*, por un total de *US$ ${total}*\n` +
     `Adjuntamos el PDF con el detalle de la proforma y nuestros datos bancarios para realizar el pago.\n` +
     `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n\n` +
     `Saludos cordiales,\n` +
     quien +
-    `AMELIFE\n` +
+    `*AMELIFE*\n` +
     `amelife@amelife-911.com`;
 }
 
