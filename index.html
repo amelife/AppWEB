@@ -436,6 +436,30 @@
   #toast.error { border-left:3px solid var(--danger); }
   #toast.info { border-left:3px solid var(--info); }
 
+  /* ---- PANEL DE ACTIVIDAD (abajo a la derecha, no bloquea) ---- */
+  #actividad {
+    position: fixed; bottom: 84px; right: 24px; z-index: 9998;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+    pointer-events: none;
+  }
+  .act-tarea {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--border2);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius); padding: 10px 14px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.14);
+    font-size: 13px; color: var(--text); max-width: 300px;
+    animation: actEntra 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .act-tarea.saliendo { opacity: 0; transform: translateX(20px); transition: all 0.25s ease; }
+  @keyframes actEntra { from { opacity:0; transform:translateX(24px);} to { opacity:1; transform:none;} }
+  .act-spin {
+    width: 15px; height: 15px; flex-shrink: 0;
+    border: 2px solid var(--border2); border-top-color: var(--green);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  .act-ok { color: var(--green); font-size: 15px; line-height: 1; }
+
   /* ---- PILL STATUS ---- */
   .status-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
   .status-dot.green { background:var(--green); }
@@ -1512,7 +1536,8 @@
   </div>
 </div>
 
-<!-- TOAST -->
+<!-- ACTIVIDAD + TOAST -->
+<div id="actividad"></div>
 <div id="toast"></div>
 
 <!-- ===================== SCRIPTS ===================== -->
@@ -1606,11 +1631,73 @@ function filterInventario() {
   renderInventario(filtered);
 }
 
+// ── Panel de actividad ─────────────────────────────────────
+// Muestra abajo a la derecha qué está haciendo la app, sin bloquear nada.
+// Se alimenta solo desde api(): no hay que acordarse de llamarlo.
+
+const ETIQUETAS_ACCION = {
+  deleteCotizacion:          'Borrando cotización',
+  saveCotizacion:            'Guardando cotización',
+  updateCotizacion:          'Guardando cambios',
+  getCotizaciones:           'Cargando cotizaciones',
+  getCotizacion:             'Abriendo cotización',
+  getProformaHTML:           'Generando proforma',
+  getProformaPDF:            'Generando proforma',
+  emailCotizacion:           'Enviando el email',
+  cotizarConIA:              'La IA está armando la cotización',
+  actualizarEstadoCotizacion:'Cambiando el estado',
+  addCliente:                'Creando cliente',
+  updateCliente:             'Guardando cliente',
+  deleteCliente:             'Borrando cliente',
+  eliminarClientesBulk:      'Borrando clientes',
+  getClientes:               'Cargando clientes',
+  importarClientes:          'Importando contactos',
+  addItem:                   'Guardando ítem',
+  updateItem:                'Guardando ítem',
+  deleteItem:                'Borrando ítem',
+  ajustarStockItem:          'Ajustando stock',
+  asignarWHBulk:             'Asignando WH',
+  importarFacturaPDF:        'Leyendo la factura',
+  confirmarImportacion:      'Importando al inventario',
+  emailWarehouse:            'Enviando al warehouse',
+  ocrExtractoBanco:          'Leyendo el extracto',
+  guardarSnapshot:           'Guardando saldo',
+  guardarSnapshotsBulk:      'Guardando saldos'
+};
+
+let _actSeq = 0;
+
+function actIniciar(texto) {
+  const cont = document.getElementById('actividad');
+  if (!cont) return null;
+  const id = 'act_' + (++_actSeq);
+  const el = document.createElement('div');
+  el.className = 'act-tarea';
+  el.id = id;
+  el.innerHTML = `<div class="act-spin"></div><span>${texto}…</span>`;
+  cont.appendChild(el);
+  return id;
+}
+
+function actTerminar(id, ok) {
+  const el = id && document.getElementById(id);
+  if (!el) return;
+  // Un instante en verde antes de irse: confirma que terminó
+  if (ok) el.innerHTML = el.innerHTML.replace(/<div class="act-spin"><\/div>/, '<span class="act-ok">✓</span>');
+  setTimeout(() => {
+    el.classList.add('saliendo');
+    setTimeout(() => el.remove(), 260);
+  }, ok ? 500 : 0);
+}
+
 // ── Helper universal para llamar al backend ────────────────
 // El token de sesión viaja fuera de params, en la raíz del payload.
 // Si el backend responde SESION_INVALIDA se vuelve al login;
 // si responde PIN_REQUERIDO se rebloquea el módulo Bancos.
 async function api(action, params = {}) {
+  // Sólo las acciones con etiqueta muestran indicador. El resto —refrescos
+  // de fondo, pings— pasa en silencio para no llenar la pantalla de avisos.
+  const tarea = ETIQUETAS_ACCION[action] ? actIniciar(ETIQUETAS_ACCION[action]) : null;
   try {
     const formData = new FormData();
     formData.append('payload', JSON.stringify({ action, params, token: SESSION_TOKEN }));
@@ -1623,8 +1710,10 @@ async function api(action, params = {}) {
     } else if (json && json.code === 'PIN_REQUERIDO') {
       relockBancos();
     }
+    actTerminar(tarea, json && json.ok);
     return json;
   } catch(e) {
+    actTerminar(tarea, false);
     return { ok: false, error: 'Error de red: ' + e.message };
   }
 }
