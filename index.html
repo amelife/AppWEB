@@ -4562,8 +4562,12 @@ function cotIARenderPropuesta(data) {
     const linea = (Number(i.precio_lista) || 0) * i.qty;
     subtotal += linea;
     const c = colorConf[i.confianza] || 'var(--muted)';
-    return `<tr>
-      <td class="pn">${cotEsc(i.pn)}</td>
+    const esManual = i.fuente === 'manual';
+    const badge = esManual
+      ? `<span class="badge badge-warning" style="font-size:9px;margin-left:6px" title="Precio que diste vos, no del Price Book">precio tuyo</span>`
+      : '';
+    return `<tr${esManual ? ' style="background:rgba(192,122,16,0.06)"' : ''}>
+      <td class="pn">${cotEsc(i.pn)}${badge}</td>
       <td style="font-size:12px">${cotEsc(i.desc)}
         ${i.motivo ? `<div style="font-size:11px;color:var(--muted);font-style:italic">${cotEsc(i.motivo)}</div>` : ''}</td>
       <td style="text-align:center"><b>${i.qty}</b></td>
@@ -4612,7 +4616,7 @@ function cotIARenderPropuesta(data) {
     ${p.notas ? `<div style="margin-top:10px;font-size:12px;color:var(--muted)">📝 ${cotEsc(p.notas)}</div>` : ''}
 
     <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:right">
-      Costo de esta consulta: US$ ${(data.costoUSD || 0).toFixed(4)}
+      ${data.usoFallback ? '⚠️ modelo de respaldo · ' : ''}${cotEsc(data.modelo || '')} · US$ ${(data.costoUSD || 0).toFixed(4)}
     </div>`;
 
   document.getElementById('cotIABtnUsar').disabled = !its.length;
