@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v2.1 | 2026-04-16 21:15 ARG - GitHub Pages + Apps Script API · Módulo Bancos -->
+<!-- AMELIFE EMS Technologies - Web App v2.2 | 2026-08-18 ARG - Fase 2: Cotizaciones reales + auth con sesiones -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -23,7 +23,7 @@
 <meta name="description" content="AMELIFE EMS Technologies · Sistema de gestión">
 
 <!-- Manifest PWA -->
-<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22AMELIFE%22%2C%22short_name%22%3A%22AMELIFE%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F0F4F8%22%2C%22theme_color%22%3A%22%234A9A2A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Famelife-911.com%2Fwp-content%2Fuploads%2F2020%2F12%2FLOGO.webp%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fwebp%22%7D%5D%7D">
+<link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22AMELIFE%22%2C%22short_name%22%3A%22AMELIFE%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23F0F4F8%22%2C%22theme_color%22%3A%22%234A9A2A%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Famelife-911.com%2Fwp-content%2Fuploads%2F2020%2F12%2FLOGO.webp%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fwebp%22%7D%5D%7D">
 
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -841,63 +841,37 @@
       <div class="panel" id="panel-cotizaciones">
         <div class="toolbar">
           <div class="search-box">
-            <input type="text" placeholder="Buscar cotización..." />
+            <input type="text" id="cotSearch" placeholder="Buscar por número, cliente o PN..." oninput="cotFiltrar()" />
           </div>
-          <button class="btn btn-primary" onclick="openModal('modalCotizacion')">+ Nueva cotización</button>
+          <select class="filter-select" id="cotFilterEstado" onchange="cotFiltrar()">
+            <option value="">Todos los estados</option>
+            <option>Borrador</option><option>Enviada</option><option>Aprobada</option>
+            <option>Rechazada</option><option>Cerrada</option>
+          </select>
+          <button class="btn btn-outline" onclick="cotCargar()">🔄 Actualizar</button>
+          <button class="btn btn-primary" onclick="cotAbrirNueva()">+ Nueva cotización</button>
         </div>
         <div class="table-container">
           <table class="data-table">
-            <thead><tr><th>#</th><th>Cliente</th><th>Items</th><th>Markup</th><th>Total USD</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
-            <tbody>
-              <tr>
-                <td class="pn">COT-2026-001</td>
-                <td>Cmd. Conjunto FFAA Ecuador</td>
-                <td>EMV+ 731 x1</td>
-                <td>+58%</td>
-                <td>$18,080</td>
-                <td>20 MAR 2025</td>
-                <td><span class="badge badge-warning">Pendiente</span></td>
-                <td>
-                  <button class="tbl-action" title="Ver">👁</button>
-                  <button class="tbl-action" title="PDF">📄</button>
-                  <button class="tbl-action" title="WhatsApp">💬</button>
-                  <button class="tbl-action" title="Email">📧</button>
-                </td>
-              </tr>
-              <tr>
-                <td class="pn">COT-2026-002</td>
-                <td>Hospital San Martín, Lima</td>
-                <td>Z Vent x2, X Series x1</td>
-                <td>+35%</td>
-                <td>$45,200</td>
-                <td>15 FEB 2026</td>
-                <td><span class="badge badge-info">En revisión</span></td>
-                <td>
-                  <button class="tbl-action" title="Ver">👁</button>
-                  <button class="tbl-action" title="PDF">📄</button>
-                  <button class="tbl-action" title="WhatsApp">💬</button>
-                  <button class="tbl-action" title="Email">📧</button>
-                </td>
-              </tr>
-              <tr>
-                <td class="pn">COT-2026-003</td>
-                <td>Cruz Roja Colombiana</td>
-                <td>AED 3 x10</td>
-                <td>+40%</td>
-                <td>$18,550</td>
-                <td>01 MAR 2026</td>
-                <td><span class="badge badge-green">Aprobada</span></td>
-                <td>
-                  <button class="tbl-action">👁</button>
-                  <button class="tbl-action">📄</button>
-                  <button class="tbl-action">💬</button>
-                  <button class="tbl-action">📧</button>
-                </td>
-              </tr>
+            <thead><tr><th>#</th><th>Cliente</th><th>Ítems</th><th>Markup</th><th>Total USD</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="cotBody">
+              <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>
             </tbody>
           </table>
-          <div class="table-footer"><span>3 cotizaciones</span></div>
+          <div class="table-footer"><span id="cotCount">—</span></div>
         </div>
+
+        <!-- Detalle de una cotización -->
+        <div id="cotDetalle" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title" id="cotDetalleTitle">Detalle</div>
+              <span class="card-action" onclick="document.getElementById('cotDetalle').style.display='none'">✕ Cerrar</span>
+            </div>
+            <div id="cotDetalleBody" style="padding:0 4px 8px"></div>
+          </div>
+        </div>
+      </div>
       </div>
 
       <!-- ===== ÓRDENES ===== -->
@@ -1047,7 +1021,7 @@
               <tr>
                 <td><b>Dist. Perú S.A.</b></td>
                 <td>🇵🇪 Perú</td>
-                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="afdfcadddaefcbc6dcdb81ccc0c2">[email&#160;protected]</a></td>
+                <td>peru@dist.com</td>
                 <td>12 items</td>
                 <td>R Series ALS x2</td>
                 <td>04 MAR 2026</td>
@@ -1056,7 +1030,7 @@
               <tr>
                 <td><b>MedTech Colombia</b></td>
                 <td>🇨🇴 Colombia</td>
-                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="cda0a8a9b9a8aea58daea2a1e3aea2a0">[email&#160;protected]</a></td>
+                <td>medtech@col.com</td>
                 <td>5 items</td>
                 <td>—</td>
                 <td>01 MAR 2026</td>
@@ -1065,7 +1039,7 @@
               <tr>
                 <td><b>Emergency Pro ARG</b></td>
                 <td>🇦🇷 Argentina</td>
-                <td><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5e373038311e3b333b2c392e2c31703f2c">[email&#160;protected]</a></td>
+                <td>info@emergpro.ar</td>
                 <td>8 items</td>
                 <td>AED Plus x5</td>
                 <td>28 FEB 2026</td>
@@ -1237,33 +1211,46 @@
       <div class="modal-title">📄 Nueva Cotización AMELIFE</div>
       <button class="modal-close" onclick="closeModal('modalCotizacion')">✕</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">
       <div class="field">
         <label>Cliente</label>
-        <select id="cotCliente"><option>Cmd. Conjunto FFAA Ecuador</option><option>Hospital San Martín</option><option>Cruz Roja Colombiana</option><option>+ Nuevo cliente...</option></select>
+        <select id="cotCliente"><option value="">— Cargando clientes... —</option></select>
       </div>
       <div class="field">
         <label>% Markup sobre lista</label>
-        <input type="number" placeholder="30" value="30" id="cotMarkup" />
+        <input type="number" id="cotMarkup" min="0" step="1" oninput="cotRenderItems()" />
       </div>
-      <div class="field" style="grid-column:1/-1">
+      <div class="field" style="grid-column:1/-1;margin-bottom:0">
         <label>Buscar producto del Price Book</label>
-        <input type="text" placeholder="Escribí PN o descripción..." oninput="searchForQuote(this.value)" />
+        <input type="text" id="cotBuscar" autocomplete="off" placeholder="Escribí PN o descripción..." oninput="cotBuscarPB(this.value)" />
+        <div id="cotResultados" style="margin-top:6px;max-height:180px;overflow-y:auto"></div>
       </div>
     </div>
-    <div style="margin:14px 0;font-size:13px;color:var(--muted)">Items en la cotización:</div>
-    <div id="cotItems" style="background:#F7FAFA;border-radius:var(--radius);padding:14px;min-height:60px;font-size:13px;">
+
+    <div style="margin:14px 0 8px;font-size:13px;color:var(--muted)">Ítems en la cotización:</div>
+    <div id="cotItemsBox" style="background:var(--card2);border-radius:var(--radius);padding:12px;min-height:60px;font-size:13px;">
       <div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>
     </div>
-    <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;font-size:14px;">
-      <span style="color:var(--muted)">Total estimado:</span>
-      <span style="font-size:20px;font-weight:800;color:var(--green)" id="cotTotal">$0.00</span>
+
+    <div class="field" style="margin-top:14px;margin-bottom:0">
+      <label>Notas (opcional)</label>
+      <input type="text" id="cotNotas" placeholder="Condiciones, plazo de entrega, etc." />
     </div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2);font-size:14px;">
+      <div style="display:flex;justify-content:space-between;color:var(--muted);margin-bottom:6px;">
+        <span>Subtotal (precio de lista)</span>
+        <span id="cotSubtotal" style="font-family:'JetBrains Mono',monospace">$0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600">Total con markup</span>
+        <span style="font-size:22px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace" id="cotTotal">$0.00</span>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCotizacion')">Cancelar</button>
-      <button class="btn btn-outline" onclick="showToast('📧 Enviando por email...','info')">📧 Email</button>
-      <button class="btn btn-outline" onclick="showToast('💬 Abriendo WhatsApp...','info')">💬 WhatsApp</button>
-      <button class="btn btn-primary" onclick="showToast('✅ Cotización guardada!','success'); closeModal('modalCotizacion')">💾 Guardar</button>
+      <button class="btn btn-primary" id="cotBtnGuardar" onclick="cotGuardar()">💾 Guardar cotización</button>
     </div>
   </div>
 </div>
@@ -1400,7 +1387,7 @@
 <div id="toast"></div>
 
 <!-- ===================== SCRIPTS ===================== -->
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 /* =============================================
    AMELIFE APP v2.0 LIGHT · JS | 2026-03-05 15:00 ARG
    Conectado a Google Apps Script
@@ -1811,11 +1798,12 @@ function addToInv(item) {
   });
 }
 
+// Desde el Price Book: abre el constructor (si no está abierto)
+// y agrega el ítem a la cotización en curso.
 function addToCot(item) {
-  // Agregar al constructor de cotización activo
-  cotItems.push({ pn:item.pn, desc:item.desc, qty:1, precio_lista:item.price });
-  renderCotItems();
-  showToast('📄 ' + item.pn + ' agregado a cotización', 'info');
+  const abierto = document.getElementById('modalCotizacion').classList.contains('open');
+  if (!abierto) cotAbrirNueva();
+  cotAgregarItem(item.pn, item.desc, Number(item.price) || 0);
 }
 
 function addPBtoInventario() { showToast('Seleccioná un ítem con el botón 📦', 'info'); }
@@ -1939,39 +1927,6 @@ function openEditCliente(id) {
 }
 
 
-// ============================================
-//  COTIZACIONES (constructor básico)
-// ============================================
-let cotItems = [];
-
-function renderCotItems() {
-  const markup = Number(document.getElementById('cotMarkup').value) || 30;
-  let subtotal = 0;
-  const html = cotItems.map((item, i) => {
-    const total = item.precio_lista * item.qty * (1 + markup/100);
-    subtotal += total;
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px">
-      <span class="pn" style="width:160px">${item.pn}</span>
-      <span style="flex:1">${item.desc}</span>
-      <input type="number" value="${item.qty}" min="1" style="width:50px;padding:4px;background:#F5F8FA;border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center"
-        onchange="cotItems[${i}].qty=Number(this.value);renderCotItems()">
-      <span style="width:90px;text-align:right">$${total.toFixed(0)}</span>
-      <button class="tbl-action" onclick="cotItems.splice(${i},1);renderCotItems()">🗑</button>
-    </div>`;
-  }).join('');
-  document.getElementById('cotItems').innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
-  document.getElementById('cotTotal').textContent = '$' + subtotal.toFixed(2);
-}
-
-function searchForQuote(q) {
-  if (!q || q.length < 2) return;
-  const hits = PRICEBOOK_DATA.filter(i =>
-    i.pn.toLowerCase().includes(q.toLowerCase()) ||
-    i.desc.toLowerCase().includes(q.toLowerCase())
-  ).slice(0, 8);
-  // Mostrar sugerencias (simplificado)
-  if (hits.length) showToast('Encontrados: ' + hits.map(h=>h.pn).join(', '), 'info');
-}
 
 
 // ============================================
@@ -2177,9 +2132,10 @@ let trkSelected  = [];
 const _origShowPanel = showPanel;
 showPanel = function(id, el) {
   _origShowPanel(id, el);
-  if (id === 'trackings') loadTrackings();
-  if (id === 'warehouse') { loadWHItems(); loadTrackings(); }
-  if (id === 'clientes')  loadClientesRecientes();
+  if (id === 'trackings')    loadTrackings();
+  if (id === 'warehouse')    { loadWHItems(); loadTrackings(); }
+  if (id === 'clientes')     loadClientesRecientes();
+  if (id === 'cotizaciones') cotCargar();
 };
 
 // ── TRACKINGS ──────────────────────────────────────────────
@@ -4140,6 +4096,348 @@ async function dashNotaSeguimiento(id) {
   showToast('✅ Nota registrada', 'success');
   loadDashboard();
 }
+
+// ============================================================
+// ==================== MÓDULO COTIZACIONES ===================
+// v1.0 · Fase 2 · 2026-08-18 ARG
+// ============================================================
+
+const COT_STATE = {
+  lista: [],           // cotizaciones traídas del backend
+  items: [],           // ítems del constructor abierto
+  clientes: [],        // clientes para el selector
+  resultados: [],      // resultados de la búsqueda del Price Book
+  markupDefault: 20,
+  guardando: false
+};
+
+const COT_ESTADOS_UI = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada', 'Cerrada'];
+const COT_BADGE = {
+  'Borrador':  'badge-muted',
+  'Enviada':   'badge-info',
+  'Aprobada':  'badge-green',
+  'Rechazada': 'badge-danger',
+  'Cerrada':   'badge-warning'
+};
+
+function cotFmt(n) {
+  const v = Number(n) || 0;
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Escapa texto que viene del Sheet antes de meterlo en el HTML
+function cotEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function cotEstadoNorm(e) {
+  const s = String(e || '').trim();
+  if (s === 'Pendiente') return 'Borrador';
+  if (s === 'En revisión' || s === 'En revision') return 'Enviada';
+  return s || 'Borrador';
+}
+
+// ---------- LISTADO ----------
+
+async function cotCargar() {
+  const tbody = document.getElementById('cotBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Cargando...</td></tr>';
+
+  const r = await api('getCotizaciones');
+  if (!r.ok) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--danger)">❌ ' + cotEsc(r.error || 'Error') + '</td></tr>';
+    return;
+  }
+  COT_STATE.lista = (r.data || []).map(c => {
+    c.estado = cotEstadoNorm(c.estado);
+    return c;
+  }).reverse();          // más nuevas primero
+  cotFiltrar();
+}
+
+function cotFiltrar() {
+  const qEl  = document.getElementById('cotSearch');
+  const eEl  = document.getElementById('cotFilterEstado');
+  const q    = qEl ? qEl.value.toLowerCase().trim() : '';
+  const est  = eEl ? eEl.value : '';
+
+  const filtradas = COT_STATE.lista.filter(c => {
+    const matchEst = !est || c.estado === est;
+    if (!matchEst) return false;
+    if (!q) return true;
+    const enItems = (c.items || []).some(i =>
+      String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q));
+    return String(c.numero||'').toLowerCase().includes(q) ||
+           String(c.cliente_nom||'').toLowerCase().includes(q) ||
+           enItems;
+  });
+  cotRender(filtradas);
+}
+
+function cotRender(lista) {
+  const tbody = document.getElementById('cotBody');
+  const count = document.getElementById('cotCount');
+  if (!tbody) return;
+
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Sin cotizaciones. Creá la primera con “+ Nueva cotización”.</td></tr>';
+    if (count) count.textContent = '0 cotizaciones';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(c => {
+    const nItems = (c.items || []).length;
+    const resumen = (c.items || []).slice(0, 2)
+      .map(i => cotEsc(i.pn) + ' x' + i.qty).join(', ') + (nItems > 2 ? ' +' + (nItems - 2) : '');
+    const opts = COT_ESTADOS_UI.map(e =>
+      `<option value="${e}"${e === c.estado ? ' selected' : ''}>${e}</option>`).join('');
+    return `<tr>
+      <td class="pn" style="cursor:pointer" onclick="cotVerDetalle('${c.id}')">${cotEsc(c.numero || c.id)}</td>
+      <td>${cotEsc(c.cliente_nom) || '—'}</td>
+      <td style="font-size:12px;max-width:200px;white-space:normal">${resumen || '—'}</td>
+      <td>+${Number(c.markup) || 0}%</td>
+      <td><b>${cotFmt(c.total)}</b></td>
+      <td style="font-size:12px">${cotEsc(c.fecha) || '—'}</td>
+      <td>
+        <select onchange="cotCambiarEstado('${c.id}', this.value)"
+          style="padding:4px 6px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text)">
+          ${opts}
+        </select>
+      </td>
+      <td style="white-space:nowrap">
+        <button class="tbl-action" title="Ver detalle" onclick="cotVerDetalle('${c.id}')">👁</button>
+        <button class="tbl-action" title="Enviar por email" onclick="cotEnviarEmail('${c.id}')">📧</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  if (count) count.textContent = lista.length + ' cotizacion' + (lista.length !== 1 ? 'es' : '') +
+    (lista.length !== COT_STATE.lista.length ? ' de ' + COT_STATE.lista.length : '');
+}
+
+// ---------- DETALLE ----------
+
+async function cotVerDetalle(id) {
+  const cont = document.getElementById('cotDetalle');
+  const body = document.getElementById('cotDetalleBody');
+  cont.style.display = 'block';
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">⏳ Cargando...</div>';
+
+  const r = await api('getCotizacion', { id });
+  if (!r.ok) { body.innerHTML = '<div style="padding:20px;color:var(--danger)">❌ ' + cotEsc(r.error) + '</div>'; return; }
+
+  const c = r.data;
+  document.getElementById('cotDetalleTitle').textContent = '📄 ' + (c.numero || c.id) + ' · ' + (c.cliente_nom || '');
+
+  const filas = (c.items || []).map(i => `<tr>
+      <td class="pn">${cotEsc(i.pn)}</td>
+      <td>${cotEsc(i.desc)}</td>
+      <td style="text-align:center">${i.qty}</td>
+      <td style="text-align:right">${cotFmt(i.precio_lista)}</td>
+      <td style="text-align:right"><b>${cotFmt(i.precio_final)}</b></td>
+    </tr>`).join('');
+
+  body.innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:0 14px 12px">
+      <span>Estado: <b style="color:var(--text)">${cotEsc(c.estado)}</b></span>
+      <span>Markup: <b style="color:var(--text)">+${Number(c.markup)||0}%</b></span>
+      <span>Fecha: <b style="color:var(--text)">${cotEsc(c.fecha)}</b></span>
+      ${c.notas ? '<span>Notas: <b style="color:var(--text)">' + cotEsc(c.notas) + '</b></span>' : ''}
+    </div>
+    <table class="data-table">
+      <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Lista</th><th style="text-align:right">P. Final</th></tr></thead>
+      <tbody>${filas || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Sin ítems</td></tr>'}</tbody>
+    </table>
+    <div style="display:flex;justify-content:space-between;padding:14px;border-top:1px solid var(--border2);font-size:15px">
+      <span style="color:var(--muted)">Subtotal ${cotFmt(c.subtotal)}</span>
+      <span style="font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">TOTAL ${cotFmt(c.total)}</span>
+    </div>`;
+  cont.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---------- ESTADO / EMAIL ----------
+
+async function cotCambiarEstado(id, estado) {
+  const r = await api('actualizarEstadoCotizacion', { id, estado });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); cotCargar(); return; }
+  showToast('✅ Cotización → ' + estado, 'success');
+  cotCargar();
+}
+
+async function cotEnviarEmail(id) {
+  const c = COT_STATE.lista.find(x => x.id === id);
+  if (!confirm('¿Enviar ' + ((c && c.numero) || id) + ' por email al cliente?')) return;
+
+  showToast('📧 Enviando...', 'info');
+  let r = await api('emailCotizacion', { cotId: id, toEmail: '' });
+
+  // Si el cliente no tiene email cargado, se pide a mano
+  if (!r.ok && /email/i.test(r.error || '')) {
+    const manual = prompt('El cliente no tiene email cargado. Escribí el destinatario:');
+    if (!manual || !manual.trim()) return;
+    r = await api('emailCotizacion', { cotId: id, toEmail: manual.trim() });
+  }
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  showToast('✅ Cotización enviada', 'success');
+}
+
+// ---------- CONSTRUCTOR ----------
+
+async function cotAbrirNueva() {
+  COT_STATE.items = [];
+  COT_STATE.resultados = [];
+
+  document.getElementById('cotBuscar').value = '';
+  document.getElementById('cotResultados').innerHTML = '';
+  document.getElementById('cotNotas').value = '';
+  openModal('modalCotizacion');
+
+  // Markup por defecto desde la hoja Parametros
+  const rc = await api('getConfigApp');
+  if (rc.ok && rc.data && rc.data.markupDefault) COT_STATE.markupDefault = rc.data.markupDefault;
+  document.getElementById('cotMarkup').value = COT_STATE.markupDefault;
+
+  await cotCargarClientes();
+  cotRenderItems();
+}
+
+async function cotCargarClientes() {
+  const sel = document.getElementById('cotCliente');
+  const r = await api('getClientes');
+  if (!r.ok) { sel.innerHTML = '<option value="">— Error cargando clientes —</option>'; return; }
+
+  COT_STATE.clientes = (r.data || []).filter(c => c.nombre);
+  COT_STATE.clientes.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+
+  sel.innerHTML = '<option value="">— Elegí un cliente —</option>' +
+    COT_STATE.clientes.map(c => {
+      const etiqueta = c.empresa && c.empresa !== c.nombre
+        ? c.nombre + ' · ' + c.empresa
+        : c.nombre;
+      return `<option value="${cotEsc(c.id)}">${cotEsc(etiqueta)}</option>`;
+    }).join('');
+}
+
+function cotBuscarPB(q) {
+  const box = document.getElementById('cotResultados');
+  q = String(q || '').toLowerCase().trim();
+  if (q.length < 2) { box.innerHTML = ''; COT_STATE.resultados = []; return; }
+
+  COT_STATE.resultados = PRICEBOOK_DATA.filter(i =>
+    String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q)
+  ).slice(0, 10);
+
+  if (!COT_STATE.resultados.length) {
+    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin resultados en el Price Book</div>';
+    return;
+  }
+  box.innerHTML = COT_STATE.resultados.map((r, i) => `
+    <div onclick="cotAgregarDesdeBusqueda(${i})"
+      style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px;border:1px solid var(--border2);margin-bottom:4px;background:var(--card)"
+      onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border2)'">
+      <span class="pn" style="min-width:130px">${cotEsc(r.pn)}</span>
+      <span style="flex:1">${cotEsc(r.desc)}</span>
+      <b style="white-space:nowrap">${cotFmt(r.price)}</b>
+      <span style="color:var(--green);font-weight:700">+</span>
+    </div>`).join('');
+}
+
+function cotAgregarDesdeBusqueda(idx) {
+  const r = COT_STATE.resultados[idx];
+  if (!r) return;
+  cotAgregarItem(r.pn, r.desc, Number(r.price) || 0);
+}
+
+function cotAgregarItem(pn, desc, precio) {
+  const ya = COT_STATE.items.find(i => i.pn === pn);
+  if (ya) {
+    ya.qty += 1;
+    showToast('➕ ' + pn + ' · cantidad ' + ya.qty, 'info');
+  } else {
+    COT_STATE.items.push({ pn, desc, qty: 1, precio_lista: Number(precio) || 0 });
+    showToast('📄 ' + pn + ' agregado', 'info');
+  }
+  cotRenderItems();
+}
+
+function cotSetQty(idx, valor) {
+  const n = Math.max(1, Math.round(Number(valor) || 1));
+  if (COT_STATE.items[idx]) COT_STATE.items[idx].qty = n;
+  cotRenderItems();
+}
+
+function cotQuitarItem(idx) {
+  COT_STATE.items.splice(idx, 1);
+  cotRenderItems();
+}
+
+function cotRenderItems() {
+  const box     = document.getElementById('cotItemsBox');
+  const markup  = Number(document.getElementById('cotMarkup').value);
+  const mk      = (markup >= 0) ? markup : COT_STATE.markupDefault;
+
+  let subtotal = 0;
+  const html = COT_STATE.items.map((item, i) => {
+    const linea = (Number(item.precio_lista) || 0) * item.qty;
+    subtotal += linea;
+    const lineaFinal = linea * (1 + mk / 100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px">
+      <span class="pn" style="min-width:130px">${cotEsc(item.pn)}</span>
+      <span style="flex:1;min-width:0">${cotEsc(item.desc)}</span>
+      <input type="number" value="${item.qty}" min="1" onchange="cotSetQty(${i}, this.value)"
+        style="width:56px;padding:4px;background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center">
+      <span style="width:100px;text-align:right;font-family:'JetBrains Mono',monospace">${cotFmt(lineaFinal)}</span>
+      <button class="tbl-action" title="Quitar" onclick="cotQuitarItem(${i})">🗑</button>
+    </div>`;
+  }).join('');
+
+  box.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
+  document.getElementById('cotSubtotal').textContent = cotFmt(subtotal);
+  document.getElementById('cotTotal').textContent    = cotFmt(subtotal * (1 + mk / 100));
+}
+
+async function cotGuardar() {
+  if (COT_STATE.guardando) return;
+
+  const sel     = document.getElementById('cotCliente');
+  const cliente = COT_STATE.clientes.find(c => c.id === sel.value);
+  const markup  = Number(document.getElementById('cotMarkup').value);
+
+  if (!cliente)                { showToast('Elegí un cliente', 'error'); return; }
+  if (!COT_STATE.items.length) { showToast('Agregá al menos un ítem', 'error'); return; }
+  if (!(markup >= 0))          { showToast('El markup tiene que ser un número', 'error'); return; }
+
+  const btn = document.getElementById('cotBtnGuardar');
+  COT_STATE.guardando = true;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const r = await api('saveCotizacion', {
+    data: {
+      cliente_id:  cliente.id,
+      cliente_nom: cliente.empresa || cliente.nombre,
+      markup:      markup,
+      notas:       document.getElementById('cotNotas').value.trim(),
+      items:       COT_STATE.items.map(i => ({
+        pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista
+      }))
+    }
+  });
+
+  COT_STATE.guardando = false;
+  btn.disabled = false;
+  btn.textContent = '💾 Guardar cotización';
+
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  showToast('✅ ' + r.data.numero + ' guardada · ' + cotFmt(r.data.total), 'success');
+  closeModal('modalCotizacion');
+  COT_STATE.items = [];
+  cotCargar();
+}
+
 </script>
 
 <style>
