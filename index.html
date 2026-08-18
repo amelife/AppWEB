@@ -101,6 +101,12 @@
   [data-theme="dark"] #dropZone         { background: var(--card); border-color: var(--border); }
   [data-theme="dark"] .pb-tab           { background: var(--card); border-color: var(--border2); }
   [data-theme="dark"] .pb-tab.active    { background: var(--green-glow); }
+  /* Hovers y superficies que tenían color claro fijo y quedaban ilegibles en oscuro */
+  [data-theme="dark"] .nav-item:hover,
+  [data-theme="dark"] .trk-item-row:hover { background: var(--card2); color: var(--text); }
+  [data-theme="dark"] #toast            { background: var(--card); border-color: var(--border2); color: var(--text); }
+  [data-theme="dark"] ::-webkit-scrollbar-track { background: transparent; }
+  [data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--border2); }
 
   /* ── Botón de tema ── */
   #themeBtn {
@@ -849,6 +855,7 @@
             <option>Rechazada</option><option>Cerrada</option>
           </select>
           <button class="btn btn-outline" onclick="cotCargar()">🔄 Actualizar</button>
+          <button class="btn btn-outline" onclick="cotIAAbrir()" style="border-color:var(--info);color:var(--info)">✨ Cotizar con IA</button>
           <button class="btn btn-primary" onclick="cotAbrirNueva()">+ Nueva cotización</button>
         </div>
         <div class="table-container">
@@ -1251,6 +1258,50 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCotizacion')">Cancelar</button>
       <button class="btn btn-primary" id="cotBtnGuardar" onclick="cotGuardar()">💾 Guardar cotización</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Cotizar con IA -->
+<div class="modal-overlay" id="modalCotIA">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div class="modal-title">✨ Cotizar con IA</div>
+      <button class="modal-close" onclick="closeModal('modalCotIA')">✕</button>
+    </div>
+
+    <!-- PASO 1: pedido -->
+    <div id="cotIAPaso1">
+      <div class="field">
+        <label>Contame qué querés cotizar</label>
+        <textarea id="cotIAPedido" rows="5" placeholder="Ej: Cotizá 2 desfibriladores AED 3 y 10 pares de electrodos para el Hospital San Martín de Lima, con 25% de markup"
+          style="width:100%;padding:12px 14px;background:var(--card2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;resize:vertical"></textarea>
+      </div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;background:var(--card2);padding:12px 14px;border-radius:var(--radius);border-left:3px solid var(--info)">
+        Escribilo como se lo dirías a un colega. La IA busca los part numbers en el Price Book
+        y el cliente en tu base, y arma la cotización. <b>Vos revisás y confirmás antes de guardar</b> —
+        nunca guarda sola.
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modalCotIA')">Cancelar</button>
+        <button class="btn btn-primary" id="cotIABtnProcesar" onclick="cotIAProcesar()">✨ Armar cotización</button>
+      </div>
+    </div>
+
+    <!-- PASO 2: procesando -->
+    <div id="cotIAPaso2" style="display:none;text-align:center;padding:44px 20px">
+      <div class="pdf-spinner" style="margin:0 auto 18px"></div>
+      <div style="color:var(--text);font-weight:600">Leyendo el pedido y buscando en el Price Book…</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:6px">Suele tardar entre 10 y 40 segundos</div>
+    </div>
+
+    <!-- PASO 3: propuesta -->
+    <div id="cotIAPaso3" style="display:none">
+      <div id="cotIAResultado"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="cotIAReset()">← Reescribir</button>
+        <button class="btn btn-primary" id="cotIABtnUsar" onclick="cotIAUsar()">✅ Revisar en el constructor</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4442,6 +4493,158 @@ async function cotGuardar() {
   closeModal('modalCotizacion');
   COT_STATE.items = [];
   cotCargar();
+}
+
+
+// ============================================================
+// ================== COTIZADOR ASISTIDO POR IA ===============
+// v1.0 · 2026-08-18 ARG
+// La IA propone; el usuario revisa y guarda con el flujo normal.
+// ============================================================
+
+const COT_IA_STATE = { propuesta: null, procesando: false };
+
+function cotIAAbrir() {
+  cotIAReset();
+  openModal('modalCotIA');
+  setTimeout(() => {
+    const t = document.getElementById('cotIAPedido');
+    if (t) t.focus();
+  }, 120);
+}
+
+function cotIAReset() {
+  COT_IA_STATE.propuesta = null;
+  document.getElementById('cotIAPaso1').style.display = 'block';
+  document.getElementById('cotIAPaso2').style.display = 'none';
+  document.getElementById('cotIAPaso3').style.display = 'none';
+}
+
+async function cotIAProcesar() {
+  if (COT_IA_STATE.procesando) return;
+
+  const pedido = document.getElementById('cotIAPedido').value.trim();
+  if (!pedido) { showToast('Escribí qué querés cotizar', 'error'); return; }
+
+  COT_IA_STATE.procesando = true;
+  document.getElementById('cotIAPaso1').style.display = 'none';
+  document.getElementById('cotIAPaso2').style.display = 'block';
+
+  const r = await api('cotizarConIA', { pedido });
+
+  COT_IA_STATE.procesando = false;
+
+  if (!r.ok) {
+    document.getElementById('cotIAPaso2').style.display = 'none';
+    document.getElementById('cotIAPaso1').style.display = 'block';
+    showToast('❌ ' + (r.error || 'Error del asistente'), 'error');
+    return;
+  }
+
+  COT_IA_STATE.propuesta = r.data.propuesta;
+  cotIARenderPropuesta(r.data);
+  document.getElementById('cotIAPaso2').style.display = 'none';
+  document.getElementById('cotIAPaso3').style.display = 'block';
+}
+
+function cotIARenderPropuesta(data) {
+  const p    = data.propuesta || {};
+  const box  = document.getElementById('cotIAResultado');
+  const cli  = p.cliente || {};
+  const its  = p.items || [];
+  const advs = p.advertencias || [];
+
+  const colorConf = { alta: 'var(--green)', media: 'var(--warning)', baja: 'var(--danger)' };
+  const iconConf  = { alta: '✓', media: '?', baja: '!' };
+
+  let subtotal = 0;
+  const filas = its.map(i => {
+    const linea = (Number(i.precio_lista) || 0) * i.qty;
+    subtotal += linea;
+    const c = colorConf[i.confianza] || 'var(--muted)';
+    return `<tr>
+      <td class="pn">${cotEsc(i.pn)}</td>
+      <td style="font-size:12px">${cotEsc(i.desc)}
+        ${i.motivo ? `<div style="font-size:11px;color:var(--muted);font-style:italic">${cotEsc(i.motivo)}</div>` : ''}</td>
+      <td style="text-align:center"><b>${i.qty}</b></td>
+      <td style="text-align:right">${cotFmt(linea)}</td>
+      <td style="text-align:center;color:${c};font-weight:800" title="Confianza: ${i.confianza}">${iconConf[i.confianza] || '·'}</td>
+    </tr>`;
+  }).join('');
+
+  const clienteOk = cli.id && cli.confianza !== 'no_encontrado';
+  const total = subtotal * (1 + (Number(p.markup) || 0) / 100);
+
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Cliente</div>
+        <div style="font-weight:700;color:${clienteOk ? 'var(--text)' : 'var(--danger)'}">
+          ${clienteOk ? cotEsc(cli.nombre) : '⚠️ No identificado — elegilo a mano'}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Markup</div>
+        <div style="font-weight:700">+${Number(p.markup) || 0}%</div>
+      </div>
+    </div>
+
+    <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border2);border-radius:var(--radius)">
+      <table class="data-table">
+        <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th><th style="text-align:center" title="Confianza del match">✓</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">No se pudo armar ningún ítem</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;padding:12px 4px;font-size:15px;border-bottom:1px solid var(--border2)">
+      <span style="color:var(--muted)">Subtotal ${cotFmt(subtotal)}</span>
+      <span style="font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">TOTAL ${cotFmt(total)}</span>
+    </div>
+
+    ${advs.length ? `
+      <div style="margin-top:12px;padding:12px 14px;background:var(--card2);border-radius:var(--radius);border-left:3px solid var(--warning)">
+        <div style="font-weight:700;font-size:12px;color:var(--warning);margin-bottom:6px">⚠️ Revisá esto</div>
+        <ul style="margin:0;padding-left:18px;font-size:12px;color:var(--text);line-height:1.7">
+          ${advs.map(a => `<li>${cotEsc(a)}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+    ${p.notas ? `<div style="margin-top:10px;font-size:12px;color:var(--muted)">📝 ${cotEsc(p.notas)}</div>` : ''}
+
+    <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:right">
+      Costo de esta consulta: US$ ${(data.costoUSD || 0).toFixed(4)}
+    </div>`;
+
+  document.getElementById('cotIABtnUsar').disabled = !its.length;
+}
+
+// Vuelca la propuesta en el constructor normal. Ahí se revisa y se guarda.
+async function cotIAUsar() {
+  const p = COT_IA_STATE.propuesta;
+  if (!p || !p.items || !p.items.length) return;
+
+  closeModal('modalCotIA');
+  await cotAbrirNueva();
+
+  COT_STATE.items = p.items.map(i => ({
+    pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: Number(i.precio_lista) || 0
+  }));
+
+  document.getElementById('cotMarkup').value = Number(p.markup) || COT_STATE.markupDefault;
+  if (p.notas) document.getElementById('cotNotas').value = p.notas;
+
+  const sel = document.getElementById('cotCliente');
+  if (p.cliente && p.cliente.id && [...sel.options].some(o => o.value === p.cliente.id)) {
+    sel.value = p.cliente.id;
+  }
+
+  cotRenderItems();
+
+  if ((p.advertencias || []).length) {
+    showToast('⚠️ Revisá las advertencias antes de guardar', 'info');
+  } else {
+    showToast('✨ Propuesta cargada — revisá y guardá', 'success');
+  }
 }
 
 </script>
