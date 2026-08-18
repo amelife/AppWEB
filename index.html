@@ -1261,9 +1261,21 @@
       <div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>
     </div>
 
-    <div class="field" style="margin-top:14px;margin-bottom:0">
-      <label>Notas (opcional)</label>
-      <input type="text" id="cotNotas" placeholder="Condiciones, plazo de entrega, etc." />
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-top:14px">
+      <div class="field" style="margin-bottom:0">
+        <label>Incoterm <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input type="text" id="cotIncoterm" list="listaIncoterms" autocomplete="off"
+               placeholder="EXW Alemania" />
+        <datalist id="listaIncoterms">
+          <option value="EXW Alemania"><option value="EXW Miami"><option value="FOB Miami">
+          <option value="CIF Callao"><option value="CIF Lima"><option value="CFR Callao">
+          <option value="DAP"><option value="DDP">
+        </datalist>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Notas (opcional)</label>
+        <input type="text" id="cotNotas" placeholder="Condiciones, plazo de entrega, etc." />
+      </div>
     </div>
 
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2);font-size:14px;">
@@ -1307,9 +1319,9 @@
       </button>
     </div>
     <div style="margin-top:14px;font-size:11px;color:var(--muted);line-height:1.6">
-      En celular y en navegadores compatibles, WhatsApp recibe el PDF y el texto juntos.
-      Si tu navegador no lo soporta, se descarga el PDF y se abre el chat con el mensaje
-      listo para que lo adjuntes con el clip 📎.
+      Para WhatsApp: descargá primero la proforma con el botón 📄. Se abre WhatsApp Web
+      con el mensaje escrito y vos adjuntás el PDF con el clip 📎 — WhatsApp no permite
+      adjuntar archivos desde un enlace.
     </div>
   </div>
 </div>
@@ -4476,6 +4488,7 @@ async function cotAbrirNueva() {
   document.getElementById('cotBuscar').value = '';
   document.getElementById('cotResultados').innerHTML = '';
   document.getElementById('cotNotas').value = '';
+  document.getElementById('cotIncoterm').value = '';
   document.getElementById('cotCliente').value = '';
   document.getElementById('cotClienteTexto').value = '';
   cotClienteCerrar();
@@ -4749,6 +4762,7 @@ async function cotGuardar() {
       cliente_nom: cliente.empresa || cliente.nombre,
       markup:      markup,
       notas:       document.getElementById('cotNotas').value.trim(),
+      incoterm:    document.getElementById('cotIncoterm').value.trim(),
       items:       COT_STATE.items.map(i => ({
         pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista
       }))
@@ -4911,6 +4925,7 @@ async function cotIAUsar() {
   }));
 
   document.getElementById('cotMarkup').value = Number(p.markup) || COT_STATE.markupDefault;
+  if (p.incoterm) document.getElementById('cotIncoterm').value = p.incoterm;
 
   if (p.cliente && p.cliente.id) cotClienteElegir(p.cliente.id);
 
@@ -4926,16 +4941,40 @@ async function cotIAUsar() {
 
 // ---------- PDF, editar y eliminar ----------
 
+/**
+ * Abre la proforma en una pestaña y dispara el diálogo de impresión.
+ *
+ * No se genera el PDF en el servidor: el conversor de Google descarta todos
+ * los fondos y el documento sale en blanco y gris. Chrome imprime lo que ve
+ * —con colores, texto seleccionable y vectorial— así que el PDF lo hace él
+ * con "Guardar como PDF".
+ */
+/**
+ * Abre la proforma en una pestaña y dispara el diálogo de impresión.
+ *
+ * No se genera el PDF en el servidor: el conversor de Google descarta todos
+ * los fondos y el documento sale en blanco y gris. Chrome imprime lo que ve
+ * —con colores, texto seleccionable y vectorial— así que el PDF lo hace él
+ * con "Guardar como PDF".
+ *
+ * OJO: la ventana se abre ANTES de llamar al backend. Si se abriera después
+ * del await, el navegador ya no la asocia al clic y la bloquea como pop-up.
+ */
 async function cotDescargarPDF(id) {
-  const c = COT_STATE.lista.find(x => x.id === id);
-  showToast('📄 Generando proforma…', 'info');
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Permití las ventanas emergentes para este sitio', 'error'); return; }
+  win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la proforma…</p>');
 
-  const r = await api('getProformaPDF', { id });
-  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  const r = await api('getProformaHTML', { id });
+  if (!r.ok) { win.close(); showToast('Error: ' + (r.error || ''), 'error'); return; }
 
-  cotBajarBase64(r.data.base64, r.data.nombre);
+  win.document.open();
+  win.document.write(r.data.html);
+  win.document.title = (r.data.nombre || 'Proforma').replace(/\.pdf$/, '');
+  win.document.close();
 
-  showToast('✅ ' + (r.data.nombre || 'Proforma descargada'), 'success');
+  setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 600);
+  showToast('En el diálogo elegí «Guardar como PDF»', 'info');
 }
 
 async function cotEditar(id) {
@@ -4954,7 +4993,8 @@ async function cotEditar(id) {
   }));
 
   document.getElementById('cotMarkup').value = Number(c.markup) || 0;
-  document.getElementById('cotNotas').value  = c.notas || '';
+  document.getElementById('cotNotas').value    = c.notas || '';
+  document.getElementById('cotIncoterm').value = c.incoterm || '';
   if (c.cliente_id) cotClienteElegir(c.cliente_id);
   else document.getElementById('cotClienteTexto').value = c.cliente_nom || '';
 
@@ -5007,41 +5047,43 @@ async function cotEnviarPorEmail() {
 }
 
 async function cotEnviarPorWhatsApp() {
-  closeModal('modalCotEnviar');
-  showToast('📄 Preparando la proforma…', 'info');
+  const c = COT_STATE.lista.find(x => x.id === COT_ENVIO.id);
+  const etiqueta = (c && c.numero) || '';
 
-  const r = await api('getProformaPDF', { id: COT_ENVIO.id });
-  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
-
-  const texto = cotTextoWhatsApp(r.data);
-  const bytes = Uint8Array.from(atob(r.data.base64), ch => ch.charCodeAt(0));
-  const blob  = new Blob([bytes], { type: 'application/pdf' });
-  const file  = new File([blob], r.data.nombre || 'proforma.pdf', { type: 'application/pdf' });
-
-  // Camino bueno: el menú nativo de compartir manda el PDF Y el texto juntos.
-  // Ahí elegís WhatsApp y sale todo en un solo mensaje, sin adjuntar a mano.
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], text: texto });
-      showToast('✅ Compartido', 'success');
-      return;
-    } catch (e) {
-      if (e && e.name === 'AbortError') return;   // el usuario canceló
-      // cualquier otro error: seguimos por el camino alternativo
-    }
+  const seguir = confirm(
+    'WhatsApp no permite adjuntar archivos desde un enlace.\n\n' +
+    'Antes de seguir tenés que haber descargado la proforma ' + etiqueta + ' con el botón 📄.\n\n' +
+    'Se abre WhatsApp Web con el mensaje escrito: adjuntá el PDF con el clip 📎.\n\n' +
+    '¿Ya la descargaste?'
+  );
+  if (!seguir) {
+    closeModal('modalCotEnviar');
+    showToast('Descargala primero con el botón 📄', 'info');
+    return;
   }
 
-  // Alternativa: wa.me no admite adjuntos, así que se baja el PDF y se abre
-  // el chat con el texto listo para que lo adjuntes con el clip.
-  cotBajarBase64(r.data.base64, r.data.nombre);
+  // La pestaña se abre acá, dentro del gesto del usuario. Si se abriera
+  // después del await, el navegador la bloquearía y WhatsApp no aparecía.
+  const win = window.open('', '_blank');
+  closeModal('modalCotEnviar');
 
-  const tel = String(r.data.telefono || '').replace(/[^0-9]/g, '');
-  const url = tel
+  const r = await api('getProformaHTML', { id: COT_ENVIO.id });
+  if (!r.ok) {
+    if (win) win.close();
+    showToast('Error: ' + (r.error || ''), 'error');
+    return;
+  }
+
+  const texto = cotTextoWhatsApp(r.data);
+  const tel   = String(r.data.telefono || '').replace(/[^0-9]/g, '');
+  const url   = tel
     ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`
     : `https://wa.me/?text=${encodeURIComponent(texto)}`;
 
-  window.open(url, '_blank');
-  showToast('📎 PDF descargado — adjuntalo en el chat', 'info');
+  if (win) win.location.href = url;
+  else     window.open(url, '_blank');   // por si igual la bloquearon
+
+  showToast(tel ? '📎 Adjuntá el PDF en el chat' : '📎 Elegí el contacto y adjuntá el PDF', 'info');
 }
 
 /**
