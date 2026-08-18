@@ -183,7 +183,23 @@
     padding: 20px 20px 16px;
     border-bottom: 1px solid var(--border2);
     display:flex; align-items:center; gap:10px;
+    flex-shrink: 0;
   }
+  /* Zona de navegación scrolleable: el logo queda fijo arriba y el
+     bloque de usuario fijo abajo, aunque no entren todos los ítems.
+     min-height:0 es lo que permite que un hijo flex pueda encogerse
+     por debajo de su contenido y recién ahí aparezca el scroll. */
+  .sidebar-nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+  .sidebar-nav::-webkit-scrollbar { width: 4px; }
+  .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+  .sidebar-nav:hover::-webkit-scrollbar-thumb { background: var(--muted); }
   .sidebar-header img { height:54px; }
   .sidebar-header-text { display:none; }
 
@@ -201,7 +217,7 @@
   .nav-item .icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
   .nav-badge { margin-left:auto; background:var(--green); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; }
 
-  .sidebar-bottom { margin-top:auto; padding:14px 12px; border-top:1px solid var(--border2); }
+  .sidebar-bottom { margin-top:auto; padding:14px 12px; border-top:1px solid var(--border2); flex-shrink:0; }
   .user-pill {
     display:flex; align-items:center; gap:10px;
     padding:10px 12px; border-radius:var(--radius);
@@ -463,6 +479,8 @@
       <img src="https://amelife-911.com/wp-content/uploads/2020/12/LOGO.webp" alt="AMELIFE" onerror="this.style.display='none'">
     </div>
 
+    <div class="sidebar-nav">
+
     <div class="nav-section">
       <div class="nav-label">Principal</div>
       <div class="nav-item active" onclick="showPanel('dashboard',this)">
@@ -511,6 +529,8 @@
         <span class="icon">🏦</span><span>Bancos</span>
       </div>
     </div>
+
+    </div><!-- end sidebar-nav -->
 
     <div class="sidebar-bottom">
       <div class="user-pill">
