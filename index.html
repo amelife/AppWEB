@@ -1307,8 +1307,9 @@
       </button>
     </div>
     <div style="margin-top:14px;font-size:11px;color:var(--muted);line-height:1.6">
-      WhatsApp no permite adjuntar archivos desde un enlace. Se descarga el PDF y se abre
-      el chat con el mensaje escrito: sólo tenés que adjuntarlo con el clip 📎.
+      En celular y en navegadores compatibles, WhatsApp recibe el PDF y el texto juntos.
+      Si tu navegador no lo soporta, se descarga el PDF y se abre el chat con el mensaje
+      listo para que lo adjuntes con el clip 📎.
     </div>
   </div>
 </div>
@@ -4643,19 +4644,73 @@ function cotQuitarItem(idx) {
   cotRenderItems();
 }
 
+/**
+ * Rango de orden de un ítem dentro de la cotización.
+ *   0 = producto normal
+ *   1 = flete / envío
+ *   2 = gasto bancario
+ * Los cargos van siempre al final, sin importar cuándo se agregaron:
+ * primero el flete, y el bank transfer último de todo.
+ */
+function cotRangoItem(it) {
+  const t = ((it.pn || '') + ' ' + (it.desc || '')).toLowerCase();
+  if (/bank[\s_-]?transfer|gasto\s*banc|transferencia\s*banc|wire\s*fee/.test(t)) return 2;
+  if (/\bflete\b|freight|shipping|\benv[ií]o\b|courier/.test(t))                  return 1;
+  return 0;
+}
+
+/**
+ * Ordena por rango. Array.sort es estable, así que el orden manual que el
+ * usuario armó con ▲▼ se conserva dentro de cada grupo.
+ */
+function cotOrdenarItems() {
+  COT_STATE.items.sort((a, b) => cotRangoItem(a) - cotRangoItem(b));
+}
+
+/** Mueve un ítem. No deja cruzar de grupo: los cargos no suben. */
+function cotMoverItem(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= COT_STATE.items.length) return;
+  if (cotRangoItem(COT_STATE.items[i]) !== cotRangoItem(COT_STATE.items[j])) return;
+
+  const tmp = COT_STATE.items[i];
+  COT_STATE.items[i] = COT_STATE.items[j];
+  COT_STATE.items[j] = tmp;
+  cotRenderItems();
+}
+
 function cotRenderItems() {
   const box     = document.getElementById('cotItemsBox');
   const markup  = Number(document.getElementById('cotMarkup').value);
   const mk      = (markup >= 0) ? markup : COT_STATE.markupDefault;
 
+  cotOrdenarItems();
+
   let subtotal = 0;
+  const total  = COT_STATE.items.length;
+
   const html = COT_STATE.items.map((item, i) => {
     const linea = (Number(item.precio_lista) || 0) * item.qty;
     subtotal += linea;
     const lineaFinal = linea * (1 + mk / 100);
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px">
+
+    const rango  = cotRangoItem(item);
+    const fijo   = rango > 0;
+    const puedeSubir = !fijo && i > 0                && cotRangoItem(COT_STATE.items[i-1]) === rango;
+    const puedeBajar = !fijo && i < total - 1        && cotRangoItem(COT_STATE.items[i+1]) === rango;
+
+    const flecha = (dir, activo, icono, titulo) => activo
+      ? `<button class="tbl-action" title="${titulo}" style="padding:0 2px;font-size:11px;line-height:1" onclick="cotMoverItem(${i}, ${dir})">${icono}</button>`
+      : `<span style="display:inline-block;width:15px"></span>`;
+
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px${fijo ? ';opacity:.85' : ''}">
+      <span style="display:flex;flex-direction:column;width:16px">
+        ${flecha(-1, puedeSubir, '▲', 'Subir')}
+        ${flecha( 1, puedeBajar, '▼', 'Bajar')}
+      </span>
       <span class="pn" style="min-width:130px">${cotEsc(item.pn)}</span>
-      <span style="flex:1;min-width:0">${cotEsc(item.desc)}</span>
+      <span style="flex:1;min-width:0">${cotEsc(item.desc)}
+        ${fijo ? `<span class="badge badge-muted" style="font-size:9px;margin-left:6px" title="Este cargo va siempre al final">fijo al final</span>` : ''}</span>
       <input type="number" value="${item.qty}" min="1" onchange="cotSetQty(${i}, this.value)"
         style="width:56px;padding:4px;background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center">
       <span style="width:100px;text-align:right;font-family:'JetBrains Mono',monospace">${cotFmt(lineaFinal)}</span>
@@ -4958,14 +5013,27 @@ async function cotEnviarPorWhatsApp() {
   const r = await api('getProformaPDF', { id: COT_ENVIO.id });
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
 
-  cotBajarBase64(r.data.base64, r.data.nombre);
+  const texto = cotTextoWhatsApp(r.data);
+  const bytes = Uint8Array.from(atob(r.data.base64), ch => ch.charCodeAt(0));
+  const blob  = new Blob([bytes], { type: 'application/pdf' });
+  const file  = new File([blob], r.data.nombre || 'proforma.pdf', { type: 'application/pdf' });
 
-  // wa.me no admite adjuntos: se manda el texto y el PDF ya quedó descargado
-  // para que lo adjunte a mano con el clip.
-  const texto =
-    `Hola${r.data.cliente ? ' ' + r.data.cliente : ''}, te enviamos la factura proforma ` +
-    `${r.data.numero} por un total de US$ ${Number(r.data.total || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}. ` +
-    `Adjunto el PDF con el detalle y los datos bancarios. Quedamos a disposición. — AMELIFE`;
+  // Camino bueno: el menú nativo de compartir manda el PDF Y el texto juntos.
+  // Ahí elegís WhatsApp y sale todo en un solo mensaje, sin adjuntar a mano.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text: texto });
+      showToast('✅ Compartido', 'success');
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;   // el usuario canceló
+      // cualquier otro error: seguimos por el camino alternativo
+    }
+  }
+
+  // Alternativa: wa.me no admite adjuntos, así que se baja el PDF y se abre
+  // el chat con el texto listo para que lo adjuntes con el clip.
+  cotBajarBase64(r.data.base64, r.data.nombre);
 
   const tel = String(r.data.telefono || '').replace(/[^0-9]/g, '');
   const url = tel
@@ -4973,7 +5041,24 @@ async function cotEnviarPorWhatsApp() {
     : `https://wa.me/?text=${encodeURIComponent(texto)}`;
 
   window.open(url, '_blank');
-  showToast(tel ? '💬 Adjuntá el PDF descargado' : '💬 Elegí el contacto y adjuntá el PDF', 'info');
+  showToast('📎 PDF descargado — adjuntalo en el chat', 'info');
+}
+
+/**
+ * Texto del mensaje de WhatsApp.
+ * Los *asteriscos* son el marcado de negrita de WhatsApp: no son adorno,
+ * no los saques ni los escapes.
+ */
+function cotTextoWhatsApp(d) {
+  const total = Number(d.total || 0)
+    .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  return `Hola *${d.cliente || 'Cliente'}*,\n` +
+    `Les enviamos la *factura proforma ${d.numero}*, por un total de *US$ ${total}*\n` +
+    `Adjuntamos el PDF con el detalle de la proforma y nuestros datos bancarios para realizar el pago.\n` +
+    `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n` +
+    `Saludos cordiales,\n` +
+    `*AMELIFE, amelife@amelife-911.com*`;
 }
 
 // Reconstruye el PDF que vino en base64 y dispara la descarga
