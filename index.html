@@ -1350,6 +1350,32 @@
   </div>
 </div>
 
+<!-- Modal: Destinatarios del email -->
+<div class="modal-overlay" id="modalCotEmail" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title">📧 Enviar por email</div>
+      <button class="modal-close" onclick="closeModal('modalCotEmail')">✕</button>
+    </div>
+    <div id="cotEmailResumen" style="font-size:13px;color:var(--muted);margin-bottom:16px"></div>
+
+    <div class="field">
+      <label>Destinatarios</label>
+      <div id="cotEmailChips" style="margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="email" id="cotEmailNuevo" placeholder="agregar otro correo…" autocomplete="off"
+               style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();cotEmailAgregar();}" />
+        <button class="btn btn-outline" onclick="cotEmailAgregar()" style="white-space:nowrap">+ Agregar</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalCotEmail')">Cancelar</button>
+      <button class="btn btn-primary" id="cotEmailBtnEnviar" onclick="cotEmailConfirmar()">📧 Enviar proforma</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Cotizar con IA -->
 <div class="modal-overlay" id="modalCotIA" data-no-cerrar-fuera>
   <div class="modal" style="max-width:680px">
@@ -5107,7 +5133,7 @@ async function cotEliminar(id) {
 
 // ---------- Envío: email o WhatsApp ----------
 
-const COT_ENVIO = { id: null, datos: null };
+const COT_ENVIO = { id: null, datos: null, emails: [] };
 
 async function cotEnviarElegir(id) {
   COT_ENVIO.id = id;
@@ -5120,18 +5146,84 @@ async function cotEnviarElegir(id) {
   openModal('modalCotEnviar');
 }
 
+// Abre el modal de destinatarios con el email del cliente ya cargado.
+// Reemplaza al prompt() del navegador, que además mostraba "amelife.github.io says".
 async function cotEnviarPorEmail() {
   closeModal('modalCotEnviar');
-  showToast('📧 Generando y enviando…', 'info');
 
-  let r = await api('emailCotizacion', { cotId: COT_ENVIO.id, toEmail: '' });
-
-  if (!r.ok && /email/i.test(r.error || '')) {
-    const manual = prompt('El cliente no tiene email cargado. Escribí el destinatario:');
-    if (!manual || !manual.trim()) return;
-    r = await api('emailCotizacion', { cotId: COT_ENVIO.id, toEmail: manual.trim() });
-  }
+  const r = await api('getProformaHTML', { id: COT_ENVIO.id });
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  COT_ENVIO.datos  = r.data;
+  COT_ENVIO.emails = r.data.emailCliente ? [r.data.emailCliente] : [];
+
+  document.getElementById('cotEmailResumen').innerHTML =
+    `<b style="color:var(--text)">${cotEsc(r.data.numero)}</b> · ${cotEsc(r.data.cliente || '')} · ` +
+    `<b style="color:var(--green)">${cotFmt(r.data.total)}</b>` +
+    (COT_ENVIO.emails.length
+      ? ''
+      : '<div style="margin-top:6px;color:var(--warning)">⚠️ Este cliente no tiene email cargado — agregá uno abajo</div>');
+
+  document.getElementById('cotEmailNuevo').value = '';
+  cotEmailRenderChips();
+  openModal('modalCotEmail');
+  setTimeout(() => {
+    if (!COT_ENVIO.emails.length) document.getElementById('cotEmailNuevo').focus();
+  }, 120);
+}
+
+function cotEmailRenderChips() {
+  const box = document.getElementById('cotEmailChips');
+  if (!COT_ENVIO.emails.length) {
+    box.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 0">Sin destinatarios todavía</div>';
+    return;
+  }
+  box.innerHTML = COT_ENVIO.emails.map((e, i) => `
+    <span style="display:inline-flex;align-items:center;gap:6px;background:var(--green-glow);border:1px solid var(--border);
+                 border-radius:99px;padding:5px 10px;margin:0 6px 6px 0;font-size:12.5px">
+      ${cotEsc(e)}
+      <button class="tbl-action" title="Quitar" style="padding:0;font-size:12px" onclick="cotEmailQuitar(${i})">✕</button>
+    </span>`).join('');
+}
+
+function cotEmailAgregar() {
+  const inp = document.getElementById('cotEmailNuevo');
+  const v = inp.value.trim();
+  if (!v) return;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) { showToast('Ese correo no parece válido', 'error'); return; }
+  if (COT_ENVIO.emails.includes(v))          { showToast('Ya está en la lista', 'info'); inp.value = ''; return; }
+
+  COT_ENVIO.emails.push(v);
+  inp.value = '';
+  cotEmailRenderChips();
+}
+
+function cotEmailQuitar(i) {
+  COT_ENVIO.emails.splice(i, 1);
+  cotEmailRenderChips();
+}
+
+async function cotEmailConfirmar() {
+  // Un correo tipeado y no agregado con Enter no debería perderse
+  const pendiente = document.getElementById('cotEmailNuevo').value.trim();
+  if (pendiente) cotEmailAgregar();
+
+  if (!COT_ENVIO.emails.length) { showToast('Agregá al menos un destinatario', 'error'); return; }
+
+  const btn = document.getElementById('cotEmailBtnEnviar');
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+
+  const r = await api('emailCotizacion', {
+    cotId: COT_ENVIO.id,
+    toEmail: COT_ENVIO.emails.join(',')
+  });
+
+  btn.disabled = false;
+  btn.textContent = '📧 Enviar proforma';
+
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  closeModal('modalCotEmail');
   showToast('✅ Enviada a ' + (r.data.enviado || ''), 'success');
 }
 
@@ -5179,17 +5271,21 @@ async function cotEnviarPorWhatsApp() {
  * Texto del mensaje de WhatsApp.
  * Los *asteriscos* son el marcado de negrita de WhatsApp: no son adorno,
  * no los saques ni los escapes.
+ * La firma sale de quién está logueado.
  */
 function cotTextoWhatsApp(d) {
   const total = Number(d.total || 0)
     .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  return `Hola *${d.cliente || 'Cliente'}*,\n` +
+  const quien = (d.remitente && d.remitente.nombre) ? d.remitente.nombre + '\n' : '';
+
+  return `Hola *${d.cliente || 'Cliente'}*,\n\n` +
     `Les enviamos la *factura proforma ${d.numero}*, por un total de *US$ ${total}*\n` +
     `Adjuntamos el PDF con el detalle de la proforma y nuestros datos bancarios para realizar el pago.\n` +
-    `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n` +
+    `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n\n` +
     `Saludos cordiales,\n` +
-    `*AMELIFE, amelife@amelife-911.com*`;
+    `*${quien}AMELIFE*\n` +
+    `amelife@amelife-911.com`;
 }
 
 // Reconstruye el PDF que vino en base64 y dispara la descarga
