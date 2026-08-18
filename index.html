@@ -1284,6 +1284,35 @@
   </div>
 </div>
 
+<!-- Modal: Enviar cotización -->
+<div class="modal-overlay" id="modalCotEnviar">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title">Enviar proforma</div>
+      <button class="modal-close" onclick="closeModal('modalCotEnviar')">✕</button>
+    </div>
+    <div id="cotEnviarResumen" style="font-size:13px;color:var(--muted);margin-bottom:18px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <button class="btn btn-outline" onclick="cotEnviarPorEmail()"
+        style="flex-direction:column;padding:20px 12px;height:auto;gap:8px">
+        <span style="font-size:26px">📧</span>
+        <b>Por email</b>
+        <span style="font-size:11px;color:var(--muted);font-weight:400;text-align:center">Con el PDF adjunto</span>
+      </button>
+      <button class="btn btn-outline" onclick="cotEnviarPorWhatsApp()"
+        style="flex-direction:column;padding:20px 12px;height:auto;gap:8px">
+        <span style="font-size:26px">💬</span>
+        <b>Por WhatsApp</b>
+        <span style="font-size:11px;color:var(--muted);font-weight:400;text-align:center">Descarga el PDF y abre el chat</span>
+      </button>
+    </div>
+    <div style="margin-top:14px;font-size:11px;color:var(--muted);line-height:1.6">
+      WhatsApp no permite adjuntar archivos desde un enlace. Se descarga el PDF y se abre
+      el chat con el mensaje escrito: sólo tenés que adjuntarlo con el clip 📎.
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Cotizar con IA -->
 <div class="modal-overlay" id="modalCotIA" data-no-cerrar-fuera>
   <div class="modal" style="max-width:680px">
@@ -1651,7 +1680,9 @@ async function doLogin() {
   SESSION_TOKEN = found.token;
   currentUser = found;
   document.getElementById('userName').textContent = found.nombre;
-  document.getElementById('userRole').textContent = found.rol.charAt(0).toUpperCase() + found.rol.slice(1);
+  const ROTULO_ROL = { admin: 'Admin', finanzas: 'Finanzas', staff: 'Team AME' };
+  document.getElementById('userRole').textContent =
+    ROTULO_ROL[found.rol] || (found.rol.charAt(0).toUpperCase() + found.rol.slice(1));
   document.getElementById('userAvatar').textContent = (found.nombre[0] || 'U').toUpperCase();
 
   if (!['admin','finanzas'].includes(found.rol)) {
@@ -1664,6 +1695,13 @@ async function doLogin() {
   // Un solo intervalo aunque se entre y salga varias veces
   if (!window._clockTimer) window._clockTimer = setInterval(updateClock, 60000);
   loadAllData();
+
+  // Si el Dashboard no está habilitado para este rol, arrancar donde sí puede trabajar
+  if (!panelPermitido('dashboard')) {
+    const navCot = document.querySelector('.nav-item[onclick*="cotizaciones"]');
+    showPanel('cotizaciones', navCot);
+  }
+
   showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
 }
 
@@ -4335,7 +4373,7 @@ function cotRender(lista) {
       <td style="white-space:nowrap">
         <button class="tbl-action" title="Ver detalle" onclick="cotVerDetalle('${c.id}')">👁</button>
         <button class="tbl-action" title="Descargar proforma PDF" onclick="cotDescargarPDF('${c.id}')">📄</button>
-        <button class="tbl-action" title="Enviar por email" onclick="cotEnviarEmail('${c.id}')">📧</button>
+        <button class="tbl-action" title="Enviar" onclick="cotEnviarElegir('${c.id}')">📤</button>
         <button class="tbl-action" title="Editar" onclick="cotEditar('${c.id}')">✏️</button>
         <button class="tbl-action" title="Eliminar" onclick="cotEliminar('${c.id}')">🗑</button>
       </td>
@@ -4820,16 +4858,7 @@ async function cotDescargarPDF(id) {
   const r = await api('getProformaPDF', { id });
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
 
-  // El backend manda el PDF en base64; acá se reconstruye y se dispara la descarga.
-  const bytes = Uint8Array.from(atob(r.data.base64), ch => ch.charCodeAt(0));
-  const url   = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-  const a     = document.createElement('a');
-  a.href = url;
-  a.download = r.data.nombre || 'proforma.pdf';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  cotBajarBase64(r.data.base64, r.data.nombre);
 
   showToast('✅ ' + (r.data.nombre || 'Proforma descargada'), 'success');
 }
@@ -4869,6 +4898,75 @@ async function cotEliminar(id) {
   showToast('🗑 ' + etiqueta + ' eliminada', 'success');
   document.getElementById('cotDetalle').style.display = 'none';
   cotCargar();
+}
+
+
+// ---------- Envío: email o WhatsApp ----------
+
+const COT_ENVIO = { id: null, datos: null };
+
+async function cotEnviarElegir(id) {
+  COT_ENVIO.id = id;
+  COT_ENVIO.datos = null;
+
+  const c = COT_STATE.lista.find(x => x.id === id);
+  document.getElementById('cotEnviarResumen').innerHTML =
+    `<b style="color:var(--text)">${cotEsc((c && c.numero) || id)}</b> · ${cotEsc((c && c.cliente_nom) || '')}` +
+    (c ? ` · <b style="color:var(--green)">${cotFmt(c.total)}</b>` : '');
+  openModal('modalCotEnviar');
+}
+
+async function cotEnviarPorEmail() {
+  closeModal('modalCotEnviar');
+  showToast('📧 Generando y enviando…', 'info');
+
+  let r = await api('emailCotizacion', { cotId: COT_ENVIO.id, toEmail: '' });
+
+  if (!r.ok && /email/i.test(r.error || '')) {
+    const manual = prompt('El cliente no tiene email cargado. Escribí el destinatario:');
+    if (!manual || !manual.trim()) return;
+    r = await api('emailCotizacion', { cotId: COT_ENVIO.id, toEmail: manual.trim() });
+  }
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  showToast('✅ Enviada a ' + (r.data.enviado || ''), 'success');
+}
+
+async function cotEnviarPorWhatsApp() {
+  closeModal('modalCotEnviar');
+  showToast('📄 Preparando la proforma…', 'info');
+
+  const r = await api('getProformaPDF', { id: COT_ENVIO.id });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  cotBajarBase64(r.data.base64, r.data.nombre);
+
+  // wa.me no admite adjuntos: se manda el texto y el PDF ya quedó descargado
+  // para que lo adjunte a mano con el clip.
+  const texto =
+    `Hola${r.data.cliente ? ' ' + r.data.cliente : ''}, te enviamos la factura proforma ` +
+    `${r.data.numero} por un total de US$ ${Number(r.data.total || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}. ` +
+    `Adjunto el PDF con el detalle y los datos bancarios. Quedamos a disposición. — AMELIFE`;
+
+  const tel = String(r.data.telefono || '').replace(/[^0-9]/g, '');
+  const url = tel
+    ? `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`
+    : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+
+  window.open(url, '_blank');
+  showToast(tel ? '💬 Adjuntá el PDF descargado' : '💬 Elegí el contacto y adjuntá el PDF', 'info');
+}
+
+// Reconstruye el PDF que vino en base64 y dispara la descarga
+function cotBajarBase64(base64, nombre) {
+  const bytes = Uint8Array.from(atob(base64), ch => ch.charCodeAt(0));
+  const url   = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  const a     = document.createElement('a');
+  a.href = url;
+  a.download = nombre || 'proforma.pdf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
 </script>
