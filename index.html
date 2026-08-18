@@ -1393,6 +1393,12 @@
    Conectado a Google Apps Script
    ============================================= */
 
+// ── Versión del frontend ───────────────────────────────────
+// Se imprime en la consola al cargar. Sirve para verificar de un
+// vistazo qué build está sirviendo GitHub Pages.
+const APP_VERSION = 'v2.2 · 2026-08-18 · Fase 2 Cotizaciones';
+console.log('%cAMELIFE ' + APP_VERSION, 'color:#4A9A2A;font-weight:bold');
+
 // ── Estado global ──────────────────────────────────────────
 let currentUser    = null;
 let INVENTARIO     = [];
