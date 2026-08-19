@@ -223,6 +223,12 @@
   .nav-item .icon { font-size:16px; width:20px; text-align:center; flex-shrink:0; }
   .nav-badge { margin-left:auto; background:var(--green); color:#fff; font-size:10px; font-weight:700; padding:2px 7px; border-radius:99px; }
 
+  /* Módulos que el rol todavía no tiene habilitados: se ven, pero se nota */
+  .nav-item.bloqueado { opacity:0.38; }
+  .nav-item.bloqueado:hover { background:transparent; color:var(--muted); }
+  .nav-item.bloqueado .nav-badge { display:none; }
+  .nav-obra { margin-left:auto; font-size:11px; flex-shrink:0; }
+
   .sidebar-bottom { margin-top:auto; padding:14px 12px; border-top:1px solid var(--border2); flex-shrink:0; }
   .user-pill {
     display:flex; align-items:center; gap:10px;
@@ -1350,6 +1356,36 @@
   </div>
 </div>
 
+<!-- Modal: Bienvenida para roles con acceso acotado -->
+<div class="modal-overlay" id="modalBienvenida">
+  <div class="modal" style="max-width:480px">
+    <div style="text-align:center;padding:6px 0 18px">
+      <div style="font-size:42px">👋</div>
+      <div style="font-size:19px;font-weight:700;margin-top:8px" id="bienvenidaTitulo">Hola</div>
+    </div>
+
+    <div style="background:var(--card2);border-left:3px solid var(--info);border-radius:var(--radius);padding:14px 16px;font-size:13.5px;line-height:1.7">
+      Por ahora tenés habilitado el módulo de <b>Cotizaciones</b>.<br>
+      El resto de las secciones siguen en construcción — las vas a ver en el menú,
+      pero al entrar muestran un cartel de obra 🚧.
+    </div>
+
+    <div style="margin-top:16px;font-size:13px;line-height:1.9">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">
+        Lo que podés hacer
+      </div>
+      <div>✨ &nbsp;Armar cotizaciones a mano o con la IA</div>
+      <div>📄 &nbsp;Descargar la proforma en PDF</div>
+      <div>📤 &nbsp;Enviarla por email o WhatsApp</div>
+      <div>🔄 &nbsp;Cambiar el estado y hacer seguimiento</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalBienvenida')">Entendido, vamos</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Destinatarios del email -->
 <div class="modal-overlay" id="modalCotEmail" data-no-cerrar-fuera>
   <div class="modal" style="max-width:520px">
@@ -1769,6 +1805,10 @@ function forzarLogout(msg) {
   const navB = document.getElementById('navBancos');
   if (navB) navB.style.display = '';
 
+  // Sacar las marcas de bloqueo: el próximo que entre puede tener otro rol
+  document.querySelectorAll('.nav-item.bloqueado').forEach(n => n.classList.remove('bloqueado'));
+  document.querySelectorAll('.nav-obra').forEach(n => n.remove());
+
   if (msg) showToast(msg, 'error');
 }
 
@@ -1831,6 +1871,8 @@ async function doLogin() {
     document.getElementById('navBancos').style.display = 'none';
   }
 
+  marcarPanelesBloqueados();
+
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
   updateClock();
@@ -1838,10 +1880,15 @@ async function doLogin() {
   if (!window._clockTimer) window._clockTimer = setInterval(updateClock, 60000);
   loadAllData();
 
-  // Si el Dashboard no está habilitado para este rol, arrancar donde sí puede trabajar
+  // Si el Dashboard no está habilitado para este rol, arrancar donde sí puede
+  // trabajar y explicar por qué el resto del menú no responde.
   if (!panelPermitido('dashboard')) {
     const navCot = document.querySelector('.nav-item[onclick*="cotizaciones"]');
     showPanel('cotizaciones', navCot);
+
+    const soloNombre = String(found.nombre || '').split('·')[0].trim();
+    document.getElementById('bienvenidaTitulo').textContent = 'Hola ' + (soloNombre || 'de nuevo');
+    setTimeout(() => openModal('modalBienvenida'), 500);
   }
 
   showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
@@ -1891,6 +1938,32 @@ function doLogout() {
 const PANELES_POR_ROL = {
   staff: ['cotizaciones']
 };
+
+/**
+ * Atenúa en el menú los módulos que el rol no tiene habilitados y les pone
+ * un 🚧. Siguen clickeables a propósito: al entrar explican por qué no andan,
+ * que es más claro que un ítem muerto que no responde.
+ */
+function marcarPanelesBloqueados() {
+  document.querySelectorAll('.nav-item').forEach(n => {
+    const m = (n.getAttribute('onclick') || '').match(/showPanel\('([^']+)'/);
+    if (!m) return;
+
+    const ok = panelPermitido(m[1]);
+    n.classList.toggle('bloqueado', !ok);
+
+    const marca = n.querySelector('.nav-obra');
+    if (!ok && !marca) {
+      const sp = document.createElement('span');
+      sp.className = 'nav-obra';
+      sp.textContent = '🚧';
+      sp.title = 'En construcción';
+      n.appendChild(sp);
+    } else if (ok && marca) {
+      marca.remove();
+    }
+  });
+}
 
 function panelPermitido(id) {
   const rol = (currentUser || {}).rol;
