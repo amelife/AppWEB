@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v2.6 | 2026-08-19 ARG - Set completo de 36 iconos 3D + contorno para fondo claro -->
+<!-- AMELIFE EMS Technologies - Web App v2.8 | 2026-08-19 ARG - Dashboard configurable, titulos sin icono, reloj 24hs -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -368,7 +368,7 @@
   @keyframes fadeIn { from {opacity:0; transform:translateY(8px);} to {opacity:1; transform:none;} }
 
   /* ===================== DASHBOARD ===================== */
-  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
   .stat-card {
     background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
     padding:20px 22px; position:relative; overflow:hidden;
@@ -383,10 +383,28 @@
   .stat-sub { font-size:12px; color:var(--muted); margin-top:8px; }
   .stat-icon { position:absolute; right:16px; top:14px; font-size:34px; opacity:0.95; }
 
-  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
+  #dashGrid > [data-bloque="resumen"] { grid-column: 1 / -1; }
+  /* !important: hay bloques que el JS muestra/oculta según haya datos,
+     y la elección del usuario tiene que ganar siempre. */
+  .dash-oculto { display: none !important; }
   .card { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:22px; }
-  .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
-  .card-title { font-family:var(--cond); font-size:15.5px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; }
+  .card-header {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding-bottom:12px; margin-bottom:18px;
+    border-bottom:1px solid var(--border2);
+  }
+  /* Prueba: dentro del área de trabajo el título hace el trabajo que
+     antes hacía el icono. Más grande, tenue, y una barra que lo separa
+     del contenido de la tarjeta. */
+  .card-title {
+    font-family:var(--cond); font-size:19px; font-weight:700;
+    letter-spacing:0.10em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  /* En el área de trabajo el título hace el trabajo que antes hacía el
+     icono. Los iconos quedan solo donde son el control en sí. */
+  .card-title .i3d, .modal-title .i3d, .qa-icon, .stat-icon { display:none; }
   .card-action { font-size:12px; color:var(--green); cursor:pointer; font-weight:600; }
   .card-action:hover { color:var(--green-light); }
 
@@ -677,7 +695,9 @@
     border: 1px solid var(--i3d-borde, rgba(6,12,9,0.70));
     border-radius: 0.30em;
   }
-  [data-theme="dark"] .i3d { --i3d-borde: rgba(216,235,226,0.22); }
+  /* La chapa va igual en los dos temas: el área de trabajo tiene que
+     verse idéntica sea claro u oscuro. */
+  [data-theme="dark"] .i3d { --i3d-borde: rgba(216,235,226,0.30); }
 
   /* Sobre la tinta el reborde tiene que ser claro, no negro */
   .topbar .i3d, #sidebar .i3d { --i3d-borde: rgba(255,255,255,0.26); }
@@ -689,6 +709,31 @@
 
   /* Dentro de un botón primario la chapa se despega del verde */
   .btn-primary .i3d, .btn-danger .i3d { --i3d-borde: rgba(255,255,255,0.34); }
+
+  /* ---- CONFIGURACIÓN ---- */
+  .cfg-seccion {
+    font-family:var(--cond); font-size:12px; font-weight:700;
+    letter-spacing:1.4px; text-transform:uppercase; color:var(--muted);
+    padding-bottom:8px; border-bottom:1px solid var(--border2); margin-bottom:10px;
+  }
+  .cfg-ayuda { font-size:12.5px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+  .cfg-lista { display:flex; flex-direction:column; gap:6px; }
+  .cfg-fila {
+    display:flex; align-items:center; gap:11px;
+    padding:9px 11px; border:1px solid var(--border2); border-radius:var(--radius);
+    background:var(--card2);
+  }
+  .cfg-fila.apagada { opacity:0.5; }
+  .cfg-fila input[type=checkbox] { width:16px; height:16px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
+  .cfg-fila label { flex:1; font-size:13.5px; cursor:pointer; }
+  .cfg-mover {
+    width:26px; height:26px; flex-shrink:0; cursor:pointer;
+    border:1px solid var(--border2); border-radius:3px; background:var(--card);
+    color:var(--muted); font-size:11px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cfg-mover:hover:not(:disabled) { border-color:var(--green); color:var(--green); }
+  .cfg-mover:disabled { opacity:0.3; cursor:default; }
 
   /* ---- PILL STATUS ---- */
   .status-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
@@ -838,7 +883,7 @@
       <div class="topbar-right">
         <span class="topbar-date" id="topbarDate"></span>
         <div class="notif-btn" title="Notificaciones"><i class="i3d i3d-notificacion"></i></div>
-        <div class="notif-btn" title="Configuración"><i class="i3d i3d-config"></i></div>
+        <div class="notif-btn" title="Configuración" onclick="abrirConfig()"><i class="i3d i3d-config"></i></div>
         <div id="themeBtn" onclick="cycleTheme()" title="Cambiar tema"></div>
       </div>
     </div>
@@ -853,8 +898,11 @@
           <button class="btn btn-outline" onclick="loadDashboard()" style="padding:6px 14px;font-size:12px;"><i class="i3d i3d-actualizar"></i> Actualizar</button>
         </div>
 
-        <!-- Stats cards (clickeables) -->
-        <div class="stats-grid" id="dashStats">
+        <!-- Grilla configurable. Cada bloque lleva data-bloque: eso es
+             lo que Configuración usa para ordenarlos y mostrarlos. -->
+        <div class="dash-grid" id="dashGrid">
+
+        <div class="stats-grid" id="dashStats" data-bloque="resumen">
           <div class="stat-card" style="cursor:pointer;" onclick="showPanel('inventario',document.querySelector('[onclick*=\'inventario\']'))">
             <div class="stat-icon"><i class="i3d i3d-inventario"></i></div>
             <div class="stat-label">Ítems en Inventario</div>
@@ -881,12 +929,8 @@
           </div>
         </div>
 
-        <!-- Alertas prioritarias (trackings vencidos, por llegar, stock bajo, seguimiento) -->
-        <div class="dash-grid" style="margin-top:16px;">
-          <!-- COLUMNA 1: ALERTAS -->
-          <div>
             <!-- Trackings vencidos -->
-            <div class="card" id="dashTracksVencidosCard" style="border-left:3px solid var(--danger);display:none;margin-bottom:14px;">
+            <div class="card" id="dashTracksVencidosCard" data-bloque="vencidos" style="border-left:3px solid var(--danger);display:none;">
               <div class="card-header">
                 <div class="card-title" style="color:var(--danger);"><i class="i3d i3d-urgente"></i> Trackings Vencidos</div>
                 <span class="card-action" id="dashTracksVencidosCount">0</span>
@@ -895,7 +939,7 @@
             </div>
 
             <!-- Trackings por llegar -->
-            <div class="card" id="dashTracksPorLlegarCard" style="border-left:3px solid var(--info);margin-bottom:14px;">
+            <div class="card" id="dashTracksPorLlegarCard" data-bloque="porllegar" style="border-left:3px solid var(--info);">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-trackings"></i> Trackings por llegar (≤2 días)</div>
                 <span class="card-action" id="dashTracksPorLlegarCountLabel">0</span>
@@ -904,7 +948,7 @@
             </div>
 
             <!-- Stock bajo -->
-            <div class="card" id="dashStockBajoSection" style="border-left:3px solid var(--warning);margin-bottom:14px;">
+            <div class="card" id="dashStockBajoSection" data-bloque="stockbajo" style="border-left:3px solid var(--warning);">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-inventario"></i> Stock Bajo</div>
                 <span class="card-action" id="dashStockBajoCountLabel">0</span>
@@ -913,19 +957,16 @@
             </div>
 
             <!-- Cotizaciones para seguimiento -->
-            <div class="card" style="border-left:3px solid var(--green);margin-bottom:14px;">
+            <div class="card" data-bloque="seguimiento" style="border-left:3px solid var(--green);">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-cotizaciones"></i> Cotizaciones para dar seguimiento</div>
                 <span class="card-action" id="dashCotsSeguimientoCountLabel">0</span>
               </div>
               <div id="dashCotsSeguimientoList" style="padding:4px 16px 14px;"></div>
             </div>
-          </div>
 
-          <!-- COLUMNA 2: RESUMEN + ACCIONES -->
-          <div>
             <!-- Resumen por estado de cotizaciones -->
-            <div class="card" style="margin-bottom:14px;">
+            <div class="card" data-bloque="estados">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-dashboard"></i> Cotizaciones por estado</div>
               </div>
@@ -933,7 +974,7 @@
             </div>
 
             <!-- Finanzas rápidas (último total consolidado bancos) -->
-            <div class="card" id="dashFinanzasCard" style="margin-bottom:14px;display:none;">
+            <div class="card" id="dashFinanzasCard" data-bloque="bancos" style="display:none;">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-dinero"></i> Bancos (consolidado)</div>
                 <span class="card-action" style="cursor:pointer;" onclick="showPanel('bancos',document.querySelector('[onclick*=\'bancos\']'))">Ver →</span>
@@ -942,7 +983,7 @@
             </div>
 
             <!-- Accesos rápidos -->
-            <div class="card">
+            <div class="card" data-bloque="accesos">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-cohete"></i> Accesos rápidos</div>
               </div>
@@ -969,7 +1010,6 @@
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
 
@@ -1424,7 +1464,7 @@
           <div class="card">
             <div class="card-header">
               <div>
-                <div class="card-title">📈 Evolución de Saldos</div>
+                <div class="card-title">Evolución de Saldos</div>
                 <div id="bancosChartInfo" style="font-size:11px;color:var(--muted);margin-top:2px;">—</div>
               </div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -1630,6 +1670,25 @@
 
     <div class="modal-footer">
       <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalBienvenida')">Entendido, vamos</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Configuración -->
+<div class="modal-overlay" id="modalConfig">
+  <div class="modal" data-no-cerrar-fuera style="max-width:540px">
+    <div class="modal-header">
+      <div class="modal-title">Configuración</div>
+      <button class="modal-close" onclick="closeModal('modalConfig')">✕</button>
+    </div>
+
+    <div class="cfg-seccion">Bloques del Dashboard</div>
+    <p class="cfg-ayuda">Destildá lo que no querés ver y ordenalos con las flechas. Se guarda en este navegador.</p>
+    <div id="cfgDashLista" class="cfg-lista"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="cfgDashRestablecer()">Restablecer</button>
+      <button class="btn btn-primary" onclick="cfgDashGuardar()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2121,6 +2180,7 @@ async function doLogin() {
 
   marcarPanelesBloqueados();
   restaurarSecciones();
+  dashCfgAplicar();
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
@@ -2201,6 +2261,119 @@ function tituloConIcono(el, icono, texto) {
   const sp = document.createElement('span');
   sp.textContent = texto;
   el.append(i, document.createTextNode(' '), sp);
+}
+
+// ============================================
+//  CONFIGURACIÓN DEL DASHBOARD
+//  Qué bloques se ven y en qué orden. Vive en el navegador de cada
+//  uno: es una preferencia de vista, no un dato del negocio.
+// ============================================
+var DASH_BLOQUES = [
+  { id: 'resumen',     nombre: 'Tarjetas de resumen' },
+  { id: 'vencidos',    nombre: 'Trackings vencidos' },
+  { id: 'porllegar',   nombre: 'Trackings por llegar' },
+  { id: 'stockbajo',   nombre: 'Stock bajo' },
+  { id: 'seguimiento', nombre: 'Cotizaciones para dar seguimiento' },
+  { id: 'estados',     nombre: 'Cotizaciones por estado' },
+  { id: 'bancos',      nombre: 'Bancos (consolidado)' },
+  { id: 'accesos',     nombre: 'Accesos rápidos' }
+];
+
+function dashCfgLeer() {
+  const todos = DASH_BLOQUES.map(b => b.id);
+  let cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem('AME_DASH') || 'null'); } catch (e) {}
+  if (!cfg || !Array.isArray(cfg.orden)) return { orden: todos, ocultos: [] };
+  // Si agregamos un bloque nuevo después, aparece al final en vez de perderse
+  const orden = cfg.orden.filter(id => todos.includes(id));
+  todos.forEach(id => { if (!orden.includes(id)) orden.push(id); });
+  return { orden: orden, ocultos: Array.isArray(cfg.ocultos) ? cfg.ocultos : [] };
+}
+
+function dashCfgAplicar() {
+  const cfg = dashCfgLeer();
+  cfg.orden.forEach((id, i) => {
+    const el = document.querySelector('[data-bloque="' + id + '"]');
+    if (!el) return;
+    el.style.order = i;
+    el.classList.toggle('dash-oculto', cfg.ocultos.indexOf(id) !== -1);
+  });
+}
+
+// Copia de trabajo: recién se escribe cuando el usuario aprieta Guardar
+var CFG_DASH_TMP = null;
+
+function abrirConfig() {
+  CFG_DASH_TMP = dashCfgLeer();
+  cfgDashRender();
+  openModal('modalConfig');
+}
+
+function cfgDashRender() {
+  const cont = document.getElementById('cfgDashLista');
+  if (!cont) return;
+  cont.textContent = '';
+
+  CFG_DASH_TMP.orden.forEach((id, i) => {
+    const def = DASH_BLOQUES.find(b => b.id === id);
+    if (!def) return;
+    const oculto = CFG_DASH_TMP.ocultos.indexOf(id) !== -1;
+
+    const fila = document.createElement('div');
+    fila.className = 'cfg-fila' + (oculto ? ' apagada' : '');
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = !oculto;
+    chk.id = 'cfgchk-' + id;
+    chk.onchange = () => cfgDashVer(id, chk.checked);
+
+    const lab = document.createElement('label');
+    lab.htmlFor = chk.id;
+    lab.textContent = def.nombre;
+
+    const arriba = document.createElement('button');
+    arriba.className = 'cfg-mover'; arriba.type = 'button';
+    arriba.textContent = '▲'; arriba.title = 'Subir';
+    arriba.disabled = i === 0;
+    arriba.onclick = () => cfgDashMover(i, -1);
+
+    const abajo = document.createElement('button');
+    abajo.className = 'cfg-mover'; abajo.type = 'button';
+    abajo.textContent = '▼'; abajo.title = 'Bajar';
+    abajo.disabled = i === CFG_DASH_TMP.orden.length - 1;
+    abajo.onclick = () => cfgDashMover(i, 1);
+
+    fila.append(chk, lab, arriba, abajo);
+    cont.appendChild(fila);
+  });
+}
+
+function cfgDashVer(id, visible) {
+  const i = CFG_DASH_TMP.ocultos.indexOf(id);
+  if (visible && i !== -1) CFG_DASH_TMP.ocultos.splice(i, 1);
+  if (!visible && i === -1) CFG_DASH_TMP.ocultos.push(id);
+  cfgDashRender();
+}
+
+function cfgDashMover(i, delta) {
+  const j = i + delta;
+  const o = CFG_DASH_TMP.orden;
+  if (j < 0 || j >= o.length) return;
+  const t = o[i]; o[i] = o[j]; o[j] = t;
+  cfgDashRender();
+}
+
+function cfgDashGuardar() {
+  try { localStorage.setItem('AME_DASH', JSON.stringify(CFG_DASH_TMP)); } catch (e) {}
+  dashCfgAplicar();
+  closeModal('modalConfig');
+  showToast('Dashboard actualizado');
+}
+
+function cfgDashRestablecer() {
+  CFG_DASH_TMP = { orden: DASH_BLOQUES.map(b => b.id), ocultos: [] };
+  cfgDashRender();
 }
 
 /**
@@ -2318,7 +2491,7 @@ function showPanel(id, el) {
 function updateClock() {
   const now = new Date();
   const s = now.toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' +
-            now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+            now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false});
   document.getElementById('topbarDate').textContent = s;
 }
 
@@ -4574,7 +4747,7 @@ async function loadDashboard() {
 
   const now = new Date();
   if (lastUpd) {
-    lastUpd.innerHTML = `<i class="i3d i3d-ok"></i> Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})} · <span style="color:var(--muted);">auto-refresh cada ${DASHBOARD_STATE.autoRefreshSeconds}s</span>`;
+    lastUpd.innerHTML = `<i class="i3d i3d-ok"></i> Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})} · <span style="color:var(--muted);">auto-refresh cada ${DASHBOARD_STATE.autoRefreshSeconds}s</span>`;
   }
 
   // Auto-refresh: si ya hay un timer, se reinicia
