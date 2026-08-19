@@ -4488,21 +4488,31 @@ function cotFecha(f, conHora) {
 }
 
 /**
- * Marca de "enviado" bajo la fecha. Muestra a cuántos correos fue y, al pasar
- * el mouse, la lista completa con la fecha de envío.
+ * Marca de "enviado" bajo la fecha.
+ *
+ * Los correos se muestran directamente, no en un tooltip: el `title` nativo
+ * tarda un segundo en aparecer y además .table-container tiene overflow:hidden,
+ * que recorta cualquier globo que se salga de la celda.
+ * Con más de dos, el resto se ve haciendo clic (abre el detalle).
  */
 function cotMarcaEnvio(c) {
   const dest = String(c.enviado_a || '').trim();
   if (!dest) return '';
 
-  const lista = dest.split(/[,;]/).map(x => x.trim()).filter(Boolean);
-  const cuando = c.enviado_el ? cotFecha(c.enviado_el) : '';
-  const titulo = 'Enviada a:\n' + lista.join('\n') + (cuando ? '\n\n' + cuando : '');
-  const texto  = lista.length === 1 ? lista[0] : lista.length + ' correos';
+  const lista  = dest.split(/[,;]/).map(x => x.trim()).filter(Boolean);
+  const visibles = lista.slice(0, 2);
+  const resto    = lista.length - visibles.length;
 
-  return `<div title="${cotEsc(titulo)}" style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;color:var(--green);font-weight:600;max-width:190px">
-      <span>📧</span>
-      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cotEsc(texto)}</span>
+  const filas = visibles.map(e => `
+    <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:210px">${cotEsc(e)}</div>`).join('');
+
+  const mas = resto > 0
+    ? `<div style="color:var(--muted);cursor:pointer" onclick="cotVerDetalle('${c.id}')">+${resto} más…</div>`
+    : '';
+
+  return `<div style="display:flex;gap:5px;margin-top:4px;font-size:11px;color:var(--green);font-weight:600;line-height:1.5">
+      <span style="flex-shrink:0">📧</span>
+      <div style="min-width:0">${filas}${mas}</div>
     </div>`;
 }
 
@@ -4620,7 +4630,7 @@ async function cotVerDetalle(id) {
       <span>Estado: <b style="color:var(--text)">${cotEsc(c.estado)}</b></span>
       <span>Fecha: <b style="color:var(--text)">${cotEsc(cotFecha(c.fecha))}</b></span>
       ${c.notas ? '<span>Notas: <b style="color:var(--text)">' + cotEsc(c.notas) + '</b></span>' : ''}
-      ${c.enviado_a ? '<span style="color:var(--green)">📧 Enviada a <b>' + cotEsc(c.enviado_a) + '</b>' + (c.enviado_el ? ' · ' + cotEsc(cotFecha(c.enviado_el)) : '') + '</span>' : ''}
+      ${c.enviado_a ? '<span style="color:var(--green)">📧 Enviada a <b>' + cotEsc(String(c.enviado_a).split(/[,;]/).map(x=>x.trim()).filter(Boolean).join(' · ')) + '</b>' + (c.enviado_el ? ' — último envío ' + cotEsc(cotFecha(c.enviado_el)) : '') + '</span>' : ''}
     </div>
     <table class="data-table">
       <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Lista</th><th style="text-align:right">P. Final</th></tr></thead>
