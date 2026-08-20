@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.3 | 2026-08-20 ARG - Rendimiento: menos viajes a la planilla -->
+<!-- AMELIFE EMS Technologies - Web App v3.4 | 2026-08-20 ARG - Diagnostico de velocidad en Configuracion -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1815,6 +1815,11 @@
       <textarea id="cfgEmailPresets" rows="3" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;resize:vertical"></textarea>
     </div>
 
+    <div class="cfg-seccion" style="margin-top:24px">Velocidad</div>
+    <p class="cfg-ayuda">Mide cuánto tarda cada pantalla en traer sus datos. Hace 3 vueltas de cada una y descarta la primera, que siempre es más lenta por el arranque en frío.</p>
+    <button class="btn btn-outline" id="cfgVelBtn" onclick="medirVelocidad()">Medir ahora</button>
+    <div id="cfgVelResultado" style="margin-top:12px"></div>
+
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="cfgDashRestablecer()">Restablecer bloques</button>
       <button class="btn btn-primary" onclick="cfgGuardarTodo()">Guardar</button>
@@ -2800,6 +2805,58 @@ async function ocConfirmarRecibir() {
   ocCargar();
   // El stock cambió: refrescamos inventario si está cargado
   api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+}
+
+/**
+ * Diagnóstico de velocidad. Separa el tiempo que tarda el servidor
+ * (lo que informa el backend) del total que mide el navegador. La
+ * diferencia es red más arranque del Web App: eso no se optimiza
+ * tocando código, es techo de Apps Script.
+ */
+async function medirVelocidad() {
+  const btn  = document.getElementById('cfgVelBtn');
+  const caja = document.getElementById('cfgVelResultado');
+  const PRUEBAS = [
+    { accion: 'getCotizaciones', nombre: 'Cotizaciones' },
+    { accion: 'getOrdenes',      nombre: 'Órdenes de compra' },
+    { accion: 'getInventario',   nombre: 'Inventario' },
+    { accion: 'ping',            nombre: 'Ida y vuelta vacía' }
+  ];
+
+  btn.disabled = true;
+  btn.textContent = 'Midiendo...';
+  caja.innerHTML = '';
+  const filas = [];
+
+  for (const p of PRUEBAS) {
+    const totales = [], servidor = [];
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now();
+      const r  = await api(p.accion);
+      const t1 = performance.now();
+      if (i === 0) continue;                    // la primera arrastra el arranque en frío
+      totales.push(t1 - t0);
+      servidor.push(Number(r && r.ms) || 0);
+    }
+    const prom = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0;
+    filas.push({ nombre: p.nombre, total: prom(totales), srv: prom(servidor) });
+  }
+
+  caja.innerHTML =
+    '<table class="data-table" style="font-size:12.5px"><thead><tr>' +
+      '<th>Pantalla</th><th style="text-align:right">Servidor</th>' +
+      '<th style="text-align:right">Red</th><th style="text-align:right">Total</th>' +
+    '</tr></thead><tbody>' +
+    filas.map(f =>
+      '<tr><td>' + f.nombre + '</td>' +
+      '<td class="num" style="text-align:right">' + f.srv + ' ms</td>' +
+      '<td class="num" style="text-align:right;color:var(--muted)">' + Math.max(0, f.total - f.srv) + ' ms</td>' +
+      '<td class="num" style="text-align:right;font-weight:700">' + f.total + ' ms</td></tr>'
+    ).join('') +
+    '</tbody></table>';
+
+  btn.disabled = false;
+  btn.textContent = 'Medir de nuevo';
 }
 
 // ============================================
