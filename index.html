@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.0 | 2026-08-20 ARG - PO: sin Reference, envio por correo, acciones en texto -->
+<!-- AMELIFE EMS Technologies - Web App v3.2 | 2026-08-20 ARG - Copiar una PO existente a una nueva -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1233,10 +1233,10 @@
           </div>
           <select class="filter-select" id="ocFilterEstado" onchange="ocFiltrar()">
             <option value="">Todos los estados</option>
-            <option value="Draft">Draft</option>
-            <option value="Sent">Sent</option>
-            <option value="Confirmed">Confirmed</option>
-            <option value="Received">Received</option>
+            <option value="Draft">Borrador</option>
+            <option value="Sent">Enviada</option>
+            <option value="Confirmed">Confirmada</option>
+            <option value="Received">Recibida</option>
           </select>
           <button class="btn btn-outline" onclick="ocCargar()"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-primary" onclick="ocAbrirNueva()">+ Nueva orden ZOLL</button>
@@ -2145,7 +2145,20 @@ const ETIQUETAS_ACCION = {
   emailWarehouse:            'Enviando al warehouse',
   ocrExtractoBanco:          'Leyendo el extracto',
   guardarSnapshot:           'Guardando saldo',
-  guardarSnapshotsBulk:      'Guardando saldos'
+  guardarSnapshotsBulk:      'Guardando saldos',
+
+  // Órdenes de compra
+  setupOrdenes:              'Preparando las hojas',
+  getOrdenes:                'Cargando órdenes',
+  getOrden:                  'Abriendo la orden',
+  saveOrden:                 'Guardando la orden',
+  updateOrden:               'Guardando cambios',
+  updateOrdenEstado:         'Cambiando el estado',
+  recibirOrden:              'Ingresando al inventario',
+  deleteOrden:               'Borrando la orden',
+  getPOZollHTML:             'Generando la orden',
+  emailOrden:                'Enviando la orden',
+  setOrdenEmails:            'Guardando los correos'
 };
 
 let _actSeq = 0;
@@ -2387,6 +2400,11 @@ var OC_REPS  = ['Ponce Alejandra', 'Huertos Marisol'];
 
 var OC_BADGE = { Draft:'badge-muted', Sent:'badge-info', Confirmed:'badge-warning', Received:'badge-green' };
 
+// El valor guardado va en inglés porque es el que viaja al documento
+// y al proveedor. En pantalla se muestra en castellano.
+var OC_ESTADO_ES = { Draft:'Borrador', Sent:'Enviada', Confirmed:'Confirmada', Received:'Recibida' };
+function ocEstadoTxt(e) { return OC_ESTADO_ES[e] || e || '—'; }
+
 function ocFmt(n) {
   return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
@@ -2430,10 +2448,11 @@ function ocRender(lista) {
       '<td>' + o.items + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
       '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) + '</td>' +
-      '<td><span class="badge ' + (OC_BADGE[o.estado] || 'badge-muted') + '">' + cotEsc(o.estado) + '</span></td>' +
+      '<td><span class="badge ' + (OC_BADGE[o.estado] || 'badge-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span></td>' +
       '<td style="text-align:right;white-space:nowrap">' +
         '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
         '<button class="tbl-txt" onclick="ocAbrirEmail(\'' + o.id + '\')">Enviar</button>' +
+        '<button class="tbl-txt" onclick="ocDuplicar(\'' + o.id + '\')">Copiar</button>' +
         (recibida ? '' :
           '<button class="tbl-txt" onclick="ocEditar(\'' + o.id + '\')">Editar</button>' +
           '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir</button>' +
@@ -2596,11 +2615,35 @@ async function ocEditar(id) {
   ocRenderItems();
 }
 
+/**
+ * Copia una orden existente a una nueva. Trae los ítems, las
+ * cantidades y los precios de esa orden — no los de la lista actual —
+ * porque la gracia es repetir lo que ya se compró a ese precio.
+ * El número queda vacío a propósito: es lo único que no se puede
+ * repetir, y así no hay forma de guardar un duplicado sin darse cuenta.
+ */
+async function ocDuplicar(id) {
+  const r = await api('getOrden', { id });
+  if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
+  const o = r.data;
+
+  ocAbrirNueva();
+  document.getElementById('ocModalTitulo').textContent = 'Nueva orden · copia de ' + o.numero;
+  document.getElementById('ocObs').value = o.observaciones || '';
+
+  OC_STATE.items = (o.items || []).map(i => ({
+    pn: i.pn, desc: i.desc, qty: i.qty, uom: i.uom || 'EA',
+    rep: i.rep || OC_REPS[0], precio: i.precio
+  }));
+  ocRenderItems();
+
+  document.getElementById('ocNumero').focus();
+  showToast('Copiados ' + OC_STATE.items.length + ' ítems · poné el número nuevo', 'info');
+}
+
 async function ocEliminar(id, numero) {
   if (!confirm('¿Eliminar la orden ' + numero + '? No se puede deshacer.')) return;
-  const t = actIniciar('Eliminando ' + numero);
   const r = await api('deleteOrden', { id });
-  actTerminar(t, r.ok);
   if (!r.ok) { showToast(r.error || 'No se pudo eliminar', 'error'); return; }
   showToast('Orden ' + numero + ' eliminada');
   ocCargar();
@@ -2679,9 +2722,7 @@ async function ocEmailEnviar() {
 
   const btn = document.getElementById('ocEmailBtn');
   btn.disabled = true;
-  const t = actIniciar('Enviando ' + OC_EMAIL.orden.numero);
   const r = await api('emailOrden', { id: OC_EMAIL.orden.id, destinatarios: OC_EMAIL.elegidos });
-  actTerminar(t, r.ok);
   btn.disabled = false;
 
   if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
@@ -2724,9 +2765,7 @@ async function ocConfirmarRecibir() {
 
   const btn = document.getElementById('ocBtnRecibir');
   btn.disabled = true;
-  const t = actIniciar('Ingresando ' + o.numero + ' al inventario');
   const r = await api('recibirOrden', { id: o.id, items });
-  actTerminar(t, r.ok);
   btn.disabled = false;
 
   if (!r.ok) { showToast(r.error || 'No se pudo recibir', 'error'); return; }
