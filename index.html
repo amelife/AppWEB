@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.2 | 2026-08-20 ARG - Copiar una PO existente a una nueva -->
+<!-- AMELIFE EMS Technologies - Web App v3.3 | 2026-08-20 ARG - Rendimiento: menos viajes a la planilla -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2671,11 +2671,15 @@ async function ocDescargarPDF(id) {
 var OC_EMAIL = { orden: null, opciones: [], elegidos: [] };
 
 async function ocAbrirEmail(id) {
-  const r = await api('getOrden', { id });
+  // Los dos pedidos son independientes: en serie se pagaba dos veces
+  // la latencia del Web App, que es lo que más cuesta acá.
+  const [r, c] = await Promise.all([
+    api('getOrden', { id }),
+    api('getOrdenEmails')
+  ]);
   if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
   OC_EMAIL.orden = r.data;
 
-  const c = await api('getOrdenEmails');
   const porDefecto = (c.ok && c.data.to) ? c.data.to : 'elazaris@zoll.com';
   const sugeridos  = (c.ok && c.data.presets) ? c.data.presets : [];
 
