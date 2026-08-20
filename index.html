@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.9 | 2026-08-20 ARG - Titulos del panel en lima y separadores verdes -->
+<!-- AMELIFE EMS Technologies - Web App v4.2 | 2026-08-20 ARG - Tipografia del area de trabajo dos puntos mas grande -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -120,11 +120,11 @@
 
   /* ── Botón de tema ── */
   #themeBtn {
-    width: 32px; height: 32px; border-radius: var(--radius);
+    width: 38px; height: 38px; border-radius: var(--radius);
     background: transparent; border: 1px solid var(--ink-line);
     color: var(--ink-muted);
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 15px; transition: background var(--transition);
+    cursor: pointer; font-size: 18px; transition: background var(--transition);
     flex-shrink: 0;
   }
   #themeBtn:hover { background: rgba(255,255,255,0.09); }
@@ -168,7 +168,7 @@
   .login-title { font-family:var(--cond); font-size:20px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; margin-bottom:6px; }
   .login-sub { font-size:13px; color:var(--muted); margin-bottom:28px; }
   .field { margin-bottom:16px; }
-  .field label { display:block; font-family:var(--cond); font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:7px; }
+  .field label { display:block; font-family:var(--cond); font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.2px; margin-bottom:7px; }
   /* El texto que se tipea queda a la izquierda: escribir un mail centrado
      es incómodo porque el cursor se mueve con cada letra. */
   .login-box .field input, .login-box .field select { text-align: left; }
@@ -176,7 +176,7 @@
     width:100%; padding:12px 14px;
     background:var(--field); border:1px solid var(--border2);
     border-radius:var(--radius); color:var(--text);
-    font-family:'Outfit',sans-serif; font-size:14px;
+    font-family:'Outfit',sans-serif; font-size:16px;
     outline:none; transition:border var(--transition);
   }
   .field input:focus, .field select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
@@ -329,23 +329,33 @@
   }
   .user-pill {
     display:flex; align-items:center; gap:10px;
-    padding:10px 12px; border-radius:var(--radius);
-    background:rgba(255,255,255,0.06); cursor:pointer;
+    padding:9px 12px; border-radius:var(--radius);
+    background:rgba(255,255,255,0.06); cursor:default;
   }
-  .user-avatar {
-    width:32px; height:32px; border-radius:var(--radius);
-    background:var(--ink-accent); display:flex; align-items:center; justify-content:center;
-    font-weight:800; font-size:13px; color:#0B1408; flex-shrink:0;
+  .user-info { min-width:0; }
+  .user-lbl {
+    display:block; font-family:var(--cond); font-size:9.5px; font-weight:700;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:1px;
   }
-  .user-info b { font-size:13px; font-weight:600; display:block; color:var(--ink-text); }
-  .user-info span { font-size:11px; color:var(--ink-dim); }
-  .logout-btn { margin-top:8px; width:100%; padding:9px; background:transparent; border:1px solid var(--ink-line); border-radius:var(--radius); color:var(--ink-muted); font-size:12px; cursor:pointer; font-family:'Outfit',sans-serif; transition:all var(--transition); }
-  .logout-btn:hover { border-color:#DC756D; color:#DC756D; }
+  .user-info b {
+    font-size:13.5px; font-weight:600; display:block; color:var(--ink-text);
+    line-height:1.25; word-break:break-word;
+  }
+  .user-info span { display:block; font-size:11px; color:var(--ink-dim); }
+  .logout-btn {
+    margin-top:8px; width:100%; padding:9px;
+    background:rgba(126,204,97,0.10); border:1px solid rgba(126,204,97,0.45);
+    border-radius:var(--radius); color:var(--ink-accent);
+    font-family:var(--cond); font-size:12.5px; font-weight:700;
+    letter-spacing:0.08em; text-transform:uppercase;
+    cursor:pointer; transition:all var(--transition);
+  }
+  .logout-btn:hover { background:rgba(126,204,97,0.20); border-color:var(--ink-accent); }
 
   /* ---- MAIN ---- */
   #main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
   .topbar {
-    height:58px; padding:0 26px;
+    height:64px; padding:0 26px;
     display:flex; align-items:center; gap:16px;
     background:var(--ink);
     border-bottom: 1px solid rgba(126,204,97,0.32);
@@ -376,8 +386,8 @@
   }
   .topbar-sub { font-size:12px; color:var(--ink-muted); }
   .topbar-right { margin-left:auto; display:flex; align-items:center; gap:9px; }
-  .topbar-date { font-size:11.5px; color:var(--ink-muted); font-family:'JetBrains Mono',monospace; letter-spacing:-0.02em; }
-  .notif-btn { width:32px; height:32px; border-radius:var(--radius); background:transparent; border:1px solid var(--ink-line); color:var(--ink-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; transition:background var(--transition); }
+  .topbar-date { font-size:13.5px; color:var(--ink-muted); font-family:'JetBrains Mono',monospace; letter-spacing:-0.02em; }
+  .notif-btn { width:38px; height:38px; border-radius:var(--radius); background:transparent; border:1px solid var(--ink-line); color:var(--ink-muted); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition:background var(--transition); }
   .notif-btn:hover { background:rgba(255,255,255,0.09); }
 
   #content {
@@ -401,9 +411,9 @@
   .stat-card.warning::before { background:var(--warning); }
   .stat-card.info::before { background:var(--info); }
   .stat-card.danger::before { background:var(--danger); }
-  .stat-label { font-family:var(--cond); font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1.4px; font-weight:700; margin-bottom:10px; }
-  .stat-value { font-size:31px; font-weight:700; font-family:'JetBrains Mono',monospace; line-height:1; letter-spacing:-0.03em; font-variant-numeric:tabular-nums; }
-  .stat-sub { font-size:12px; color:var(--muted); margin-top:8px; }
+  .stat-label { font-family:var(--cond); font-size:13.5px; color:var(--muted); text-transform:uppercase; letter-spacing:1.4px; font-weight:700; margin-bottom:10px; }
+  .stat-value { font-size:34px; font-weight:700; font-family:'JetBrains Mono',monospace; line-height:1; letter-spacing:-0.03em; font-variant-numeric:tabular-nums; }
+  .stat-sub { font-size:14px; color:var(--muted); margin-top:8px; }
   .stat-icon { position:absolute; right:16px; top:14px; font-size:34px; opacity:0.95; }
 
   .dash-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start; }
@@ -421,7 +431,7 @@
      antes hacía el icono. Más grande, tenue, y una barra que lo separa
      del contenido de la tarjeta. */
   .card-title {
-    font-family:var(--cond); font-size:19px; font-weight:700;
+    font-family:var(--cond); font-size:21px; font-weight:700;
     letter-spacing:0.10em; text-transform:uppercase;
     color:var(--muted);
   }
@@ -461,7 +471,7 @@
   .search-box input {
     width:100%; padding:10px 14px 10px 38px;
     background:var(--field); border:1px solid var(--border2); border-radius:var(--radius);
-    color:var(--text); font-family:'Outfit',sans-serif; font-size:13.5px;
+    color:var(--text); font-family:'Outfit',sans-serif; font-size:15.5px;
     outline:none; transition:border var(--transition);
   }
   .search-box input:focus { border-color:var(--green); box-shadow:0 0 0 3px var(--green-glow); }
@@ -473,22 +483,22 @@
   }
   .filter-select {
     padding:10px 12px; background:var(--field); border:1px solid var(--border2); border-radius:var(--radius);
-    color:var(--text); font-family:'Outfit',sans-serif; font-size:13px; outline:none; cursor:pointer;
+    color:var(--text); font-family:'Outfit',sans-serif; font-size:15px; outline:none; cursor:pointer;
   }
-  .btn { padding:10px 18px; border-radius:var(--radius); border:none; font-family:'Outfit',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
+  .btn { padding:10px 18px; border-radius:var(--radius); border:none; font-family:'Outfit',sans-serif; font-size:15px; font-weight:600; cursor:pointer; transition:all var(--transition); display:flex; align-items:center; gap:6px; }
   .btn-primary { background:var(--green); color:var(--on-solid); }
   .btn-primary:hover { background:var(--green-light); }
   .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text); }
   .btn-outline:hover { border-color:var(--green); color:var(--green); }
   .btn-danger { background:var(--danger); color:var(--on-solid); }
 
-  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table { width:100%; border-collapse:collapse; font-size:15px; }
   .data-table thead tr { background:var(--card2); border-bottom:2px solid var(--green); }
-  .data-table th { padding:10px 14px; text-align:left; font-family:var(--cond); font-size:11.5px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.4px; white-space:nowrap; }
+  .data-table th { padding:10px 14px; text-align:left; font-family:var(--cond); font-size:13px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.3px; white-space:nowrap; }
   .data-table td { padding:13px 14px; border-bottom:1px solid var(--border2); vertical-align:middle; }
   .data-table tbody tr:last-child td { border-bottom:none; }
   .data-table tbody tr:hover { background:var(--card2); }
-  .data-table .pn { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--green); letter-spacing:-0.02em; }
+  .data-table .pn { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--green); letter-spacing:-0.02em; }
   /* Todo lo que sea plata o cantidad: mismo ancho de dígito para que
      las columnas se lean como una columna y no como texto suelto. */
   .data-table .num, .data-table .money {
@@ -503,8 +513,8 @@
      disfrazado de chip; en órdenes y trackings es sólo lectura. */
   .estado-sel {
     appearance:none; -webkit-appearance:none;
-    padding:3px 22px 2px 9px; border:none; border-radius:3px; cursor:pointer;
-    font-family:var(--cond); font-size:11.5px; font-weight:700;
+    padding:4px 24px 3px 10px; border:none; border-radius:3px; cursor:pointer;
+    font-family:var(--cond); font-size:13px; font-weight:700;
     letter-spacing:0.07em; text-transform:uppercase; color:var(--on-solid);
     background-repeat:no-repeat; background-position:right 6px center; background-size:9px;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23fff' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -517,7 +527,7 @@
   .es-muted   { background-color:var(--muted); }
   .badge {
     display:inline-flex; align-items:center; padding:3px 9px 2px;
-    border-radius:3px; font-family:var(--cond); font-size:11.5px;
+    border-radius:3px; font-family:var(--cond); font-size:13px;
     font-weight:700; letter-spacing:0.07em; text-transform:uppercase;
     white-space:nowrap; color:var(--on-solid);
   }
@@ -529,7 +539,7 @@
   .tbl-action { background:none; border:none; cursor:pointer; font-size:15px; padding:4px; transition:opacity 0.2s; }
   .tbl-action:hover { opacity:0.7; }
   .table-container { background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow); }
-  .table-footer { padding:11px 16px; border-top:1px solid var(--border2); background:var(--card2); display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--muted); }
+  .table-footer { padding:11px 16px; border-top:1px solid var(--border2); background:var(--card2); display:flex; align-items:center; justify-content:space-between; font-size:14px; color:var(--muted); }
 
   /* ===================== PRICE BOOK ===================== */
   .pb-tabs { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
@@ -557,7 +567,7 @@
     animation: fadeUp 0.3s ease; box-shadow:0 10px 44px rgba(10,25,18,0.20);
   }
   .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; padding-bottom:14px; border-bottom:1px solid var(--border2); }
-  .modal-title { font-family:var(--cond); font-size:19px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; }
+  .modal-title { font-family:var(--cond); font-size:21px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; }
   .modal-close { background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; }
   .modal-close:hover { color:var(--text); }
   .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
@@ -566,8 +576,8 @@
   /* ===================== EMPTY STATE ===================== */
   .empty { text-align:center; padding:60px 20px; color:var(--muted); }
   .empty .empty-icon { font-size:48px; margin-bottom:14px; opacity:0.4; }
-  .empty h3 { font-size:16px; font-weight:600; color:var(--text); margin-bottom:8px; }
-  .empty p { font-size:13px; }
+  .empty h3 { font-size:18px; font-weight:600; color:var(--text); margin-bottom:8px; }
+  .empty p { font-size:15px; }
 
   /* ===================== CLIENTES ===================== */
   .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
@@ -761,7 +771,7 @@
   .tbl-txt {
     padding:4px 9px; margin-left:5px; border-radius:3px;
     border:1px solid var(--border2); background:var(--card); color:var(--muted);
-    font-family:var(--cond); font-size:11.5px; font-weight:700;
+    font-family:var(--cond); font-size:13px; font-weight:700;
     letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; white-space:nowrap;
     transition:border-color var(--transition), color var(--transition);
   }
@@ -780,7 +790,7 @@
     letter-spacing:1.4px; text-transform:uppercase; color:var(--muted);
     padding-bottom:8px; border-bottom:1px solid var(--border2); margin-bottom:10px;
   }
-  .cfg-ayuda { font-size:12.5px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+  .cfg-ayuda { font-size:14px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
   .cfg-lista { display:flex; flex-direction:column; gap:6px; }
   .cfg-fila {
     display:flex; align-items:center; gap:11px;
@@ -789,7 +799,7 @@
   }
   .cfg-fila.apagada { opacity:0.5; }
   .cfg-fila input[type=checkbox] { width:16px; height:16px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
-  .cfg-fila label { flex:1; font-size:13.5px; cursor:pointer; }
+  .cfg-fila label { flex:1; font-size:15px; cursor:pointer; }
   .cfg-mover {
     width:26px; height:26px; flex-shrink:0; cursor:pointer;
     border:1px solid var(--border2); border-radius:3px; background:var(--card);
@@ -927,8 +937,8 @@
 
     <div class="sidebar-bottom">
       <div class="user-pill">
-        <div class="user-avatar" id="userAvatar">G</div>
         <div class="user-info">
+          <span class="user-lbl">Logueado</span>
           <b id="userName">Germán</b>
           <span id="userRole">Admin</span>
         </div>
@@ -2265,6 +2275,14 @@ async function api(action, params = {}) {
     } else if (json && json.code === 'PIN_REQUERIDO') {
       relockBancos();
     }
+    // "Accion desconocida" siempre significa lo mismo: el Web App tiene
+    // código viejo. Se traduce a algo que se pueda accionar, en vez de
+    // mostrar el error crudo del router en medio de una tabla.
+    if (json && !json.ok && /Acci[oó]n desconocida/i.test(String(json.error || ''))) {
+      json.error = 'Este módulo todavía no está en el servidor. Actualizá el Apps Script y volvé a desplegar.';
+      json.code  = 'BACKEND_VIEJO';
+    }
+
     actTerminar(tarea, json && json.ok);
     return json;
   } catch(e) {
@@ -2358,7 +2376,7 @@ async function doLogin() {
   const ROTULO_ROL = { admin: 'Admin', finanzas: 'Finanzas', staff: 'Team AME' };
   document.getElementById('userRole').textContent =
     ROTULO_ROL[found.rol] || (found.rol.charAt(0).toUpperCase() + found.rol.slice(1));
-  document.getElementById('userAvatar').textContent = (found.nombre[0] || 'U').toUpperCase();
+
 
   if (!['admin','finanzas'].includes(found.rol)) {
     document.getElementById('navBancos').style.display = 'none';
