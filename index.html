@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v2.8 | 2026-08-19 ARG - Dashboard configurable, titulos sin icono, reloj 24hs -->
+<!-- AMELIFE EMS Technologies - Web App v2.9 | 2026-08-19 ARG - Modulo Ordenes de Compra ZOLL con recepcion a inventario -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -703,7 +703,7 @@
   .topbar .i3d, #sidebar .i3d { --i3d-borde: rgba(255,255,255,0.26); }
 
   /* Donde el control ya es el marco, la chapa sobra */
-  .notif-btn .i3d, .tbl-action .i3d {
+  .notif-btn .i3d {
     background-color: transparent; border: 0; border-radius: 0; background-size: contain;
   }
 
@@ -892,9 +892,7 @@
 
       <!-- ===== DASHBOARD ===== -->
       <div class="panel active" id="panel-dashboard">
-        <!-- Header con info de última actualización y botón refresh -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-          <div id="dashLastUpdate" style="font-size:12px;color:var(--muted);"><i class="i3d i3d-actualizar"></i> Cargando datos...</div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:14px;">
           <button class="btn btn-outline" onclick="loadDashboard()" style="padding:6px 14px;font-size:12px;"><i class="i3d i3d-actualizar"></i> Actualizar</button>
         </div>
 
@@ -1217,10 +1215,29 @@
 
       <!-- ===== ÓRDENES ===== -->
       <div class="panel" id="panel-ordenes">
-        <div class="empty">
-          <div class="empty-icon"><i class="i3d i3d-ordenes"></i></div>
-          <h3>Órdenes de Compra</h3>
-          <p>Módulo en construcción. Próxima actualización incluirá armado de OC desde Price Book.</p>
+        <div class="toolbar">
+          <div class="search-box">
+            <input type="text" id="ocSearch" placeholder="Buscar por número, referencia o PN..." oninput="ocFiltrar()">
+          </div>
+          <select class="filter-select" id="ocFilterEstado" onchange="ocFiltrar()">
+            <option value="">Todos los estados</option>
+            <option value="Draft">Draft</option>
+            <option value="Sent">Sent</option>
+            <option value="Confirmed">Confirmed</option>
+            <option value="Received">Received</option>
+          </select>
+          <button class="btn btn-outline" onclick="ocCargar()"><i class="i3d i3d-actualizar"></i> Actualizar</button>
+          <button class="btn btn-primary" onclick="ocAbrirNueva()">+ Nueva orden ZOLL</button>
+        </div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead><tr>
+              <th>Orden #</th><th>Referencia</th><th>Ítems</th>
+              <th style="text-align:right">Total USD</th><th>Fecha</th><th>Estado</th><th></th>
+            </tr></thead>
+            <tbody id="ocBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr></tbody>
+          </table>
+          <div class="table-footer"><span id="ocCount">—</span></div>
         </div>
       </div>
 
@@ -1670,6 +1687,59 @@
 
     <div class="modal-footer">
       <button class="btn btn-primary" style="width:100%" onclick="closeModal('modalBienvenida')">Entendido, vamos</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Constructor de orden de compra -->
+<div class="modal-overlay" id="modalOrden">
+  <div class="modal" data-no-cerrar-fuera style="max-width:940px">
+    <div class="modal-header">
+      <div class="modal-title" id="ocModalTitulo">Nueva orden ZOLL</div>
+      <button class="modal-close" onclick="closeModal('modalOrden')">✕</button>
+    </div>
+
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr 1.6fr">
+      <div class="field"><label>Order No.</label><input type="text" id="ocNumero" placeholder="46216"></div>
+      <div class="field"><label>Date</label><input type="date" id="ocFecha"></div>
+      <div class="field"><label>Reference</label><input type="text" id="ocReferencia" placeholder="ADS 07132026 ARM BIO IS COR"></div>
+    </div>
+
+    <div class="cfg-seccion" style="margin-top:6px">Ítems</div>
+    <div class="field" style="position:relative;margin-bottom:10px">
+      <input type="text" id="ocBuscarPN" placeholder="Buscá un PN o descripción del Price Book..." oninput="ocBuscarPB(this.value)" autocomplete="off">
+      <div id="ocResultados" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:30;max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.18);margin-top:2px"></div>
+    </div>
+    <div id="ocItems"></div>
+
+    <div class="field" style="margin-top:14px"><label>Observations</label>
+      <input type="text" id="ocObs" placeholder="Destination: Peru, Chile">
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;align-items:baseline;gap:12px;margin-top:12px;padding-top:12px;border-top:2px solid var(--text)">
+      <span style="font-family:var(--cond);font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)">Total USD</span>
+      <span id="ocTotal" style="font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">0.00</span>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalOrden')">Cancelar</button>
+      <button class="btn btn-primary" id="ocBtnGuardar" onclick="ocGuardar()"><i class="i3d i3d-guardar"></i> Guardar orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Recepción de la orden -->
+<div class="modal-overlay" id="modalRecibir">
+  <div class="modal" data-no-cerrar-fuera style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title" id="ocRecTitulo">Recibir orden</div>
+      <button class="modal-close" onclick="closeModal('modalRecibir')">✕</button>
+    </div>
+    <p class="cfg-ayuda">Poné el WH que le asignaron a cada ítem. Al confirmar, las cantidades entran al inventario y la orden pasa a <b>Received</b>. Es una sola vez: después no se puede deshacer desde acá.</p>
+    <div id="ocRecItems"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalRecibir')">Cancelar</button>
+      <button class="btn btn-primary" id="ocBtnRecibir" onclick="ocConfirmarRecibir()"><i class="i3d i3d-ok"></i> Confirmar recepción</button>
     </div>
   </div>
 </div>
@@ -2264,6 +2334,300 @@ function tituloConIcono(el, icono, texto) {
 }
 
 // ============================================
+//  ÓRDENES DE COMPRA · ZOLL
+//  El encabezado logístico está fijo en el backend (19_POZoll.gs).
+//  Acá solo se carga lo que cambia orden a orden.
+// ============================================
+var OC_STATE = { lista: [], items: [], editandoId: null, resultados: [], recibiendo: null };
+var OC_REPS  = ['Ponce Alejandra', 'Huertos Marisol'];
+
+var OC_BADGE = { Draft:'badge-muted', Sent:'badge-info', Confirmed:'badge-warning', Received:'badge-green' };
+
+function ocFmt(n) {
+  return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+
+async function ocCargar() {
+  const tb = document.getElementById('ocBody');
+  if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
+  const r = await api('getOrdenes');
+  if (!r.ok) {
+    if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)">' + cotEsc(r.error || 'Error') + '</td></tr>';
+    return;
+  }
+  OC_STATE.lista = r.data || [];
+  ocFiltrar();
+}
+
+function ocFiltrar() {
+  const q  = (document.getElementById('ocSearch').value || '').toLowerCase().trim();
+  const es = document.getElementById('ocFilterEstado').value;
+  const filtradas = OC_STATE.lista.filter(o => {
+    if (es && o.estado !== es) return false;
+    if (!q) return true;
+    return (String(o.numero) + ' ' + String(o.referencia)).toLowerCase().includes(q);
+  });
+  ocRender(filtradas);
+}
+
+function ocRender(lista) {
+  const tb = document.getElementById('ocBody');
+  if (!tb) return;
+  if (!lista.length) {
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Sin órdenes</td></tr>';
+    document.getElementById('ocCount').textContent = '0 órdenes';
+    return;
+  }
+
+  tb.innerHTML = lista.map(o => {
+    const recibida = o.estado === 'Received';
+    return '<tr>' +
+      '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
+      '<td>' + cotEsc(o.referencia || '—') + '</td>' +
+      '<td>' + o.items + '</td>' +
+      '<td class="num">' + ocFmt(o.total) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) + '</td>' +
+      '<td><span class="badge ' + (OC_BADGE[o.estado] || 'badge-muted') + '">' + cotEsc(o.estado) + '</span></td>' +
+      '<td style="text-align:right;white-space:nowrap">' +
+        '<button class="tbl-action" title="Descargar PO en PDF" onclick="ocDescargarPDF(\'' + o.id + '\')"><i class="i3d i3d-cotizaciones"></i></button>' +
+        (recibida ? '' :
+          '<button class="tbl-action" title="Editar" onclick="ocEditar(\'' + o.id + '\')"><i class="i3d i3d-editar"></i></button>' +
+          '<button class="tbl-action" title="Recibir e ingresar al inventario" onclick="ocAbrirRecibir(\'' + o.id + '\')"><i class="i3d i3d-inventario"></i></button>' +
+          '<button class="tbl-action" title="Eliminar" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')"><i class="i3d i3d-eliminar"></i></button>') +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  const total = lista.reduce((a, o) => a + (Number(o.total) || 0), 0);
+  document.getElementById('ocCount').textContent =
+    lista.length + (lista.length === 1 ? ' orden' : ' órdenes') + ' · US$ ' + ocFmt(total);
+}
+
+// ── Constructor ────────────────────────────────────────────
+function ocAbrirNueva() {
+  OC_STATE.editandoId = null;
+  OC_STATE.items = [];
+  document.getElementById('ocModalTitulo').textContent = 'Nueva orden ZOLL';
+  document.getElementById('ocNumero').value = '';
+  document.getElementById('ocReferencia').value = '';
+  document.getElementById('ocObs').value = '';
+  document.getElementById('ocFecha').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ocBuscarPN').value = '';
+  document.getElementById('ocResultados').style.display = 'none';
+  ocRenderItems();
+  openModal('modalOrden');
+}
+
+function ocBuscarPB(q) {
+  const box = document.getElementById('ocResultados');
+  q = String(q || '').toLowerCase().trim();
+  if (q.length < 2) { box.style.display = 'none'; return; }
+
+  OC_STATE.resultados = PRICEBOOK_DATA.filter(i =>
+    String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q)
+  ).slice(0, 10);
+
+  if (!OC_STATE.resultados.length) {
+    box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">Sin resultados en el Price Book</div>';
+    box.style.display = 'block';
+    return;
+  }
+  box.innerHTML = OC_STATE.resultados.map((i, k) =>
+    '<div onclick="ocElegirPB(' + k + ')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border2);font-size:13px">' +
+      '<span class="pn">' + cotEsc(i.pn) + '</span> · ' + cotEsc(i.desc) +
+      '<span style="float:right;color:var(--muted);font-family:\'JetBrains Mono\',monospace">' + ocFmt(i.precio) + '</span>' +
+    '</div>').join('');
+  box.style.display = 'block';
+}
+
+function ocElegirPB(k) {
+  const i = OC_STATE.resultados[k];
+  if (!i) return;
+  const ya = OC_STATE.items.find(x => x.pn === i.pn);
+  if (ya) { ya.qty++; }
+  else {
+    OC_STATE.items.push({
+      pn: i.pn, desc: i.desc, qty: 1, uom: 'EA',
+      rep: OC_REPS[0], precio: Number(i.precio) || 0
+    });
+  }
+  document.getElementById('ocBuscarPN').value = '';
+  document.getElementById('ocResultados').style.display = 'none';
+  ocRenderItems();
+}
+
+function ocRenderItems() {
+  const cont = document.getElementById('ocItems');
+  if (!OC_STATE.items.length) {
+    cont.innerHTML = '<div style="padding:22px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--border2);border-radius:var(--radius)">Buscá un part number arriba para agregar la primera línea</div>';
+    document.getElementById('ocTotal').textContent = '0.00';
+    return;
+  }
+
+  cont.innerHTML =
+    '<table class="data-table"><thead><tr>' +
+      '<th style="width:52px">Item</th><th>Part Number</th><th>Description</th>' +
+      '<th style="width:82px">Qty</th><th style="width:150px">Sales Rep</th>' +
+      '<th style="width:110px;text-align:right">Unit USD</th>' +
+      '<th style="width:100px;text-align:right">Total</th><th style="width:40px"></th>' +
+    '</tr></thead><tbody>' +
+    OC_STATE.items.map((it, k) => {
+      const tot = (Number(it.qty) || 0) * (Number(it.precio) || 0);
+      return '<tr>' +
+        '<td>' + (k + 1) + '</td>' +
+        '<td><span class="pn">' + cotEsc(it.pn) + '</span></td>' +
+        '<td style="font-size:12px">' + cotEsc(it.desc) + '</td>' +
+        '<td><input type="number" min="1" value="' + it.qty + '" onchange="ocSetItem(' + k + ',\'qty\',this.value)" class="wh-input" style="text-align:center"></td>' +
+        '<td><select onchange="ocSetItem(' + k + ',\'rep\',this.value)" class="wh-input">' +
+          OC_REPS.map(r => '<option' + (r === it.rep ? ' selected' : '') + '>' + r + '</option>').join('') +
+        '</select></td>' +
+        '<td><input type="number" step="0.01" min="0" value="' + it.precio + '" onchange="ocSetItem(' + k + ',\'precio\',this.value)" class="wh-input" style="text-align:right"></td>' +
+        '<td class="num" style="text-align:right;font-weight:700">' + ocFmt(tot) + '</td>' +
+        '<td><button class="tbl-action" title="Quitar" onclick="ocQuitarItem(' + k + ')"><i class="i3d i3d-eliminar"></i></button></td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>';
+
+  const total = OC_STATE.items.reduce((a, i) => a + (Number(i.qty) || 0) * (Number(i.precio) || 0), 0);
+  document.getElementById('ocTotal').textContent = ocFmt(total);
+}
+
+function ocSetItem(k, campo, valor) {
+  if (!OC_STATE.items[k]) return;
+  OC_STATE.items[k][campo] = (campo === 'rep') ? valor : (Number(valor) || 0);
+  ocRenderItems();
+}
+
+function ocQuitarItem(k) {
+  OC_STATE.items.splice(k, 1);
+  ocRenderItems();
+}
+
+async function ocGuardar() {
+  const numero = document.getElementById('ocNumero').value.trim();
+  if (!numero)                { showToast('Falta el número de orden', 'error'); return; }
+  if (!OC_STATE.items.length) { showToast('La orden no tiene ítems', 'error'); return; }
+
+  const data = {
+    numero: numero,
+    fecha: document.getElementById('ocFecha').value,
+    referencia: document.getElementById('ocReferencia').value.trim(),
+    observaciones: document.getElementById('ocObs').value.trim(),
+    items: OC_STATE.items
+  };
+
+  const btn = document.getElementById('ocBtnGuardar');
+  btn.disabled = true;
+  const r = OC_STATE.editandoId
+    ? await api('updateOrden', { id: OC_STATE.editandoId, data })
+    : await api('saveOrden', { data });
+  btn.disabled = false;
+
+  if (!r.ok) { showToast(r.error || 'No se pudo guardar', 'error'); return; }
+  closeModal('modalOrden');
+  showToast(OC_STATE.editandoId ? 'Orden actualizada' : 'Orden ' + numero + ' creada');
+  ocCargar();
+}
+
+async function ocEditar(id) {
+  const r = await api('getOrden', { id });
+  if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
+  const o = r.data;
+
+  ocAbrirNueva();
+  OC_STATE.editandoId = id;
+  document.getElementById('ocModalTitulo').textContent = 'Editar orden ' + o.numero;
+  document.getElementById('ocNumero').value = o.numero || '';
+  document.getElementById('ocFecha').value = String(o.fecha || '').slice(0, 10);
+  document.getElementById('ocReferencia').value = o.referencia || '';
+  document.getElementById('ocObs').value = o.observaciones || '';
+  OC_STATE.items = (o.items || []).map(i => ({
+    pn: i.pn, desc: i.desc, qty: i.qty, uom: i.uom || 'EA',
+    rep: i.rep || OC_REPS[0], precio: i.precio
+  }));
+  ocRenderItems();
+}
+
+async function ocEliminar(id, numero) {
+  if (!confirm('¿Eliminar la orden ' + numero + '? No se puede deshacer.')) return;
+  const t = actIniciar('Eliminando ' + numero);
+  const r = await api('deleteOrden', { id });
+  actTerminar(t, r.ok);
+  if (!r.ok) { showToast(r.error || 'No se pudo eliminar', 'error'); return; }
+  showToast('Orden ' + numero + ' eliminada');
+  ocCargar();
+}
+
+async function ocDescargarPDF(id) {
+  const win = window.open('', '_blank');
+  if (!win) { showToast('Permití las ventanas emergentes para este sitio', 'error'); return; }
+  win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la orden…</p>');
+
+  const r = await api('getPOZollHTML', { id });
+  if (!r.ok) { win.close(); showToast(r.error || 'Error', 'error'); return; }
+
+  win.document.open();
+  win.document.write(r.data.html);
+  win.document.title = r.data.nombre || 'PurchaseOrder';
+  win.document.close();
+  setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 600);
+  showToast('En el diálogo elegí «Guardar como PDF»', 'info');
+}
+
+// ── Recepción ──────────────────────────────────────────────
+async function ocAbrirRecibir(id) {
+  const r = await api('getOrden', { id });
+  if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
+  const o = r.data;
+
+  OC_STATE.recibiendo = o;
+  document.getElementById('ocRecTitulo').textContent = 'Recibir orden ' + o.numero;
+  document.getElementById('ocRecItems').innerHTML =
+    '<table class="data-table"><thead><tr>' +
+      '<th>Part Number</th><th>Description</th><th style="width:64px">Qty</th><th style="width:150px">WH asignado</th>' +
+    '</tr></thead><tbody>' +
+    (o.items || []).map(i =>
+      '<tr>' +
+        '<td><span class="pn">' + cotEsc(i.pn) + '</span></td>' +
+        '<td style="font-size:12px">' + cotEsc(i.desc) + '</td>' +
+        '<td style="text-align:center;font-weight:700">' + i.qty + '</td>' +
+        '<td><input type="text" class="wh-input" data-linea="' + i.linea + '" value="' + cotEsc(i.wh || '') + '" placeholder="WR-..."></td>' +
+      '</tr>').join('') +
+    '</tbody></table>';
+  openModal('modalRecibir');
+}
+
+async function ocConfirmarRecibir() {
+  const o = OC_STATE.recibiendo;
+  if (!o) return;
+
+  const items = [].map.call(
+    document.querySelectorAll('#ocRecItems input[data-linea]'),
+    inp => ({ linea: Number(inp.dataset.linea), wh: inp.value.trim() })
+  );
+
+  const btn = document.getElementById('ocBtnRecibir');
+  btn.disabled = true;
+  const t = actIniciar('Ingresando ' + o.numero + ' al inventario');
+  const r = await api('recibirOrden', { id: o.id, items });
+  actTerminar(t, r.ok);
+  btn.disabled = false;
+
+  if (!r.ok) { showToast(r.error || 'No se pudo recibir', 'error'); return; }
+  closeModal('modalRecibir');
+
+  const d = r.data;
+  let msg = d.total + ' ítems al inventario';
+  if (d.creados) msg += ' · ' + d.creados + ' dados de alta';
+  showToast(msg);
+  if (d.sinPN && d.sinPN.length) {
+    showToast('Líneas sin PN, no impactaron stock: ' + d.sinPN.join(', '), 'info');
+  }
+  ocCargar();
+  // El stock cambió: refrescamos inventario si está cargado
+  api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
+}
+
+// ============================================
 //  CONFIGURACIÓN DEL DASHBOARD
 //  Qué bloques se ven y en qué orden. Vive en el navegador de cada
 //  uno: es una preferencia de vista, no un dato del negocio.
@@ -2485,6 +2849,9 @@ function showPanel(id, el) {
   // Auto-load de Dashboard al entrar
   if (id === 'dashboard' && typeof loadDashboard === 'function') {
     loadDashboard();
+  }
+  if (id === 'ordenes' && typeof ocCargar === 'function') {
+    ocCargar();
   }
 }
 
@@ -4734,21 +5101,14 @@ function dashFmtShort(n) {
 }
 
 async function loadDashboard() {
-  const lastUpd = document.getElementById('dashLastUpdate');
-  if (lastUpd) lastUpd.innerHTML = '<i class="i3d i3d-actualizar"></i> Cargando datos...';
-
   const r = await api('getDashboardData', { umbralStock: 5, diasETA: 2 });
   if (!r.ok) {
-    if (lastUpd) tituloConIcono(lastUpd, 'error', 'Error: ' + (r.error || 'desconocido'));
+    // Sin la leyenda de estado, un error se quedaría mudo
+    showToast(r.error || 'No se pudo cargar el dashboard', 'error');
     return;
   }
   DASHBOARD_STATE.data = r.data;
   dashRender();
-
-  const now = new Date();
-  if (lastUpd) {
-    lastUpd.innerHTML = `<i class="i3d i3d-ok"></i> Actualizado ${now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})} · <span style="color:var(--muted);">auto-refresh cada ${DASHBOARD_STATE.autoRefreshSeconds}s</span>`;
-  }
 
   // Auto-refresh: si ya hay un timer, se reinicia
   if (DASHBOARD_STATE.autoRefreshTimer) clearTimeout(DASHBOARD_STATE.autoRefreshTimer);
