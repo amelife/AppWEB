@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v5.4 | 2026-08-20 ARG - Logo parejo en los tres menus, sin Logueado, iconos mas grandes -->
+<!-- AMELIFE EMS Technologies - Web App v5.6 | 2026-08-20 ARG - Menu de grilla organizado por secciones -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -833,14 +833,30 @@
   body.layout-grid .topbar-right { align-self:flex-start; padding-top:6px; }
 
   body.layout-grid #tnTabs {
-    grid-template-rows:repeat(2, 1fr);
-    grid-auto-flow:column; gap:4px 2px; flex:1; min-width:0;
-    overflow-x:auto; overflow-y:hidden;
+    display:flex; align-items:flex-start; gap:0;
+    flex:1; min-width:0; overflow-x:auto; overflow-y:hidden; flex-wrap:nowrap;
   }
+  .tn-grupo { display:flex; flex-direction:column; gap:5px; padding:0 14px; }
+  .tn-glabel {
+    font-family:var(--cond); font-size:10.5px; font-weight:700;
+    letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-dim);
+    padding-left:3px;
+  }
+  .tn-gitems {
+    display:grid; grid-template-rows:repeat(2, 1fr);
+    grid-auto-flow:column; gap:4px;
+  }
+  .tn-vsep { width:1px; align-self:stretch; background:rgba(157,190,20,0.28); margin:6px 0; flex:none; }
+
+  /* En la grilla el reloj sobra: el espacio se usa para los módulos */
+  body.layout-grid .topbar-date { display:none; }
   body.layout-grid .tn-tab {
-    display:flex; flex-direction:column; align-items:center; gap:6px;
-    padding:8px 12px; border-bottom:none; border-radius:var(--radius);
-    font-size:12.5px; letter-spacing:0.05em; min-width:104px;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:5px;
+    padding:7px 10px; border-bottom:none; border-radius:var(--radius);
+    font-size:11.5px; letter-spacing:0.04em; width:112px;
+  }
+  body.layout-grid .tn-tab .et {
+    display:block; line-height:1.2; white-space:normal; text-align:center;
   }
   body.layout-grid .tn-tab .i3d {
     width:34px !important; height:34px !important;
@@ -983,26 +999,6 @@
         <span class="nav-ico i3d i3d-dashboard"></span>
         <span>Dashboard</span>
       </div>
-      <div class="nav-item" onclick="showPanel('inventario',this)">
-        <span class="nav-ico i3d i3d-inventario"></span>
-        <span>Inventario</span>
-      </div>
-      <div class="nav-item" onclick="showPanel('pricebook',this)">
-        <span class="nav-ico i3d i3d-pricebook"></span>
-        <span>Price Book ZOLL</span>
-      </div>
-      <div class="nav-item" onclick="showPanel('clientes',this)">
-        <span class="nav-ico i3d i3d-clientes"></span>
-        <span>Clientes</span>
-      </div>
-      </div></div>
-    </div>
-
-    <div class="nav-section" data-sec="operaciones">
-      <button class="nav-label" type="button" aria-expanded="true" onclick="toggleSeccion(this)">
-        <span>Operaciones</span><svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <div class="nav-fold"><div class="nav-grid">
       <div class="nav-item" onclick="showPanel('cotizaciones',this)">
         <span class="nav-ico i3d i3d-cotizaciones"></span>
         <span>Cotizaciones</span>
@@ -1014,6 +1010,26 @@
       <div class="nav-item" onclick="showPanel('trackings',this)">
         <span class="nav-ico i3d i3d-trackings"></span>
         <span>Trackings</span>
+      </div>
+      </div></div>
+    </div>
+
+    <div class="nav-section" data-sec="gestion">
+      <button class="nav-label" type="button" aria-expanded="true" onclick="toggleSeccion(this)">
+        <span>Gestión</span><svg class="nav-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="nav-fold"><div class="nav-grid">
+      <div class="nav-item" onclick="showPanel('inventario',this)">
+        <span class="nav-ico i3d i3d-inventario"></span>
+        <span>Inventario</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('pricebook',this)">
+        <span class="nav-ico i3d i3d-pricebook"></span>
+        <span>Price Book ZOLL</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('clientes',this)">
+        <span class="nav-ico i3d i3d-clientes"></span>
+        <span>Clientes</span>
       </div>
       <div class="nav-item" onclick="showPanel('warehouse',this)">
         <span class="nav-ico i3d i3d-warehouse"></span>
@@ -3310,10 +3326,33 @@ function tnRender() {
   const modo = layoutLeer();
   const mods = tnModulos();
   const fav  = favLeer();
+  const SEC  = { principal: 'Principal', gestion: 'Gestión', especial: 'Acceso especial' };
 
-  // En grilla entran todos los módulos: no hace falta esconder nada
-  const favs = (modo === 'grilla') ? mods : mods.filter(m => fav.indexOf(m.id) !== -1);
-  const rest = (modo === 'grilla') ? []   : mods.filter(m => fav.indexOf(m.id) === -1);
+  const tabIco = m =>
+    '<button class="tn-tab' + (panelPermitido(m.id) ? '' : ' bloq') + '" data-panel="' + m.id + '"' +
+    ' onclick="tnIr(\'' + m.id + '\')">' +
+    (m.icono ? '<span class="i3d i3d-' + m.icono + '"></span>' : '') +
+    '<span class="et">' + m.nombre + '</span></button>';
+
+  // En grilla van todos, agrupados y en orden de lectura: cada sección
+  // es un bloque propio. Si se dejaba una sola grilla, el llenado por
+  // columnas mezclaba módulos de secciones distintas y no se entendía.
+  if (modo === 'grilla') {
+    caja.innerHTML = ['principal', 'gestion', 'especial'].map((sec, i) => {
+      const del = mods.filter(m => m.seccion === sec);
+      if (!del.length) return '';
+      return (i ? '<span class="tn-vsep"></span>' : '') +
+        '<div class="tn-grupo">' +
+          '<div class="tn-glabel">' + SEC[sec] + '</div>' +
+          '<div class="tn-gitems">' + del.map(tabIco).join('') + '</div>' +
+        '</div>';
+    }).join('');
+    tnMarcarActivo();
+    return;
+  }
+
+  const favs = mods.filter(m => fav.indexOf(m.id) !== -1);
+  const rest = mods.filter(m => fav.indexOf(m.id) === -1);
 
   const tab = m =>
     '<button class="tn-tab' + (panelPermitido(m.id) ? '' : ' bloq') + '" data-panel="' + m.id + '"' +
@@ -3321,9 +3360,8 @@ function tnRender() {
     (m.icono ? '<span class="i3d i3d-' + m.icono + '" style="width:26px;height:26px;vertical-align:-7px;margin-right:8px"></span>' : '') +
     m.nombre + '</button>';
 
-  const SEC = { principal: 'Principal', operaciones: 'Operaciones', especial: 'Acceso especial' };
   let menu = '';
-  ['principal', 'operaciones', 'especial'].forEach(sec => {
+  ['principal', 'gestion', 'especial'].forEach(sec => {
     const delSec = rest.filter(m => m.seccion === sec);
     if (!delSec.length) return;
     menu += '<div class="g">' + SEC[sec] + '</div>' +
