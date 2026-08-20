@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.5 | 2026-08-20 ARG - Cache de listados: cambiar de panel es instantaneo -->
+<!-- AMELIFE EMS Technologies - Web App v3.6 | 2026-08-20 ARG - Acciones en texto en cotizaciones + destinatarios en PO -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2518,7 +2518,8 @@ function ocRender(lista) {
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
       '<td>' + o.items + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
-      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) + '</td>' +
+      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) +
+        cotMarcaEnvio(o) + '</td>' +
       '<td><span class="badge ' + (OC_BADGE[o.estado] || 'badge-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span></td>' +
       '<td style="text-align:right;white-space:nowrap">' +
         '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
@@ -5812,12 +5813,12 @@ function cotRender(lista) {
           ${opts}
         </select>
       </td>
-      <td style="white-space:nowrap">
-        <button class="tbl-action" title="Ver detalle" onclick="cotVerDetalle('${c.id}')"><i class="i3d i3d-ver"></i></button>
-        <button class="tbl-action" title="Descargar proforma PDF" onclick="cotDescargarPDF('${c.id}')"><i class="i3d i3d-cotizaciones"></i></button>
-        <button class="tbl-action" title="Enviar" onclick="cotEnviarElegir('${c.id}')"><i class="i3d i3d-enviar"></i></button>
-        <button class="tbl-action" title="Editar" onclick="cotEditar('${c.id}')"><i class="i3d i3d-editar"></i></button>
-        <button class="tbl-action" title="Eliminar" onclick="cotEliminar('${c.id}')"><i class="i3d i3d-eliminar"></i></button>
+      <td style="white-space:nowrap;text-align:right">
+        <button class="tbl-txt" onclick="cotVerDetalle('${c.id}')">Ver</button>
+        <button class="tbl-txt" onclick="cotDescargarPDF('${c.id}')">PDF</button>
+        <button class="tbl-txt" onclick="cotEnviarElegir('${c.id}')">Enviar</button>
+        <button class="tbl-txt" onclick="cotEditar('${c.id}')">Editar</button>
+        <button class="tbl-txt peligro" onclick="cotEliminar('${c.id}')">Borrar</button>
       </td>
     </tr>`;
   }).join('');
