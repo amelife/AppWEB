@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v5.3 | 2026-08-20 ARG - Menu lateral, arriba con favoritos o arriba en dos filas -->
+<!-- AMELIFE EMS Technologies - Web App v5.4 | 2026-08-20 ARG - Logo parejo en los tres menus, sin Logueado, iconos mas grandes -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -215,9 +215,9 @@
     display:flex; align-items:center; justify-content:center;
     flex-shrink: 0;
   }
-  .sidebar-header img {
-    width: 100%; max-width: 172px; height: auto;
-  }
+  /* Un solo tamaño de logo para los tres menús: no cambia al mover
+     el panel. Si hay que agrandarlo, se toca este número y listo. */
+  .sidebar-header img { height: 82px; width: auto; }
   /* Zona de navegación scrolleable: el logo queda fijo arriba y el
      bloque de usuario fijo abajo, aunque no entren todos los ítems.
      min-height:0 es lo que permite que un hijo flex pueda encogerse
@@ -327,10 +327,6 @@
     background:rgba(255,255,255,0.06); cursor:default;
   }
   .user-info { min-width:0; }
-  .user-lbl {
-    display:block; font-family:var(--cond); font-size:9.5px; font-weight:700;
-    letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:1px;
-  }
   .user-info b {
     font-size:13.5px; font-weight:600; display:block; color:var(--ink-text);
     line-height:1.25; word-break:break-word;
@@ -358,7 +354,7 @@
   }
   .topbar-brand { display:flex; align-items:center; gap:11px; min-width:0; }
   #topbarIcon {
-    width:30px; height:30px; flex:none; background-size:20px 20px;
+    width:38px; height:38px; flex:none; background-size:26px 26px;
     background-color:rgba(255,255,255,0.07);
     border:1px solid rgba(255,255,255,0.20); border-radius:8px;
   }
@@ -599,7 +595,7 @@
     .sidebar-header-text, .nav-item > span, .user-info, .nav-label, .nav-obra { display:none; }
     .nav-section.cerrada .nav-fold { grid-template-rows:1fr; }
     .sidebar-header { padding:14px 8px 8px; }
-    .sidebar-header img { max-width:56px; }
+    .sidebar-header img { height:44px; }
     .nav-section { padding:4px 8px 0; }
     .nav-grid { grid-template-columns:1fr; gap:4px; }
     .nav-item { min-height:auto; padding:9px 4px; }
@@ -823,13 +819,13 @@
   #tnLogo, #tnTabs, #tnUsuario, #tnSalir { display:none; }
 
   body.layout-top #sidebar { display:none; }
-  body.layout-top #tnLogo  { display:block; height:30px; width:auto; flex:none; margin-right:6px; }
+  body.layout-top #tnLogo  { display:block; height:82px; width:auto; flex:none; margin-right:14px; }
 
   /* ── Variante grilla: todos los módulos en dos filas, a la altura
      del logo grande. Nada queda escondido, se paga con alto. ── */
   body.layout-grid #sidebar { display:none; }
   body.layout-grid .topbar-brand { display:none; }
-  body.layout-grid #tnLogo { display:block; height:78px; width:auto; flex:none; margin-right:18px; }
+  body.layout-grid #tnLogo { display:block; height:82px; width:auto; flex:none; margin-right:18px; }
   body.layout-grid #tnTabs { display:grid; }
   body.layout-grid #tnUsuario, body.layout-grid #tnSalir { display:flex; }
   body.layout-grid #tnSalir { display:block; }
@@ -842,12 +838,12 @@
     overflow-x:auto; overflow-y:hidden;
   }
   body.layout-grid .tn-tab {
-    display:flex; flex-direction:column; align-items:center; gap:4px;
-    padding:6px 9px; border-bottom:none; border-radius:var(--radius);
-    font-size:10.5px; letter-spacing:0.05em; min-width:78px;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding:8px 12px; border-bottom:none; border-radius:var(--radius);
+    font-size:12.5px; letter-spacing:0.05em; min-width:104px;
   }
   body.layout-grid .tn-tab .i3d {
-    width:26px !important; height:26px !important;
+    width:34px !important; height:34px !important;
     vertical-align:0 !important; margin:0 !important;
   }
   body.layout-grid .tn-tab.activo {
@@ -856,18 +852,20 @@
   body.layout-grid .tn-sep { display:none; }
   body.layout-top #tnTabs  { display:flex; }
   body.layout-top .topbar-brand { display:none; }
+  body.layout-top .topbar { height:auto; min-height:0; padding:10px 22px; flex-wrap:wrap; row-gap:4px; }
+  body.layout-top .topbar-right { flex:none; }
   body.layout-top #tnUsuario { display:flex; }
   body.layout-top #tnSalir { display:block; }
 
   #tnTabs {
-    gap:2px; align-items:center; flex:1; min-width:0;
-    overflow:visible; position:relative;
+    gap:2px 0; align-items:center; flex:1 1 420px; min-width:0;
+    flex-wrap:wrap; overflow:visible; position:relative;
   }
   .tn-tab {
     background:none; border:none; cursor:pointer; white-space:nowrap;
-    font-family:var(--cond); font-size:14px; font-weight:700;
+    font-family:var(--cond); font-size:15px; font-weight:700;
     letter-spacing:0.06em; text-transform:uppercase;
-    color:var(--ink-muted); padding:20px 12px;
+    color:var(--ink-muted); padding:14px 13px;
     border-bottom:2px solid transparent; transition:color var(--transition);
   }
   .tn-tab:hover { color:var(--ink-text); }
@@ -875,8 +873,9 @@
   .tn-tab.bloq { opacity:0.45; }
   .tn-sep { width:1px; height:16px; background:rgba(255,255,255,0.16); margin:0 7px; flex:none; }
 
+  .tn-mas-caja { position:relative; display:inline-flex; }
   #tnMasMenu {
-    display:none; position:absolute; top:calc(100% + 10px); left:0; z-index:300;
+    display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:300;
     background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
     box-shadow:0 10px 30px rgba(10,25,18,0.22); padding:8px; min-width:230px;
   }
@@ -885,16 +884,12 @@
     font-family:var(--cond); font-size:10.5px; font-weight:700; letter-spacing:.15em;
     text-transform:uppercase; color:var(--muted); padding:9px 9px 4px;
   }
-  #tnMasMenu .i { padding:8px 9px; border-radius:var(--radius); cursor:pointer; font-size:14.5px; }
+  #tnMasMenu .i { padding:9px 10px; border-radius:var(--radius); cursor:pointer; font-size:15.5px; }
   #tnMasMenu .i:hover { background:var(--green-glow); color:var(--green); }
   #tnMasMenu .i.bloq { opacity:0.45; }
 
   #tnUsuario { flex-direction:column; line-height:1.15; text-align:right; margin-left:4px; }
-  #tnUsuario span {
-    font-family:var(--cond); font-size:9.5px; letter-spacing:.15em;
-    text-transform:uppercase; color:var(--ink-dim);
-  }
-  #tnUsuario b { font-size:13px; color:var(--ink-text); font-weight:600; white-space:nowrap; }
+  #tnUsuario b { font-size:15px; color:var(--ink-text); font-weight:600; white-space:nowrap; }
   #tnSalir {
     background:rgba(126,204,97,0.10); border:1px solid rgba(126,204,97,0.45);
     border-radius:var(--radius); color:var(--ink-accent); cursor:pointer;
@@ -1056,7 +1051,6 @@
     <div class="sidebar-bottom">
       <div class="user-pill">
         <div class="user-info">
-          <span class="user-lbl">Logueado</span>
           <b id="userName">Germán</b>
           <span id="userRole">Admin</span>
         </div>
@@ -1081,7 +1075,7 @@
         <div class="notif-btn" title="Configuración" onclick="abrirConfig()"><i class="i3d i3d-config"></i></div>
         <div id="themeBtn" onclick="cycleTheme()" title="Cambiar tema"></div>
         <div id="tnUsuario">
-          <span>Logueado</span><b id="tnUserName">—</b>
+          <b id="tnUserName">—</b>
         </div>
         <button id="tnSalir" onclick="doLogout()">Salir</button>
       </div>
@@ -3324,7 +3318,7 @@ function tnRender() {
   const tab = m =>
     '<button class="tn-tab' + (panelPermitido(m.id) ? '' : ' bloq') + '" data-panel="' + m.id + '"' +
     ' onclick="tnIr(\'' + m.id + '\')">' +
-    (m.icono ? '<span class="i3d i3d-' + m.icono + '" style="width:20px;height:20px;vertical-align:-4px;margin-right:7px"></span>' : '') +
+    (m.icono ? '<span class="i3d i3d-' + m.icono + '" style="width:26px;height:26px;vertical-align:-7px;margin-right:8px"></span>' : '') +
     m.nombre + '</button>';
 
   const SEC = { principal: 'Principal', operaciones: 'Operaciones', especial: 'Acceso especial' };
@@ -3340,8 +3334,11 @@ function tnRender() {
   caja.innerHTML = favs.map(tab).join('') +
     (rest.length
       ? '<span class="tn-sep"></span>' +
-        '<button class="tn-tab" onclick="tnMas(event)">Más ▾</button>' +
-        '<div id="tnMasMenu">' + menu + '</div>'
+        // El menú va adentro del botón para abrirse justo debajo de él
+        '<span class="tn-mas-caja">' +
+          '<button class="tn-tab" onclick="tnMas(event)">Más ▾</button>' +
+          '<div id="tnMasMenu">' + menu + '</div>' +
+        '</span>'
       : '');
 
   tnMarcarActivo();
