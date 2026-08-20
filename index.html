@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v4.5 | 2026-08-20 ARG - El buscador del Price Book cruza todas las listas -->
+<!-- AMELIFE EMS Technologies - Web App v4.9 | 2026-08-20 ARG - Detalle de items en el listado de ordenes -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -777,6 +777,43 @@
      donde fueron pensados. */
   #content .i3d, .modal .i3d, #toast .i3d, #pdfPopupInner .i3d { display:none; }
 
+  /* El link al rastreo del transportista tiene que anunciarse: un
+     subrayado solo no alcanza para que alguien lo pruebe. */
+  /* Carrito del Price Book: aparece sólo cuando hay algo elegido. */
+  #pbCarrito {
+    display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    z-index:400; align-items:center; gap:12px;
+    background:var(--ink); border:1px solid rgba(126,204,97,0.45);
+    border-radius:var(--radius-lg); padding:12px 16px;
+    box-shadow:0 8px 30px rgba(10,25,18,0.35);
+  }
+  #pbCarrito.visible { display:flex; }
+  #pbCarritoTxt {
+    font-family:var(--cond); font-size:14px; font-weight:700;
+    letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-accent);
+    padding-right:4px;
+  }
+  #pbCarrito .btn-outline { border-color:rgba(255,255,255,0.28); color:var(--ink-text); }
+  #pbCarrito .btn-outline:hover { border-color:var(--ink-accent); color:var(--ink-accent); }
+  .pb-chk { width:17px; height:17px; accent-color:var(--green); cursor:pointer; }
+
+  /* Los botones de acción se acomodan en dos filas cuando no entran:
+     así la columna deja de comerse el ancho de las otras. */
+  .acciones {
+    display:flex; flex-wrap:wrap; gap:4px 0;
+    justify-content:flex-end; max-width:340px; margin-left:auto;
+  }
+  .acciones .tbl-txt { margin-left:5px; }
+
+  .trk-rastrear {
+    display:inline-block; margin-top:2px;
+    font-family:var(--cond); font-size:12px; font-weight:700;
+    letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--green); text-decoration:none;
+    border-bottom:1px dashed var(--green); padding-bottom:1px;
+  }
+  .trk-rastrear:hover { color:var(--green-light); border-bottom-style:solid; }
+
   /* ---- CONFIGURACIÓN ---- */
   .cfg-seccion {
     font-family:var(--cond); font-size:12px; font-weight:700;
@@ -1153,6 +1190,12 @@
         <div class="pb-tabs" id="pbTabs"></div>
         <div id="pbContents"></div>
         <div id="pbResultados" style="display:none"></div>
+
+        <div id="pbCarrito">
+          <span id="pbCarritoTxt">0 ítems</span>
+          <button class="btn btn-outline" onclick="pbLimpiar()">Vaciar</button>
+          <button class="btn btn-primary" onclick="pbIrACotizar()">Armar cotización</button>
+        </div>
       </div>
 
       <!-- ===== CLIENTES ===== -->
@@ -2530,6 +2573,24 @@ function cotEstadoClase(e) {
 var OC_ESTADO_ES = { Draft:'Borrador', Sent:'Enviada', Confirmed:'Confirmada', Received:'Recibida' };
 function ocEstadoTxt(e) { return OC_ESTADO_ES[e] || e || '—'; }
 
+/**
+ * Qué trae la orden, sin tener que abrirla. Se muestran las primeras
+ * líneas con su cantidad y el resto se resume, para que la fila no
+ * crezca sin control cuando la orden tiene veinte ítems.
+ */
+function ocResumenItems(o) {
+  const d = o.detalle || [];
+  if (!d.length) return '<span style="color:var(--muted)">' + (o.items || 0) + '</span>';
+
+  const visibles = d.slice(0, 3);
+  const resto    = d.length - visibles.length;
+  return visibles.map(i =>
+      '<div><span class="pn">' + cotEsc(i.pn) + '</span>' +
+      '<span style="color:var(--muted)"> ×' + i.qty + '</span></div>').join('') +
+    (resto ? '<div style="color:var(--muted);font-size:13px">+' + resto +
+             (resto === 1 ? ' ítem más' : ' ítems más') + '</div>' : '');
+}
+
 function ocFmt(n) {
   return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
@@ -2574,12 +2635,12 @@ function ocRender(lista) {
     const recibida = o.estado === 'Received';
     return '<tr>' +
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
-      '<td>' + o.items + '</td>' +
+      '<td style="white-space:normal;min-width:180px;line-height:1.4">' + ocResumenItems(o) + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
       '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) +
         cotMarcaEnvio(o) + '</td>' +
       '<td><span class="badge ' + (OC_BADGE[o.estado] || 'es-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span></td>' +
-      '<td style="text-align:right;white-space:nowrap">' +
+      '<td><div class="acciones">' +
         '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
         '<button class="tbl-txt" onclick="ocAbrirEmail(\'' + o.id + '\')">Enviar</button>' +
         '<button class="tbl-txt" onclick="ocDuplicar(\'' + o.id + '\')">Copiar</button>' +
@@ -2587,7 +2648,7 @@ function ocRender(lista) {
           '<button class="tbl-txt" onclick="ocEditar(\'' + o.id + '\')">Editar</button>' +
           '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir</button>' +
           '<button class="tbl-txt peligro" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')">Borrar</button>') +
-      '</td>' +
+      '</div></td>' +
     '</tr>';
   }).join('');
 
@@ -3263,12 +3324,13 @@ function renderPriceBook() {
     tabs.innerHTML += `<div class="pb-tab${i===0?' active':''}" onclick="switchPBTab('${safeId}',this)">${k}</div>`;
     const rows = grouped[k].map(r => `
       <tr>
+        <td><input type="checkbox" class="pb-chk" onchange="pbSel(this,'${r.pn}')"${PB_SEL.some(x=>x.pn===r.pn)?' checked':''}></td>
         <td class="pn">${r.pn}</td>
         <td>${r.desc}</td>
         <td><b>$${Number(r.price).toLocaleString()}</b></td>
         <td>
           <button class="tbl-txt" title="Al inventario" onclick='addToInv(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Al inv.</button>
-          <button class="tbl-txt" title="A cotización"  onclick='addToCot(${JSON.stringify(r).replace(/'/g,"&#39;")})'>A cotizar</button>
+
         </td>
       </tr>`).join('');
     contents.innerHTML += `
@@ -3276,13 +3338,14 @@ function renderPriceBook() {
         <div class="table-container">
           <div class="pb-category">${k}</div>
           <table class="data-table">
-            <thead><tr><th>Part Number</th><th>Descripción</th><th>Precio Lista (USD)</th><th></th></tr></thead>
+            <thead><tr><th style="width:34px"></th><th>Part Number</th><th>Descripción</th><th>Precio Lista (USD)</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
           <div class="table-footer"><span>${grouped[k].length} ítems · FY2025 LATAM/Caribbean/Israel</span></div>
         </div>
       </div>`;
   });
+  pbCarrito();
 }
 
 function switchPBTab(id, el) {
@@ -3331,17 +3394,18 @@ function filterPB() {
 
   res.innerHTML =
     '<div class="table-container"><table class="data-table">' +
-      '<thead><tr><th>Part Number</th><th>Descripción</th><th>Lista</th>' +
+      '<thead><tr><th style="width:34px"></th><th>Part Number</th><th>Descripción</th><th>Lista</th>' +
       '<th class="num">Precio Lista (USD)</th><th></th></tr></thead><tbody>' +
       hits.map(r =>
         '<tr>' +
+          '<td><input type="checkbox" class="pb-chk" onchange="pbSel(this,\'' + cotEsc(r.pn) + '\')"' +
+            (PB_SEL.some(x => x.pn === r.pn) ? ' checked' : '') + '></td>' +
           '<td class="pn">' + cotEsc(r.pn) + '</td>' +
           '<td>' + cotEsc(r.desc) + '</td>' +
           '<td><span class="badge es-muted">' + cotEsc(r.categoria) + '</span></td>' +
           '<td class="num"><b>$' + Number(r.price).toLocaleString() + '</b></td>' +
           '<td style="text-align:right;white-space:nowrap">' +
             '<button class="tbl-txt" onclick=\'addToInv(' + JSON.stringify(r).replace(/'/g, "&#39;") + ')\'>Al inv.</button>' +
-            '<button class="tbl-txt" onclick=\'addToCot(' + JSON.stringify(r).replace(/'/g, "&#39;") + ')\'>A cotizar</button>' +
           '</td>' +
         '</tr>').join('') +
     '</tbody></table>' +
@@ -3360,13 +3424,61 @@ function addToInv(item) {
 
 // Desde el Price Book: abre el constructor (si no está abierto)
 // y agrega el ítem a la cotización en curso.
-function addToCot(item) {
-  const abierto = document.getElementById('modalCotizacion').classList.contains('open');
-  if (!abierto) cotAbrirNueva();
-  cotAgregarItem(item.pn, item.desc, Number(item.price) || 0);
+/**
+ * Selección múltiple del Price Book. En vez de un botón por fila que
+ * abría el constructor cada vez, se van marcando ítems de cualquier
+ * lista y al final se arma la cotización de una sola vez, con todo
+ * adentro. La selección sobrevive al cambio de pestaña y a la búsqueda.
+ */
+var PB_SEL = [];
+
+function pbSel(chk, pn) {
+  const item = PRICEBOOK_DATA.find(i => String(i.pn) === String(pn));
+  if (!item) return;
+  const i = PB_SEL.findIndex(x => x.pn === item.pn);
+  if (chk.checked && i === -1) PB_SEL.push(item);
+  if (!chk.checked && i !== -1) PB_SEL.splice(i, 1);
+
+  // El mismo PN puede estar dibujado en la pestaña y en el buscador
+  document.querySelectorAll('.pb-chk').forEach(c => {
+    const fila = c.closest('tr');
+    const suPN = fila && fila.querySelector('.pn');
+    if (suPN && suPN.textContent.trim() === item.pn) c.checked = chk.checked;
+  });
+
+  pbCarrito();
 }
 
-function addPBtoInventario() { showToast('Seleccioná un ítem con el botón de inventario', 'info'); }
+function pbCarrito() {
+  const caja = document.getElementById('pbCarrito');
+  const txt  = document.getElementById('pbCarritoTxt');
+  if (!caja) return;
+  caja.classList.toggle('visible', PB_SEL.length > 0);
+  if (PB_SEL.length) {
+    const total = PB_SEL.reduce((a, i) => a + (Number(i.price) || 0), 0);
+    txt.textContent = PB_SEL.length + (PB_SEL.length === 1 ? ' ítem' : ' ítems') +
+                      ' · US$ ' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+}
+
+function pbLimpiar() {
+  PB_SEL = [];
+  document.querySelectorAll('.pb-chk').forEach(c => c.checked = false);
+  pbCarrito();
+}
+
+async function pbIrACotizar() {
+  if (!PB_SEL.length) return;
+  const elegidos = PB_SEL.slice();
+
+  await cotAbrirNueva();
+  elegidos.forEach(i => cotAgregarItem(i.pn, i.desc, Number(i.price) || 0));
+
+  pbLimpiar();
+  showToast(elegidos.length + (elegidos.length === 1 ? ' ítem cargado' : ' ítems cargados') + ' en la cotización');
+}
+
+function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la izquierda', 'info'); }
 
 
 // ============================================
@@ -3935,27 +4047,35 @@ function trkRender(lista) {
                 (t.demora > 0 ? '+' + t.demora + ' días' : t.demora === 0 ? 'en fecha' : t.demora + ' días') + '</div>';
     }
 
+    // Que el número sea un link no se nota solo: se avisa con texto.
     const guia = t.link
-      ? '<a href="' + t.link + '" target="_blank" rel="noopener" class="pn" style="text-decoration:underline">' + cotEsc(t.numero) + '</a>'
+      ? '<a href="' + t.link + '" target="_blank" rel="noopener" class="pn"' +
+        ' title="Abrir el rastreo oficial de ' + cotEsc(t.carrier) + ' en una pestaña nueva"' +
+        ' style="text-decoration:underline">' + cotEsc(t.numero) + '</a>'
       : '<span class="pn">' + cotEsc(t.numero) + '</span>';
 
+    const bajoGuia = t.link
+      ? '<a href="' + t.link + '" target="_blank" rel="noopener" class="trk-rastrear">' +
+        cotEsc(t.carrier) + ' · rastrear ↗</a>'
+      : (t.carrier ? '<div style="font-size:12px;color:var(--muted)">' + cotEsc(t.carrier) + '</div>' : '');
+
     return '<tr>' +
-      '<td>' + guia + (t.carrier ? '<div style="font-size:11px;color:var(--muted)">' + cotEsc(t.carrier) + '</div>' : '') + '</td>' +
+      '<td>' + guia + bajoGuia + '</td>' +
       '<td style="font-size:12px">' + cotEsc(t.tipo) + '</td>' +
       '<td style="font-size:12px">' + cotEsc(t.fabricante || '—') + '</td>' +
-      '<td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + cotEsc(t.contenido || '—') + '</td>' +
-      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(t.origen || '—') + ' → ' + cotEsc(t.destino || '—') + '</td>' +
+      '<td style="min-width:190px;white-space:normal;line-height:1.35">' + cotEsc(t.contenido || '—') + '</td>' +
+      '<td style="font-size:13px;color:var(--muted);white-space:normal;min-width:120px">' + cotEsc(t.origen || '—') + ' → ' + cotEsc(t.destino || '—') + '</td>' +
       '<td style="font-size:11.5px">' + etaTxt + '</td>' +
       '<td><span class="badge ' + (TRK_BADGE[t.estado] || 'es-muted') + '">' + cotEsc(t.estado) + '</span>' +
         (t.adjuntos && t.adjuntos.length ? '<div style="font-size:11px;color:var(--green);margin-top:3px">' + t.adjuntos.length + ' doc.</div>' : '') + '</td>' +
-      '<td style="text-align:right;white-space:nowrap">' +
+      '<td><div class="acciones">' +
         '<button class="tbl-txt" onclick="trkVerDetalle(\'' + t.id + '\')">Ver</button>' +
         '<button class="tbl-txt" onclick="trkAbrirAdjuntos(\'' + t.id + '\')">Docs</button>' +
         '<button class="tbl-txt" onclick="trkEditar(\'' + t.id + '\')">Editar</button>' +
         (enCamino ? '<button class="tbl-txt" onclick="trkArribo(\'' + t.id + '\')">Arribó</button>'
                   : '<button class="tbl-txt" onclick="trkAbrirAviso(\'' + t.id + '\')">Avisar</button>') +
         '<button class="tbl-txt peligro" onclick="trkEliminar(\'' + t.id + '\',\'' + cotEsc(t.numero) + '\')">Borrar</button>' +
-      '</td>' +
+      '</div></td>' +
     '</tr>';
   }).join('');
 
