@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v4.9 | 2026-08-20 ARG - Detalle de items en el listado de ordenes -->
+<!-- AMELIFE EMS Technologies - Web App v5.2 | 2026-08-20 ARG - Cotizaciones: copiar, detalle de items y botones de a tres -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -799,11 +799,13 @@
 
   /* Los botones de acción se acomodan en dos filas cuando no entran:
      así la columna deja de comerse el ancho de las otras. */
+  /* Tres por fila: con seis botones quedan dos filas parejas, y la
+     columna deja de comerse el ancho del detalle. */
   .acciones {
-    display:flex; flex-wrap:wrap; gap:4px 0;
-    justify-content:flex-end; max-width:340px; margin-left:auto;
+    display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:5px; justify-items:stretch; width:max-content; margin-left:auto;
   }
-  .acciones .tbl-txt { margin-left:5px; }
+  .acciones .tbl-txt { margin-left:0; text-align:center; }
 
   .trk-rastrear {
     display:inline-block; margin-top:2px;
@@ -2295,10 +2297,10 @@ function actTerminar(id, ok) {
 // El token de sesión viaja fuera de params, en la raíz del payload.
 // Si el backend responde SESION_INVALIDA se vuelve al login;
 // si responde PIN_REQUERIDO se rebloquea el módulo Bancos.
-async function api(action, params = {}) {
+async function api(action, params = {}, silencioso = false) {
   // Sólo las acciones con etiqueta muestran indicador. El resto —refrescos
   // de fondo, pings— pasa en silencio para no llenar la pantalla de avisos.
-  const tarea = ETIQUETAS_ACCION[action] ? actIniciar(ETIQUETAS_ACCION[action]) : null;
+  const tarea = (!silencioso && ETIQUETAS_ACCION[action]) ? actIniciar(ETIQUETAS_ACCION[action]) : null;
   try {
     const formData = new FormData();
     formData.append('payload', JSON.stringify({ action, params, token: SESSION_TOKEN }));
@@ -2422,6 +2424,9 @@ async function doLogin() {
   restaurarSecciones();
   dashCfgAplicar();
   trkLlenarSelects();
+
+  // No se espera: la app ya es usable y esto llena la caché por atrás
+  precargarModulos();
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
@@ -2584,9 +2589,17 @@ function ocResumenItems(o) {
 
   const visibles = d.slice(0, 3);
   const resto    = d.length - visibles.length;
+  const corta = t => {
+    t = String(t || '').trim();
+    return t.length > 42 ? t.slice(0, 41) + '…' : t;
+  };
   return visibles.map(i =>
-      '<div><span class="pn">' + cotEsc(i.pn) + '</span>' +
-      '<span style="color:var(--muted)"> ×' + i.qty + '</span></div>').join('') +
+      '<div style="line-height:1.35">' +
+        '<b style="font-family:\'JetBrains Mono\',monospace">' + i.qty + '</b>' +
+        '<span style="color:var(--muted)"> × </span>' +
+        '<span class="pn">' + cotEsc(i.pn) + '</span>' +
+        (i.desc ? '<span style="color:var(--muted);font-size:13px"> · ' + cotEsc(corta(i.desc)) + '</span>' : '') +
+      '</div>').join('') +
     (resto ? '<div style="color:var(--muted);font-size:13px">+' + resto +
              (resto === 1 ? ' ítem más' : ' ítems más') + '</div>' : '');
 }
@@ -2635,7 +2648,7 @@ function ocRender(lista) {
     const recibida = o.estado === 'Received';
     return '<tr>' +
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
-      '<td style="white-space:normal;min-width:180px;line-height:1.4">' + ocResumenItems(o) + '</td>' +
+      '<td style="white-space:normal;min-width:330px">' + ocResumenItems(o) + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
       '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) +
         cotMarcaEnvio(o) + '</td>' +
@@ -3108,6 +3121,36 @@ function cfgDashGuardar() {
 function cfgDashRestablecer() {
   CFG_DASH_TMP = { orden: DASH_BLOQUES.map(b => b.id), ocultos: [] };
   cfgDashRender();
+}
+
+/**
+ * Trae los tres módulos pesados apenas entrás, en paralelo y por atrás.
+ *
+ * Apps Script cobra ~1,4 s de latencia por request pase lo que pase. En
+ * serie eso son más de cuatro segundos repartidos en las tres primeras
+ * veces que abrís cada panel. Pedidos juntos mientras mirás el dashboard,
+ * es una sola espera que no llegás a ver: cuando entrás a Cotizaciones,
+ * Órdenes o Trackings, ya está todo en caché y se dibuja al instante.
+ *
+ * Se piden en silencio y sólo los que tu rol puede ver.
+ */
+async function precargarModulos() {
+  const modulos = [
+    { panel: 'cotizaciones', clave: 'cotizaciones', accion: 'getCotizaciones' },
+    { panel: 'ordenes',      clave: 'ordenes',      accion: 'getOrdenes' },
+    { panel: 'trackings',    clave: 'trackings',    accion: 'getTrackingsFull' }
+  ].filter(m => panelPermitido(m.panel));
+
+  if (!modulos.length) return;
+
+  const tarea = actIniciar('Preparando los módulos');
+  const rs = await Promise.all(modulos.map(m => api(m.accion, {}, true)));
+
+  let listos = 0;
+  rs.forEach((r, i) => {
+    if (r && r.ok) { cacheGuardar(modulos[i].clave, r.data); listos++; }
+  });
+  actTerminar(tarea, listos > 0);
 }
 
 /**
@@ -6279,6 +6322,30 @@ function cotFecha(f, conHora) {
  * que recorta cualquier globo que se salga de la celda.
  * Con más de dos, el resto se ve haciendo clic (abre el detalle).
  */
+/**
+ * Qué lleva la cotización, en el mismo formato que las órdenes de
+ * compra: cantidad, por, part number y la descripción acotada. Una
+ * línea por ítem, que es como se lee un pedido.
+ */
+function cotResumenItems(items) {
+  if (!items.length) return '<span style="color:var(--muted)">—</span>';
+  const visibles = items.slice(0, 3);
+  const resto    = items.length - visibles.length;
+  const corta = t => {
+    t = String(t || '').trim();
+    return t.length > 42 ? t.slice(0, 41) + '…' : t;
+  };
+  return visibles.map(i =>
+      '<div style="line-height:1.35">' +
+        '<b style="font-family:\'JetBrains Mono\',monospace">' + (Number(i.qty) || 0) + '</b>' +
+        '<span style="color:var(--muted)"> × </span>' +
+        '<span class="pn">' + cotEsc(i.pn) + '</span>' +
+        (i.desc ? '<span style="color:var(--muted);font-size:13px"> · ' + cotEsc(corta(i.desc)) + '</span>' : '') +
+      '</div>').join('') +
+    (resto ? '<div style="color:var(--muted);font-size:13px">+' + resto +
+             (resto === 1 ? ' ítem más' : ' ítems más') + '</div>' : '');
+}
+
 function cotMarcaEnvio(c) {
   const dest = String(c.enviado_a || '').trim();
   if (!dest) return '';
@@ -6360,28 +6427,27 @@ function cotRender(lista) {
   }
 
   tbody.innerHTML = lista.map(c => {
-    const nItems = (c.items || []).length;
-    const resumen = (c.items || []).slice(0, 2)
-      .map(i => cotEsc(i.pn) + ' x' + i.qty).join(', ') + (nItems > 2 ? ' +' + (nItems - 2) : '');
+    const resumen = cotResumenItems(c.items || []);
     const opts = COT_ESTADOS_UI.map(e =>
       `<option value="${e}"${e === c.estado ? ' selected' : ''}>${e}</option>`).join('');
     return `<tr>
       <td class="pn" style="cursor:pointer" onclick="cotVerDetalle('${c.id}')">${cotEsc(c.numero || c.id)}</td>
       <td>${cotEsc(c.cliente_nom) || '—'}</td>
-      <td style="font-size:12px;max-width:200px;white-space:normal">${resumen || '—'}</td>
+      <td style="white-space:normal;min-width:330px">${resumen}</td>
       <td><b>${cotFmt(c.total)}</b></td>
       <td style="font-size:12px;white-space:nowrap">${cotEsc(cotFecha(c.fecha))}${cotMarcaEnvio(c)}</td>
       <td>
         <select class="estado-sel ${cotEstadoClase(c.estado)}"
                 onchange="cotCambiarEstado('${c.id}', this.value)">${opts}</select>
       </td>
-      <td style="white-space:nowrap;text-align:right">
+      <td><div class="acciones">
         <button class="tbl-txt" onclick="cotVerDetalle('${c.id}')">Ver</button>
         <button class="tbl-txt" onclick="cotDescargarPDF('${c.id}')">PDF</button>
         <button class="tbl-txt" onclick="cotEnviarElegir('${c.id}')">Enviar</button>
+        <button class="tbl-txt" onclick="cotDuplicar('${c.id}')">Copiar</button>
         <button class="tbl-txt" onclick="cotEditar('${c.id}')">Editar</button>
         <button class="tbl-txt peligro" onclick="cotEliminar('${c.id}')">Borrar</button>
-      </td>
+      </div></td>
     </tr>`;
   }).join('');
 
@@ -6980,6 +7046,37 @@ async function cotEditar(id) {
   tituloConIcono(document.querySelector('#modalCotizacion .modal-title'), 'editar', 'Editar ' + (c.numero || ''));
   document.getElementById('cotBtnGuardar').innerHTML = '<i class="i3d i3d-guardar"></i> Guardar cambios';
   cotRenderItems();
+}
+
+/**
+ * Copia una cotización a una nueva. Trae ítems, cantidades, markup,
+ * incoterm y notas, pero no el número —ese lo asigna el sistema al
+ * guardar— ni marca que estemos editando la original.
+ */
+async function cotDuplicar(id) {
+  const r = await api('getCotizacion', { id });
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+  const c = r.data;
+
+  await cotAbrirNueva();
+  COT_STATE.editandoId = null;
+
+  COT_STATE.items = (c.items || []).map(i => ({
+    pn: i.pn, desc: i.desc,
+    qty: Number(i.qty) || 1,
+    precio_lista: Number(i.precio_lista) || 0
+  }));
+
+  document.getElementById('cotMarkup').value   = Number(c.markup) || 0;
+  document.getElementById('cotNotas').value    = c.notas || '';
+  document.getElementById('cotIncoterm').value = c.incoterm || '';
+  if (c.cliente_id) cotClienteElegir(c.cliente_id);
+  else document.getElementById('cotClienteTexto').value = c.cliente_nom || '';
+
+  tituloConIcono(document.querySelector('#modalCotizacion .modal-title'), 'cotizaciones',
+                 'Nueva · copia de ' + (c.numero || ''));
+  cotRenderItems();
+  showToast('Copiados ' + COT_STATE.items.length + ' ítems · revisá y guardá', 'info');
 }
 
 async function cotEliminar(id) {
