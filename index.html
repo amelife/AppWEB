@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.4 | 2026-08-20 ARG - Diagnostico de velocidad en Configuracion -->
+<!-- AMELIFE EMS Technologies - Web App v3.5 | 2026-08-20 ARG - Cache de listados: cambiar de panel es instantaneo -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1198,7 +1198,7 @@
             <option>Borrador</option><option>Enviada</option><option>Aprobada</option>
             <option>Rechazada</option><option>Cerrada</option>
           </select>
-          <button class="btn btn-outline" onclick="cotCargar()"><i class="i3d i3d-actualizar"></i> Actualizar</button>
+          <button class="btn btn-outline" onclick="cotCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-outline" onclick="cotIAAbrir()" style="border-color:var(--info);color:var(--info)"><i class="i3d i3d-ia"></i> Cotizar con IA</button>
           <button class="btn btn-primary" onclick="cotAbrirNueva()">+ Nueva cotización</button>
         </div>
@@ -1253,7 +1253,7 @@
             <option value="Confirmed">Confirmada</option>
             <option value="Received">Recibida</option>
           </select>
-          <button class="btn btn-outline" onclick="ocCargar()"><i class="i3d i3d-actualizar"></i> Actualizar</button>
+          <button class="btn btn-outline" onclick="ocCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-primary" onclick="ocAbrirNueva()">+ Nueva orden ZOLL</button>
         </div>
         <div class="table-container">
@@ -2411,6 +2411,53 @@ function tituloConIcono(el, icono, texto) {
 }
 
 // ============================================
+//  CACHÉ DE LISTADOS
+//  Apps Script cobra ~1,4 s de latencia por request, hagas lo que
+//  hagas. Con datos que casi no cambian, volver a pedirlos cada vez
+//  que entrás al panel es pagar esa espera de gusto.
+//
+//  La idea: mostrar lo último que sabemos al instante y refrescar
+//  por atrás. Si algo cambió, se vuelve a dibujar solo.
+// ============================================
+var CACHE = {};
+var CACHE_VIDA_MS = 90 * 1000;   // más viejo que esto, se considera vencido
+
+function cacheLeer(clave) {
+  var e = CACHE[clave];
+  if (!e) return null;
+  return { data: e.data, vencido: (Date.now() - e.ts) > CACHE_VIDA_MS };
+}
+
+function cacheGuardar(clave, data) {
+  CACHE[clave] = { data: data, ts: Date.now() };
+}
+
+/** Se llama después de guardar, borrar o cambiar de estado. */
+function cacheInvalidar(clave) {
+  if (clave) delete CACHE[clave]; else CACHE = {};
+}
+
+/**
+ * Trae de caché si hay y refresca por atrás. `pintar` puede correr
+ * dos veces: una con lo viejo y otra con lo nuevo, y sólo si cambió.
+ */
+async function conCache(clave, accion, params, pintar) {
+  var c = cacheLeer(clave);
+  if (c) pintar(c.data, true);
+
+  if (c && !c.vencido) return c.data;      // fresco: no se vuelve a pedir
+
+  var r = await api(accion, params || {});
+  if (!r.ok) { if (!c) pintar(null, false, r.error); return null; }
+
+  var antes = c ? JSON.stringify(c.data) : null;
+  cacheGuardar(clave, r.data);
+  if (JSON.stringify(r.data) !== antes) pintar(r.data, false);
+  return r.data;
+}
+
+
+// ============================================
 //  ÓRDENES DE COMPRA · ZOLL
 //  El encabezado logístico está fijo en el backend (19_POZoll.gs).
 //  Acá solo se carga lo que cambia orden a orden.
@@ -2429,16 +2476,20 @@ function ocFmt(n) {
   return (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 
-async function ocCargar() {
+async function ocCargar(forzar) {
   const tb = document.getElementById('ocBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
-  const r = await api('getOrdenes');
-  if (!r.ok) {
-    if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--danger)">' + cotEsc(r.error || 'Error') + '</td></tr>';
-    return;
+  if (forzar) cacheInvalidar('ordenes');
+  if (!cacheLeer('ordenes') && tb) {
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
   }
-  OC_STATE.lista = r.data || [];
-  ocFiltrar();
+  await conCache('ordenes', 'getOrdenes', {}, function(data, deCache, error) {
+    if (error) {
+      if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--danger)">' + cotEsc(error) + '</td></tr>';
+      return;
+    }
+    OC_STATE.lista = data || [];
+    ocFiltrar();
+  });
 }
 
 function ocFiltrar() {
@@ -2614,7 +2665,7 @@ async function ocGuardar() {
   if (!r.ok) { showToast(r.error || 'No se pudo guardar', 'error'); return; }
   closeModal('modalOrden');
   showToast(OC_STATE.editandoId ? 'Orden actualizada' : 'Orden ' + numero + ' creada');
-  ocCargar();
+  ocCargar(true);
 }
 
 async function ocEditar(id) {
@@ -2666,7 +2717,7 @@ async function ocEliminar(id, numero) {
   const r = await api('deleteOrden', { id });
   if (!r.ok) { showToast(r.error || 'No se pudo eliminar', 'error'); return; }
   showToast('Orden ' + numero + ' eliminada');
-  ocCargar();
+  ocCargar(true);
 }
 
 async function ocDescargarPDF(id) {
@@ -2752,7 +2803,7 @@ async function ocEmailEnviar() {
   if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
   closeModal('modalOCEmail');
   showToast('Orden enviada a ' + r.data.enviado);
-  ocCargar();
+  ocCargar(true);
 }
 
 // ── Recepción ──────────────────────────────────────────────
@@ -2802,7 +2853,7 @@ async function ocConfirmarRecibir() {
   if (d.sinPN && d.sinPN.length) {
     showToast('Líneas sin PN, no impactaron stock: ' + d.sinPN.join(', '), 'info');
   }
-  ocCargar();
+  ocCargar(true);
   // El stock cambió: refrescamos inventario si está cargado
   api('getInventario').then(r2 => { if (r2.ok) { INVENTARIO = r2.data; renderInventario(); } });
 }
@@ -5693,20 +5744,24 @@ function cotEstadoNorm(e) {
 
 // ---------- LISTADO ----------
 
-async function cotCargar() {
+async function cotCargar(forzar) {
   const tbody = document.getElementById('cotBody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
-
-  const r = await api('getCotizaciones');
-  if (!r.ok) {
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)"><i class="i3d i3d-error"></i> ' + cotEsc(r.error || 'Error') + '</td></tr>';
-    return;
+  if (forzar) cacheInvalidar('cotizaciones');
+  if (!cacheLeer('cotizaciones') && tbody) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
   }
-  COT_STATE.lista = (r.data || []).map(c => {
-    c.estado = cotEstadoNorm(c.estado);
-    return c;
-  }).reverse();          // más nuevas primero
-  cotFiltrar();
+
+  await conCache('cotizaciones', 'getCotizaciones', {}, function(data, deCache, error) {
+    if (error) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)"><i class="i3d i3d-error"></i> ' + cotEsc(error) + '</td></tr>';
+      return;
+    }
+    COT_STATE.lista = (data || []).map(c => {
+      c.estado = cotEstadoNorm(c.estado);
+      return c;
+    }).slice().reverse();          // más nuevas primero
+    cotFiltrar();
+  });
 }
 
 function cotFiltrar() {
@@ -5815,9 +5870,9 @@ async function cotVerDetalle(id) {
 
 async function cotCambiarEstado(id, estado) {
   const r = await api('actualizarEstadoCotizacion', { id, estado });
-  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); cotCargar(); return; }
+  if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); cotCargar(true); return; }
   showToast('Cotización → ' + estado, 'success');
-  cotCargar();
+  cotCargar(true);
 }
 
 async function cotEnviarEmail(id) {
@@ -6140,7 +6195,7 @@ async function cotGuardar() {
   closeModal('modalCotizacion');
   COT_STATE.items = [];
   COT_STATE.editandoId = null;
-  cotCargar();
+  cotCargar(true);
 }
 
 
@@ -6373,7 +6428,7 @@ async function cotEliminar(id) {
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   showToast('' + etiqueta + ' eliminada', 'success');
   document.getElementById('cotDetalle').style.display = 'none';
-  cotCargar();
+  cotCargar(true);
 }
 
 
@@ -6471,7 +6526,7 @@ async function cotEmailConfirmar() {
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   closeModal('modalCotEmail');
   showToast('Enviada a ' + (r.data.enviado || ''), 'success');
-  cotCargar();   // refresca para mostrar la marca y el estado nuevo
+  cotCargar(true);   // refresca para mostrar la marca y el estado nuevo
 }
 
 async function cotEnviarPorWhatsApp() {
