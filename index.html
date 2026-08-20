@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v4.3 | 2026-08-20 ARG - Tipografia del login dos puntos mas grande -->
+<!-- AMELIFE EMS Technologies - Web App v4.5 | 2026-08-20 ARG - El buscador del Price Book cruza todas las listas -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -301,17 +301,11 @@
     background:rgba(126,204,97,0.12); border-color:rgba(126,204,97,0.40);
     color:var(--ink-accent); font-weight:700;
   }
-  .nav-badge {
-    position:absolute; top:6px; right:6px;
-    background:var(--ink-accent); color:#0B1408; font-size:9.5px; font-weight:700;
-    padding:1px 5px; border-radius:3px; font-variant-numeric:tabular-nums;
-  }
 
   /* Módulos que el rol todavía no tiene habilitados: se ven, pero se nota */
   .nav-item.bloqueado { opacity:0.48; }
   .nav-item.bloqueado:hover { background:transparent; color:var(--ink-muted); border-color:transparent; }
   .nav-item.bloqueado:hover .nav-ico { transform:none; }
-  .nav-item.bloqueado .nav-badge { display:none; }
   .nav-obra {
     position:absolute; top:5px; right:5px;
     font-family:var(--cond); font-size:8.5px; font-weight:700;
@@ -610,7 +604,6 @@
     .nav-grid { grid-template-columns:1fr; gap:4px; }
     .nav-item { min-height:auto; padding:9px 4px; }
     .nav-item .nav-ico { width:42px; height:42px; background-size:29px 29px; }
-    .nav-badge { top:2px; right:2px; font-size:8.5px; padding:0 4px; }
     .sidebar-bottom { padding:10px; }
     .user-pill { justify-content:center; }
     .logout-btn { display:none; }
@@ -872,7 +865,6 @@
       <div class="nav-item" onclick="showPanel('inventario',this)">
         <span class="nav-ico i3d i3d-inventario"></span>
         <span>Inventario</span>
-        <span class="nav-badge">24</span>
       </div>
       <div class="nav-item" onclick="showPanel('pricebook',this)">
         <span class="nav-ico i3d i3d-pricebook"></span>
@@ -1154,12 +1146,13 @@
       <div class="panel" id="panel-pricebook">
         <div class="toolbar">
           <div class="search-box">
-            <input type="text" id="pbSearch" placeholder="Buscar por PN o descripción..." oninput="filterPB()" />
+            <input type="text" id="pbSearch" placeholder="Buscar en todas las listas por PN o descripción..." oninput="filterPB()" />
           </div>
           <button class="btn btn-outline" onclick="addPBtoInventario()"><i class="i3d i3d-inventario"></i> Agregar al inventario</button>
         </div>
         <div class="pb-tabs" id="pbTabs"></div>
         <div id="pbContents"></div>
+        <div id="pbResultados" style="display:none"></div>
       </div>
 
       <!-- ===== CLIENTES ===== -->
@@ -3300,11 +3293,60 @@ function switchPBTab(id, el) {
   if (el2) el2.classList.add('active');
 }
 
+/**
+ * Antes esto ocultaba filas en las tablas de todas las categorías, pero
+ * como sólo se ve la pestaña activa, parecía que buscaba en una sola.
+ * Ahora, al escribir, se arma un resultado único que cruza todas las
+ * listas y dice de cuál sale cada ítem. Al borrar, vuelven las pestañas.
+ */
 function filterPB() {
-  const q = document.getElementById('pbSearch').value.toLowerCase();
-  document.querySelectorAll('#pbContents .data-table tbody tr').forEach(tr => {
-    tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
-  });
+  const q     = document.getElementById('pbSearch').value.toLowerCase().trim();
+  const tabs  = document.getElementById('pbTabs');
+  const conts = document.getElementById('pbContents');
+  const res   = document.getElementById('pbResultados');
+
+  if (q.length < 2) {
+    tabs.style.display = ''; conts.style.display = ''; res.style.display = 'none';
+    return;
+  }
+
+  tabs.style.display = 'none'; conts.style.display = 'none'; res.style.display = '';
+
+  const hits = PRICEBOOK_DATA.filter(i =>
+    String(i.pn).toLowerCase().includes(q) || String(i.desc).toLowerCase().includes(q)
+  );
+
+  if (!hits.length) {
+    res.innerHTML = '<div class="empty"><h3>Sin resultados</h3>' +
+      '<p>Ningún part number ni descripción coincide con «' + cotEsc(q) + '» en las ' +
+      new Set(PRICEBOOK_DATA.map(i => i.categoria)).size + ' listas.</p></div>';
+    return;
+  }
+
+  // Cuántos salieron de cada lista: sirve para saber dónde mirar
+  const porLista = {};
+  hits.forEach(i => { porLista[i.categoria] = (porLista[i.categoria] || 0) + 1; });
+  const resumen = Object.keys(porLista).sort()
+    .map(k => cotEsc(k) + ' (' + porLista[k] + ')').join(' · ');
+
+  res.innerHTML =
+    '<div class="table-container"><table class="data-table">' +
+      '<thead><tr><th>Part Number</th><th>Descripción</th><th>Lista</th>' +
+      '<th class="num">Precio Lista (USD)</th><th></th></tr></thead><tbody>' +
+      hits.map(r =>
+        '<tr>' +
+          '<td class="pn">' + cotEsc(r.pn) + '</td>' +
+          '<td>' + cotEsc(r.desc) + '</td>' +
+          '<td><span class="badge es-muted">' + cotEsc(r.categoria) + '</span></td>' +
+          '<td class="num"><b>$' + Number(r.price).toLocaleString() + '</b></td>' +
+          '<td style="text-align:right;white-space:nowrap">' +
+            '<button class="tbl-txt" onclick=\'addToInv(' + JSON.stringify(r).replace(/'/g, "&#39;") + ')\'>Al inv.</button>' +
+            '<button class="tbl-txt" onclick=\'addToCot(' + JSON.stringify(r).replace(/'/g, "&#39;") + ')\'>A cotizar</button>' +
+          '</td>' +
+        '</tr>').join('') +
+    '</tbody></table>' +
+    '<div class="table-footer"><span>' + hits.length + ' resultados</span><span>' + resumen + '</span></div>' +
+    '</div>';
 }
 
 function addToInv(item) {
