@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v2.9.1 | 2026-08-20 ARG - Fix: el Price Book expone price, no precio -->
+<!-- AMELIFE EMS Technologies - Web App v3.0 | 2026-08-20 ARG - PO: sin Reference, envio por correo, acciones en texto -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -710,6 +710,18 @@
   /* Dentro de un botón primario la chapa se despega del verde */
   .btn-primary .i3d, .btn-danger .i3d { --i3d-borde: rgba(255,255,255,0.34); }
 
+  /* Acciones de tabla en texto: en una fila angosta un icono de 16px
+     no alcanza para distinguir "recibir" de "editar". */
+  .tbl-txt {
+    padding:4px 9px; margin-left:5px; border-radius:3px;
+    border:1px solid var(--border2); background:var(--card); color:var(--muted);
+    font-family:var(--cond); font-size:11.5px; font-weight:700;
+    letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; white-space:nowrap;
+    transition:border-color var(--transition), color var(--transition);
+  }
+  .tbl-txt:hover { border-color:var(--green); color:var(--green); }
+  .tbl-txt.peligro:hover { border-color:var(--danger); color:var(--danger); }
+
   /* ---- CONFIGURACIÓN ---- */
   .cfg-seccion {
     font-family:var(--cond); font-size:12px; font-weight:700;
@@ -1217,7 +1229,7 @@
       <div class="panel" id="panel-ordenes">
         <div class="toolbar">
           <div class="search-box">
-            <input type="text" id="ocSearch" placeholder="Buscar por número, referencia o PN..." oninput="ocFiltrar()">
+            <input type="text" id="ocSearch" placeholder="Buscar por número de orden..." oninput="ocFiltrar()">
           </div>
           <select class="filter-select" id="ocFilterEstado" onchange="ocFiltrar()">
             <option value="">Todos los estados</option>
@@ -1232,10 +1244,10 @@
         <div class="table-container">
           <table class="data-table">
             <thead><tr>
-              <th>Orden #</th><th>Referencia</th><th>Ítems</th>
+              <th>Orden</th><th>Ítems</th>
               <th style="text-align:right">Total USD</th><th>Fecha</th><th>Estado</th><th></th>
             </tr></thead>
-            <tbody id="ocBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr></tbody>
+            <tbody id="ocBody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr></tbody>
           </table>
           <div class="table-footer"><span id="ocCount">—</span></div>
         </div>
@@ -1699,10 +1711,9 @@
       <button class="modal-close" onclick="closeModal('modalOrden')">✕</button>
     </div>
 
-    <div class="modal-grid" style="grid-template-columns:1fr 1fr 1.6fr">
-      <div class="field"><label>Order No.</label><input type="text" id="ocNumero" placeholder="46216"></div>
+    <div class="modal-grid">
+      <div class="field"><label>Order</label><input type="text" id="ocNumero" placeholder="46216"></div>
       <div class="field"><label>Date</label><input type="date" id="ocFecha"></div>
-      <div class="field"><label>Reference</label><input type="text" id="ocReferencia" placeholder="ADS 07132026 ARM BIO IS COR"></div>
     </div>
 
     <div class="cfg-seccion" style="margin-top:6px">Ítems</div>
@@ -1724,6 +1735,29 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalOrden')">Cancelar</button>
       <button class="btn btn-primary" id="ocBtnGuardar" onclick="ocGuardar()"><i class="i3d i3d-guardar"></i> Guardar orden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Enviar la orden por correo -->
+<div class="modal-overlay" id="modalOCEmail">
+  <div class="modal" data-no-cerrar-fuera style="max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" id="ocEmailTitulo">Enviar orden</div>
+      <button class="modal-close" onclick="closeModal('modalOCEmail')">✕</button>
+    </div>
+    <p class="cfg-ayuda">Se envía el PDF adjunto con un cuerpo en inglés pidiendo que procesen la orden. Los correos fijos se cambian desde Configuración.</p>
+    <div id="ocEmailLista" class="cfg-lista"></div>
+    <div class="field" style="margin-top:14px">
+      <label>Agregar otro correo</label>
+      <div style="display:flex;gap:8px">
+        <input type="email" id="ocEmailNuevo" placeholder="nombre@empresa.com" onkeydown="if(event.key==='Enter'){event.preventDefault();ocEmailAgregar();}">
+        <button class="btn btn-outline" style="flex-shrink:0" onclick="ocEmailAgregar()">Agregar</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalOCEmail')">Cancelar</button>
+      <button class="btn btn-primary" id="ocEmailBtn" onclick="ocEmailEnviar()"><i class="i3d i3d-correo"></i> Enviar orden</button>
     </div>
   </div>
 </div>
@@ -1756,9 +1790,19 @@
     <p class="cfg-ayuda">Destildá lo que no querés ver y ordenalos con las flechas. Se guarda en este navegador.</p>
     <div id="cfgDashLista" class="cfg-lista"></div>
 
+    <div class="cfg-seccion" style="margin-top:24px">Correos de órdenes ZOLL</div>
+    <div class="field">
+      <label>Destinatario por defecto</label>
+      <input type="email" id="cfgEmailTo" placeholder="elazaris@zoll.com">
+    </div>
+    <div class="field">
+      <label>Correos sugeridos · uno por línea</label>
+      <textarea id="cfgEmailPresets" rows="3" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none;resize:vertical"></textarea>
+    </div>
+
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="cfgDashRestablecer()">Restablecer</button>
-      <button class="btn btn-primary" onclick="cfgDashGuardar()">Guardar</button>
+      <button class="btn btn-outline" onclick="cfgDashRestablecer()">Restablecer bloques</button>
+      <button class="btn btn-primary" onclick="cfgGuardarTodo()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2349,10 +2393,10 @@ function ocFmt(n) {
 
 async function ocCargar() {
   const tb = document.getElementById('ocBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
   const r = await api('getOrdenes');
   if (!r.ok) {
-    if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)">' + cotEsc(r.error || 'Error') + '</td></tr>';
+    if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--danger)">' + cotEsc(r.error || 'Error') + '</td></tr>';
     return;
   }
   OC_STATE.lista = r.data || [];
@@ -2365,7 +2409,7 @@ function ocFiltrar() {
   const filtradas = OC_STATE.lista.filter(o => {
     if (es && o.estado !== es) return false;
     if (!q) return true;
-    return (String(o.numero) + ' ' + String(o.referencia)).toLowerCase().includes(q);
+    return String(o.numero).toLowerCase().includes(q);
   });
   ocRender(filtradas);
 }
@@ -2374,7 +2418,7 @@ function ocRender(lista) {
   const tb = document.getElementById('ocBody');
   if (!tb) return;
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Sin órdenes</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Sin órdenes</td></tr>';
     document.getElementById('ocCount').textContent = '0 órdenes';
     return;
   }
@@ -2383,17 +2427,17 @@ function ocRender(lista) {
     const recibida = o.estado === 'Received';
     return '<tr>' +
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
-      '<td>' + cotEsc(o.referencia || '—') + '</td>' +
       '<td>' + o.items + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
       '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) + '</td>' +
       '<td><span class="badge ' + (OC_BADGE[o.estado] || 'badge-muted') + '">' + cotEsc(o.estado) + '</span></td>' +
       '<td style="text-align:right;white-space:nowrap">' +
-        '<button class="tbl-action" title="Descargar PO en PDF" onclick="ocDescargarPDF(\'' + o.id + '\')"><i class="i3d i3d-cotizaciones"></i></button>' +
+        '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
+        '<button class="tbl-txt" onclick="ocAbrirEmail(\'' + o.id + '\')">Enviar</button>' +
         (recibida ? '' :
-          '<button class="tbl-action" title="Editar" onclick="ocEditar(\'' + o.id + '\')"><i class="i3d i3d-editar"></i></button>' +
-          '<button class="tbl-action" title="Recibir e ingresar al inventario" onclick="ocAbrirRecibir(\'' + o.id + '\')"><i class="i3d i3d-inventario"></i></button>' +
-          '<button class="tbl-action" title="Eliminar" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')"><i class="i3d i3d-eliminar"></i></button>') +
+          '<button class="tbl-txt" onclick="ocEditar(\'' + o.id + '\')">Editar</button>' +
+          '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir</button>' +
+          '<button class="tbl-txt peligro" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')">Borrar</button>') +
       '</td>' +
     '</tr>';
   }).join('');
@@ -2409,7 +2453,6 @@ function ocAbrirNueva() {
   OC_STATE.items = [];
   document.getElementById('ocModalTitulo').textContent = 'Nueva orden ZOLL';
   document.getElementById('ocNumero').value = '';
-  document.getElementById('ocReferencia').value = '';
   document.getElementById('ocObs').value = '';
   document.getElementById('ocFecha').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ocBuscarPN').value = '';
@@ -2518,7 +2561,6 @@ async function ocGuardar() {
   const data = {
     numero: numero,
     fecha: document.getElementById('ocFecha').value,
-    referencia: document.getElementById('ocReferencia').value.trim(),
     observaciones: document.getElementById('ocObs').value.trim(),
     items: OC_STATE.items
   };
@@ -2546,7 +2588,6 @@ async function ocEditar(id) {
   document.getElementById('ocModalTitulo').textContent = 'Editar orden ' + o.numero;
   document.getElementById('ocNumero').value = o.numero || '';
   document.getElementById('ocFecha').value = String(o.fecha || '').slice(0, 10);
-  document.getElementById('ocReferencia').value = o.referencia || '';
   document.getElementById('ocObs').value = o.observaciones || '';
   OC_STATE.items = (o.items || []).map(i => ({
     pn: i.pn, desc: i.desc, qty: i.qty, uom: i.uom || 'EA',
@@ -2579,6 +2620,74 @@ async function ocDescargarPDF(id) {
   win.document.close();
   setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 600);
   showToast('En el diálogo elegí «Guardar como PDF»', 'info');
+}
+
+// ── Envío por correo ───────────────────────────────────────
+// Los correos fijos viven en la hoja Parametros, no acá: así se
+// cambian desde Configuración sin tocar el archivo.
+var OC_EMAIL = { orden: null, opciones: [], elegidos: [] };
+
+async function ocAbrirEmail(id) {
+  const r = await api('getOrden', { id });
+  if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
+  OC_EMAIL.orden = r.data;
+
+  const c = await api('getOrdenEmails');
+  const porDefecto = (c.ok && c.data.to) ? c.data.to : 'elazaris@zoll.com';
+  const sugeridos  = (c.ok && c.data.presets) ? c.data.presets : [];
+
+  OC_EMAIL.opciones = [porDefecto].concat(sugeridos.filter(e => e !== porDefecto));
+  OC_EMAIL.elegidos = [porDefecto];
+
+  document.getElementById('ocEmailTitulo').textContent = 'Enviar orden ' + OC_EMAIL.orden.numero;
+  document.getElementById('ocEmailNuevo').value = '';
+  ocEmailRender();
+  openModal('modalOCEmail');
+}
+
+function ocEmailRender() {
+  document.getElementById('ocEmailLista').innerHTML = OC_EMAIL.opciones.map((e, k) => {
+    const on = OC_EMAIL.elegidos.indexOf(e) !== -1;
+    return '<div class="cfg-fila' + (on ? '' : ' apagada') + '">' +
+      '<input type="checkbox" id="ocml-' + k + '"' + (on ? ' checked' : '') + ' onchange="ocEmailToggle(' + k + ',this.checked)">' +
+      '<label for="ocml-' + k + '">' + cotEsc(e) + (k === 0 ? ' <span style="color:var(--muted);font-size:11.5px">· por defecto</span>' : '') + '</label>' +
+    '</div>';
+  }).join('');
+}
+
+function ocEmailToggle(k, on) {
+  const e = OC_EMAIL.opciones[k];
+  const i = OC_EMAIL.elegidos.indexOf(e);
+  if (on && i === -1) OC_EMAIL.elegidos.push(e);
+  if (!on && i !== -1) OC_EMAIL.elegidos.splice(i, 1);
+  ocEmailRender();
+}
+
+function ocEmailAgregar() {
+  const inp = document.getElementById('ocEmailNuevo');
+  const e = inp.value.trim();
+  if (!e) return;
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { showToast('Ese correo no parece válido', 'error'); return; }
+  if (OC_EMAIL.opciones.indexOf(e) === -1) OC_EMAIL.opciones.push(e);
+  if (OC_EMAIL.elegidos.indexOf(e) === -1) OC_EMAIL.elegidos.push(e);
+  inp.value = '';
+  ocEmailRender();
+}
+
+async function ocEmailEnviar() {
+  if (!OC_EMAIL.elegidos.length) { showToast('Elegí al menos un destinatario', 'error'); return; }
+
+  const btn = document.getElementById('ocEmailBtn');
+  btn.disabled = true;
+  const t = actIniciar('Enviando ' + OC_EMAIL.orden.numero);
+  const r = await api('emailOrden', { id: OC_EMAIL.orden.id, destinatarios: OC_EMAIL.elegidos });
+  actTerminar(t, r.ok);
+  btn.disabled = false;
+
+  if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
+  closeModal('modalOCEmail');
+  showToast('Orden enviada a ' + r.data.enviado);
+  ocCargar();
 }
 
 // ── Recepción ──────────────────────────────────────────────
@@ -2675,10 +2784,29 @@ function dashCfgAplicar() {
 // Copia de trabajo: recién se escribe cuando el usuario aprieta Guardar
 var CFG_DASH_TMP = null;
 
-function abrirConfig() {
+async function abrirConfig() {
   CFG_DASH_TMP = dashCfgLeer();
   cfgDashRender();
   openModal('modalConfig');
+
+  // Los correos viven en el backend, así que se piden al abrir
+  const r = await api('getOrdenEmails');
+  if (r.ok) {
+    document.getElementById('cfgEmailTo').value = r.data.to || '';
+    document.getElementById('cfgEmailPresets').value = (r.data.presets || []).join('\n');
+  }
+}
+
+async function cfgGuardarTodo() {
+  const to = document.getElementById('cfgEmailTo').value.trim();
+  const presets = document.getElementById('cfgEmailPresets').value
+    .split('\n').map(x => x.trim()).filter(Boolean);
+
+  if (to) {
+    const r = await api('setOrdenEmails', { to, presets });
+    if (!r.ok) { showToast(r.error || 'No se pudieron guardar los correos', 'error'); return; }
+  }
+  cfgDashGuardar();
 }
 
 function cfgDashRender() {
