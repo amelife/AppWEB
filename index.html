@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v3.7 | 2026-08-20 ARG - Trackings completo, estados unificados, sin iconos en el area de trabajo -->
+<!-- AMELIFE EMS Technologies - Web App v3.9 | 2026-08-20 ARG - Titulos del panel en lima y separadores verdes -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -239,19 +239,27 @@
   .nav-section { padding: 6px 12px 0; }
   .nav-section + .nav-section {
     margin-top: 14px; padding-top: 14px;
-    border-top: 1px solid var(--ink-line);
+    border-top: 1px solid rgba(157,190,20,0.40);
   }
   .nav-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .nav-label {
     width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px;
     background:transparent; border:none; cursor:pointer; text-align:left;
     font-family:var(--cond); font-size:12.5px; font-weight:700;
-    color:var(--ink-muted); text-transform:uppercase; letter-spacing:1.5px;
+    text-transform:uppercase; letter-spacing:1.5px;
     padding:5px 3px 5px 2px; margin-bottom:9px;
-    transition:color var(--transition);
   }
-  .nav-label:hover { color:var(--ink-muted); }
-  .nav-chev { width:15px; height:15px; flex:none; transition:transform var(--transition); }
+  .nav-label > span {
+    background:linear-gradient(180deg,#EFF56A 0%,#C8DC2E 52%,#9DBE14 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    filter:drop-shadow(0 1px 0 rgba(34,50,8,0.85));
+    transition:filter var(--transition);
+  }
+  .nav-label:hover > span { filter:drop-shadow(0 1px 0 rgba(34,50,8,0.85)) brightness(1.15); }
+  .nav-chev {
+    width:15px; height:15px; flex:none; color:#9DBE14;
+    transition:transform var(--transition);
+  }
   .nav-section.cerrada .nav-chev { transform:rotate(-90deg); }
 
   /* El plegado va por grid-template-rows: anima solo, sin alturas magicas */
@@ -2359,6 +2367,7 @@ async function doLogin() {
   marcarPanelesBloqueados();
   restaurarSecciones();
   dashCfgAplicar();
+  trkLlenarSelects();
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').classList.add('visible');
@@ -3573,8 +3582,14 @@ setInterval(function() { if (temaActual === 'auto') aplicarTema('auto'); }, 6000
 
     <div class="cfg-seccion">Identificación</div>
     <div class="modal-grid" style="grid-template-columns:1fr 1fr 1.2fr">
-      <div class="field"><label>Tipo</label><select id="trkTipo" onchange="trkCamposPorTipo()"></select></div>
-      <div class="field"><label>Transportista</label><select id="trkCarrier"></select></div>
+      <div class="field"><label>Tipo</label>
+        <select id="trkTipo" onchange="trkCamposPorTipo()"></select>
+        <input type="text" id="trkTipoOtro" placeholder="Escribí el tipo" style="display:none;margin-top:6px">
+      </div>
+      <div class="field"><label id="trkLblCarrier">Transportista</label>
+        <select id="trkCarrier" onchange="trkOtro('trkCarrier','trkCarrierOtro')"></select>
+        <input type="text" id="trkCarrierOtro" placeholder="Escribí el transportista" style="display:none;margin-top:6px">
+      </div>
       <div class="field"><label id="trkLblNumero">Número de guía</label><input type="text" id="trkNumero" placeholder="794512345678"></div>
     </div>
     <div class="field">
@@ -3720,7 +3735,19 @@ showPanel = function(id, el) {
 // Registro de importación: courier, aéreo, marítimo o terrestre.
 // El stock NO se toca desde acá: entra cuando se marca Recibida la
 // orden de compra. Si los dos sumaran, se contaría dos veces.
-var TRK_STATE = { lista: [], cfg: null, editando: null, adjuntando: null, avisando: null };
+// Estas listas son constantes, no datos: viven en el frontend para que
+// el formulario funcione siempre, aunque el backend no haya respondido
+// todavía o ni siquiera esté desplegado. Si el backend manda las suyas,
+// se usan esas.
+var TRK_TIPOS_DEF = ['Courier', 'Guía aérea', 'Bill of Lading', 'Terrestre'];
+var TRK_ESTADOS_DEF = ['En preparación', 'Despachado', 'En tránsito', 'En aduana', 'Arribado', 'Entregado'];
+var TRK_CARRIERS_DEF = ['FedEx', 'DHL', 'UPS', 'USPS', 'Amazon'];
+var TRK_OTRO = 'Otro (escribir)';
+
+var TRK_STATE = {
+  lista: [], editando: null, adjuntando: null, avisando: null,
+  cfg: { tipos: TRK_TIPOS_DEF, estados: TRK_ESTADOS_DEF, carriers: TRK_CARRIERS_DEF }
+};
 
 var TRK_BADGE = {
   'En preparación':'es-muted', 'Despachado':'es-info', 'En tránsito':'es-info',
@@ -3734,10 +3761,13 @@ async function trkCargar(forzar) {
     tb.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Cargando...</td></tr>';
   }
 
-  if (!TRK_STATE.cfg) {
-    const c = await api('getTrackingConfig');
-    if (c.ok) { TRK_STATE.cfg = c.data; trkLlenarSelects(); }
-  }
+  // Si el backend trae listas propias se adoptan; si no, quedan las de acá
+  api('getTrackingConfig').then(c => {
+    if (c.ok && c.data && c.data.tipos && c.data.tipos.length) {
+      TRK_STATE.cfg = c.data;
+      trkLlenarSelects();
+    }
+  });
 
   await conCache('trackings', 'getTrackingsFull', {}, function(data, deCache, error) {
     if (error) {
@@ -3753,13 +3783,44 @@ async function trkCargar(forzar) {
 function loadTrackings() { return trkCargar(); }   // compatibilidad
 
 function trkLlenarSelects() {
-  const c = TRK_STATE.cfg; if (!c) return;
+  const c = TRK_STATE.cfg;
   const op = a => a.map(x => '<option>' + x + '</option>').join('');
-  document.getElementById('trkFilterEstado').innerHTML = '<option value="">Todos los estados</option>' + op(c.estados);
-  document.getElementById('trkFilterTipo').innerHTML   = '<option value="">Todos los tipos</option>' + op(c.tipos);
-  document.getElementById('trkTipo').innerHTML    = op(c.tipos);
-  document.getElementById('trkEstado').innerHTML  = op(c.estados);
-  document.getElementById('trkCarrier').innerHTML = op(c.carriers);
+  const set = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+
+  set('trkFilterEstado', '<option value="">Todos los estados</option>' + op(c.estados));
+  set('trkFilterTipo',   '<option value="">Todos los tipos</option>' + op(c.tipos));
+  // Los dos que se pueden ampliar a mano llevan la opción de escribir
+  set('trkTipo',    op(c.tipos.concat([TRK_OTRO])));
+  set('trkCarrier', op(c.carriers.concat([TRK_OTRO])));
+  set('trkEstado',  op(c.estados));
+}
+
+/** Muestra el campo de texto cuando se elige "Otro". */
+function trkOtro(selId, inpId) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inpId);
+  const otro = sel.value === TRK_OTRO;
+  inp.style.display = otro ? '' : 'none';
+  if (otro) inp.focus(); else inp.value = '';
+}
+
+/** Al editar: si el valor guardado no está en la lista, entra como Otro. */
+function trkPonerCon(selId, inpId, valor) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inpId);
+  const esta = [].some.call(sel.options, o => o.value === valor);
+  if (valor && !esta) {
+    sel.value = TRK_OTRO; inp.value = valor; inp.style.display = '';
+  } else {
+    sel.value = valor; inp.value = ''; inp.style.display = 'none';
+  }
+}
+
+/** Lo que vale es lo escrito si eligió Otro; si no, lo del desplegable. */
+function trkValorCon(selId, inpId) {
+  const sel = document.getElementById(selId);
+  if (sel.value !== TRK_OTRO) return sel.value;
+  return document.getElementById(inpId).value.trim();
 }
 
 function trkLlenarFiltroWH() {
@@ -3852,12 +3913,14 @@ function trkAbrirNuevo() {
   TRK_STATE.editando = null;
   document.getElementById('trkModalTitulo').textContent = 'Nuevo tracking';
   ['trkNumero','trkFabricante','trkContenido','trkOrigen','trkDestino','trkWH','trkNotas',
-   'trkDespachado','trkETA'].forEach(id => document.getElementById(id).value = '');
+   'trkDespachado','trkETA','trkTipoOtro','trkCarrierOtro'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('trkTipoOtro').style.display = 'none';
+  document.getElementById('trkCarrierOtro').style.display = 'none';
   ['trkBultos','trkPeso','trkValor','trkFlete'].forEach(id => document.getElementById(id).value = 0);
-  if (TRK_STATE.cfg) {
-    document.getElementById('trkTipo').value   = TRK_STATE.cfg.tipos[0];
-    document.getElementById('trkEstado').value = TRK_STATE.cfg.estados[0];
-  }
+  trkLlenarSelects();
+  document.getElementById('trkTipo').value    = TRK_STATE.cfg.tipos[0];
+  document.getElementById('trkEstado').value  = TRK_STATE.cfg.estados[0];
+  document.getElementById('trkCarrier').value = TRK_STATE.cfg.carriers[0];
   trkCamposPorTipo();
   trkRenderOrdenes([]);
   openModal('modalTracking');
@@ -3871,8 +3934,9 @@ function trkCamposPorTipo() {
                   : tipo === 'Bill of Lading' ? 'Número de BL'
                   : tipo === 'Terrestre'      ? 'Número de remito'
                   : 'Número de guía';
-  // El transportista sólo tiene sentido con courier; en los otros se escribe a mano
-  document.getElementById('trkCarrier').parentElement.style.display = (tipo === 'Courier') ? '' : 'none';
+  const lc = document.getElementById('trkLblCarrier');
+  if (lc) lc.textContent = tipo === 'Courier' ? 'Transportista' : 'Transportista / Línea';
+  trkOtro('trkTipo', 'trkTipoOtro');
 }
 
 async function trkRenderOrdenes(seleccionadas) {
@@ -3901,11 +3965,14 @@ function trkOrdenesElegidas() {
 async function trkGuardar() {
   const numero = document.getElementById('trkNumero').value.trim();
   if (!numero) { showToast('Falta el número de guía', 'error'); return; }
+  if (!trkValorCon('trkTipo', 'trkTipoOtro')) { showToast('Elegí o escribí el tipo', 'error'); return; }
 
   const v = id => document.getElementById(id).value;
   const data = {
     id: TRK_STATE.editando, numero,
-    tipo: v('trkTipo'), carrier: v('trkCarrier'), estado: v('trkEstado'),
+    tipo: trkValorCon('trkTipo', 'trkTipoOtro'),
+    carrier: trkValorCon('trkCarrier', 'trkCarrierOtro'),
+    estado: v('trkEstado'),
     fabricante: v('trkFabricante').trim(), contenido: v('trkContenido').trim(),
     origen: v('trkOrigen').trim(), destino: v('trkDestino').trim(), wh: v('trkWH').trim(),
     despachado_el: v('trkDespachado'), eta: v('trkETA'), notas: v('trkNotas').trim(),
@@ -3937,9 +4004,10 @@ async function trkEditar(id) {
   p('trkDespachado', String(t.despachado_el || '').slice(0,10));
   p('trkETA', String(t.eta || '').slice(0,10));
   p('trkBultos', t.bultos); p('trkPeso', t.peso_kg); p('trkValor', t.valor_usd); p('trkFlete', t.flete_usd);
-  document.getElementById('trkTipo').value   = t.tipo || 'Courier';
+  trkLlenarSelects();
+  trkPonerCon('trkTipo', 'trkTipoOtro', t.tipo || 'Courier');
+  trkPonerCon('trkCarrier', 'trkCarrierOtro', t.carrier || '');
   document.getElementById('trkEstado').value = t.estado;
-  if (t.carrier) document.getElementById('trkCarrier').value = t.carrier;
 
   trkCamposPorTipo();
   trkRenderOrdenes(t.orden_ids || []);
