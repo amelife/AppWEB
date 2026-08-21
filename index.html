@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.0 | 2026-08-20 ARG - Fuera el selector de perfil del login -->
+<!-- AMELIFE EMS Technologies - Web App v6.1 | 2026-08-20 ARG - Clientes: vistas Lista y Fichas, edicion en el lugar con guardado automatico -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -571,7 +571,10 @@
   .empty p { font-size:15px; }
 
   /* ===================== CLIENTES ===================== */
-  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+  /* align-items:start — cada ficha mide lo que necesita. Sin esto, todas
+     las de una fila se estiran al alto de la más cargada y la vista
+     compacta deja de ser compacta. */
+  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; align-items:start; }
   .client-card {
     position:relative; background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:18px;
     transition:border-color var(--transition), transform var(--transition), box-shadow var(--transition);
@@ -583,6 +586,106 @@
   .client-name { font-size:15px; font-weight:700; margin-bottom:4px; }
   .client-company { font-size:12px; color:var(--green); font-weight:600; margin-bottom:8px; }
   .client-info { font-size:12px; color:var(--muted); line-height:1.6; }
+
+  /* ============ CLIENTES · edición en el lugar ============ */
+  /* Interruptor Lista / Fichas */
+  .cliv-sw { display:inline-flex; border:1px solid var(--border2); border-radius:var(--radius); overflow:hidden; }
+  .cliv-sw-b {
+    appearance:none; background:transparent; border:0; cursor:pointer;
+    font-family:var(--cond); font-size:13px; font-weight:700; letter-spacing:1.1px; text-transform:uppercase;
+    color:var(--muted); padding:9px 16px; transition:background var(--transition), color var(--transition);
+  }
+  .cliv-sw-b:hover { color:var(--text); background:var(--card2); }
+  .cliv-sw-b.on { background:var(--green); color:#0A140A; }
+
+  /* Pie del encabezado: contador a la izquierda, estado del guardado a la derecha */
+  .cliv-pie { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .cliv-estado {
+    margin-left:auto; font-family:var(--cond); font-size:12.5px; font-weight:700;
+    letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
+    opacity:0; transition:opacity var(--transition);
+  }
+  .cliv-estado.on   { opacity:1; }
+  .cliv-estado.ok   { color:var(--green); }
+  .cliv-estado.mal  { color:#C4534D; }
+
+  /* Tabla */
+  .cliv-tw { border:1px solid var(--border2); border-radius:var(--radius-lg); background:var(--card); overflow-x:auto; }
+  .cliv-tabla { min-width:940px; }
+  .cliv-tabla td { padding:9px 14px; vertical-align:top; }
+  .cliv-nom { font-size:14px; font-weight:700; line-height:1.3; }
+  .cliv-sub {
+    display:block; margin-top:2px; font-family:var(--cond); font-size:12px;
+    letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
+  }
+  .cliv-td-acc { width:44px; text-align:right; }
+  .cliv-td-sel { width:34px; }
+  .cliv-mas {
+    appearance:none; background:transparent; border:0; cursor:pointer; color:var(--muted);
+    font-size:17px; line-height:1; padding:3px 6px; border-radius:var(--radius);
+  }
+  .cliv-mas:hover { color:var(--text); background:var(--card2); }
+
+  /* Celda de texto editable */
+  .cliv-ed {
+    display:block; min-height:22px; cursor:text; border-radius:3px;
+    padding:2px 5px; margin:-2px -5px; transition:background var(--transition);
+  }
+  .cliv-ed:hover { background:var(--green-glow); box-shadow: inset 0 0 0 1px var(--border2); }
+  .cliv-ed.vacio:before {
+    content:attr(data-ph); color:var(--muted); opacity:.65; font-style:italic; font-size:12px;
+  }
+  .cliv-inp {
+    width:100%; min-width:120px; background:var(--bg); border:1px solid var(--green);
+    border-radius:3px; padding:2px 5px; margin:-3px -6px; color:var(--text);
+    font:inherit; font-size:13px; outline:none;
+  }
+  .cliv-mono { font-family:'JetBrains Mono',monospace; font-size:13px; }
+
+  /* Etiquetas de teléfono y correo */
+  .cliv-chips { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+  .cliv-chip {
+    display:inline-flex; align-items:center; gap:5px; max-width:100%;
+    background:var(--card2); border:1px solid var(--border2); border-radius:3px; padding:2px 4px 2px 8px;
+  }
+  .cliv-chip .cv {
+    cursor:text; font-family:'JetBrains Mono',monospace; font-size:12px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .cliv-chip.mail .cv { font-family:inherit; font-size:12.5px; }
+  .cliv-chip .cx {
+    appearance:none; background:none; border:0; cursor:pointer; color:var(--muted);
+    font-size:14px; line-height:1; padding:0 2px; border-radius:2px;
+  }
+  .cliv-chip .cx:hover { color:#C4534D; background:rgba(196,83,77,0.15); }
+  .cliv-add {
+    appearance:none; background:none; border:1px dashed var(--border2); border-radius:3px;
+    cursor:pointer; color:var(--muted); padding:3px 8px; line-height:1;
+    font-family:var(--cond); font-size:12px; font-weight:700; letter-spacing:.6px;
+  }
+  .cliv-add:hover { color:var(--green); border-color:var(--green); background:var(--green-glow); }
+
+  /* Ficha compacta: sólo muestra los campos que tienen dato */
+  .client-card.cliv-fic { cursor:default; padding:14px 16px 13px; }
+  .client-card.cliv-fic:hover { transform:none; }
+  .cliv-fh { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:9px; }
+  .cliv-fb { display:flex; flex-direction:column; gap:6px; }
+  .cliv-li { display:grid; grid-template-columns:46px 1fr; gap:9px; align-items:start; font-size:12.5px; }
+  .cliv-lk {
+    padding-top:2px; font-family:var(--cond); font-size:11.5px;
+    letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
+  }
+  /* Los botones de agregar quedan siempre a la vista, sólo atenuados.
+     Ocultarlos hasta el hover reservaba el espacio igual —el mismo hueco
+     que tenían las tarjetas viejas— y encima había que adivinar que
+     estaban ahí. */
+  .cliv-fa {
+    display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; padding-top:9px;
+    border-top:1px solid var(--border2); opacity:.5; transition:opacity var(--transition);
+  }
+  .client-card.cliv-fic:hover .cliv-fa,
+  .client-card.cliv-fic:focus-within .cliv-fa { opacity:1; }
+  .cliv-vacia { font-size:12px; font-style:italic; color:var(--muted); opacity:.7; }
 
   /* ===================== BANCOS ===================== */
   .bancos-lock { text-align:center; padding:80px 20px; }
@@ -1271,12 +1374,35 @@
             <button class="btn btn-danger" onclick="eliminarClientesSeleccionados()" style="padding:8px 14px;font-size:12px"><i class="i3d i3d-eliminar"></i> Eliminar seleccionados</button>
             <button class="btn btn-outline" onclick="deseleccionarTodosClientes()" style="padding:8px 14px;font-size:12px">✕ Cancelar</button>
           </div>
+          <!-- Elegir cómo se ven los clientes. Queda guardado en el navegador. -->
+          <div class="cliv-sw" id="clivSwitch">
+            <button type="button" class="cliv-sw-b" data-v="lista"  onclick="clivVista('lista')">Lista</button>
+            <button type="button" class="cliv-sw-b" data-v="fichas" onclick="clivVista('fichas')">Fichas</button>
+          </div>
           <button class="btn btn-outline" onclick="abrirImportCSV()"><i class="i3d i3d-facturas"></i> Importar CSV</button>
           <button class="btn btn-outline" onclick="toggleClientSelect()" id="btnSelectMode">☑ Seleccionar</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="clientCountLabel">Últimos 20 · escribí para buscar entre todos</div>
 
+        <div class="cliv-pie">
+          <span style="font-size:12px;color:var(--muted)" id="clientCountLabel">Últimos 20 · escribí para buscar entre todos</span>
+          <!-- Estado del guardado automático. No hay botón: se guarda solo. -->
+          <span class="cliv-estado" id="clivEstado"></span>
+        </div>
+
+        <!-- Vista Lista -->
+        <div class="cliv-tw" id="clientTablaWrap" style="display:none">
+          <table class="data-table cliv-tabla">
+            <thead><tr>
+              <th class="cliv-th-sel" style="display:none"></th>
+              <th>Cliente</th><th>RUC / Tax ID</th><th>Teléfonos</th>
+              <th>Correos</th><th>Dirección</th><th></th>
+            </tr></thead>
+            <tbody id="clientTabla"></tbody>
+          </table>
+        </div>
+
+        <!-- Vista Fichas -->
         <div class="client-grid" id="clientGrid"></div>
       </div>
 
@@ -3731,34 +3857,331 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // ============================================
 //  CLIENTES
 // ============================================
+// Dos vistas sobre los mismos datos —Lista y Fichas— y las dos editan
+// en el lugar. La elección queda en el navegador (AME_CLI_VISTA).
+//
+// GUARDADO AUTOMÁTICO, SIN BOTÓN
+//   Cada cambio se anota en CLIV_CAMBIOS y se agenda un guardado.
+//   El temporizador se reinicia con cada tecla, así corregir cuatro
+//   teléfonos seguidos manda UN request y no cuatro. Con el piso de
+//   ~1,4 s que tiene el Web App, eso es la diferencia entre esperar
+//   una vez y esperar seis segundos.
+//
+//   Nunca hay dos guardados en vuelo a la vez: mientras uno viaja,
+//   los cambios nuevos se acumulan y salen en el siguiente. Si el
+//   guardado falla, los cambios vuelven a la cola y se reintenta;
+//   no se pierde lo tecleado.
+
+let CLIV_VISTA     = 'lista';   // 'lista' | 'fichas'
+let CLIV_CAMBIOS   = {};        // id -> { campo: valor } · sólo lo que cambió
+let CLIV_LISTA     = null;      // lo que se está mostrando ahora
+let CLIV_INIT      = false;
+let CLIV_TIMER     = null;
+let CLIV_ENVIANDO  = false;
+const CLIV_ESPERA  = 1200;      // ms de quietud antes de mandar
+
+function clivEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, ch =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[ch]);
+}
+
+// El Sheet guarda un solo texto por columna. Varios teléfonos conviven
+// separados por barra —que es como venían y como los dejó la limpieza—
+// y varios correos por coma.
+function clivPartes(txt, campo) {
+  const s = String(txt == null ? '' : txt).trim();
+  if (!s) return [];
+  const sep = (campo === 'tel') ? /\s*\/\s*/ : /\s*[,;\/]\s*/;
+  return s.split(sep).map(x => x.trim()).filter(Boolean);
+}
+function clivUnir(arr, campo) {
+  return arr.join(campo === 'tel' ? ' / ' : ', ');
+}
+
+// La búsqueda en el Sheet devuelve objetos nuevos, distintos de los de
+// CLIENTES. Al editar hay que tocar los dos, o el cambio desaparece al
+// borrar el buscador.
+function clivObjs(id) {
+  const r = [];
+  const a = CLIENTES.find(x => x.id === id);
+  if (a) r.push(a);
+  if (CLIV_LISTA && CLIV_LISTA !== CLIENTES) {
+    const b = CLIV_LISTA.find(x => x.id === id);
+    if (b && b !== a) r.push(b);
+  }
+  return r;
+}
+
+function clivVista(v) {
+  CLIV_VISTA = (v === 'fichas') ? 'fichas' : 'lista';
+  try { localStorage.setItem('AME_CLI_VISTA', CLIV_VISTA); } catch (e) {}
+  document.querySelectorAll('#clivSwitch .cliv-sw-b').forEach(b => {
+    b.classList.toggle('on', b.dataset.v === CLIV_VISTA);
+  });
+  const tw = document.getElementById('clientTablaWrap');
+  const gr = document.getElementById('clientGrid');
+  if (tw) tw.style.display = (CLIV_VISTA === 'lista')  ? '' : 'none';
+  if (gr) gr.style.display = (CLIV_VISTA === 'fichas') ? '' : 'none';
+  renderClientes(CLIV_LISTA);
+}
+
 function renderClientes(data) {
   const list = data || CLIENTES;
-  const grid = document.getElementById('clientGrid');
-  if (!list.length) {
-    grid.innerHTML = '<div class="empty"><div class="empty-icon"><i class="i3d i3d-clientes"></i></div><h3>Sin clientes</h3><p>Agregá el primero o importá desde CSV.</p></div>';
+  CLIV_LISTA = list;
+
+  if (!CLIV_INIT) {
+    CLIV_INIT = true;
+    let v = 'lista';
+    try { v = localStorage.getItem('AME_CLI_VISTA') || 'lista'; } catch (e) {}
+    clivVista(v);           // clivVista vuelve a llamar acá, ya con CLIV_INIT en true
     return;
   }
-  grid.innerHTML = list.map(c => {
-    const isSel = clientSelected.has(c.id);
-    return `<div class="client-card${isSel?' selected':''}" data-id="${c.id}"
-      onclick="${selectMode ? `toggleClientCard('${c.id}')` : `openEditCliente('${c.id}')`}"
-      style="${selectMode?'cursor:pointer':''}"
-    >
-      ${selectMode ? `<div style="position:absolute;top:12px;right:12px">
-        <input type="checkbox" ${isSel?'checked':''} onclick="event.stopPropagation();toggleClientCard('${c.id}')">
-      </div>` : ''}
-      <div class="client-avatar">${(c.nombre[0]||'C').toUpperCase()}</div>
-      <div class="client-name">${c.nombre}</div>
-      <div class="client-company">${c.empresa||'—'}</div>
-      <div class="client-info">
-        <i class="i3d i3d-correo"></i> ${c.email||'—'}<br>
-        <i class="i3d i3d-telefono"></i> ${c.tel||'—'}<br>
-        <i class="i3d i3d-global"></i> ${c.ciudad||''} ${c.pais?'· '+c.pais:''}<br>
-        ${c.notas ? '📝 '+c.notas : ''}
-      </div>
-    </div>`;
+
+  const grid = document.getElementById('clientGrid');
+  const tb   = document.getElementById('clientTabla');
+
+  if (!list.length) {
+    const vacio = '<div class="empty"><div class="empty-icon"><i class="i3d i3d-clientes"></i></div>' +
+                  '<h3>Sin clientes</h3><p>Agregá el primero o importá desde CSV.</p></div>';
+    if (grid) grid.innerHTML = (CLIV_VISTA === 'fichas') ? vacio : '';
+    if (tb)   tb.innerHTML   = (CLIV_VISTA === 'lista')
+      ? '<tr><td colspan="7" style="padding:30px;text-align:center;color:var(--muted)">Sin clientes</td></tr>' : '';
+    return;
+  }
+
+  if (CLIV_VISTA === 'lista') clivTabla(list);
+  else                        clivFichas(list);
+}
+
+// ── Vista Lista ───────────────────────────────────────────
+function clivTabla(list) {
+  const tb = document.getElementById('clientTabla');
+  if (!tb) return;
+  document.querySelectorAll('.cliv-th-sel').forEach(th => {
+    th.style.display = selectMode ? '' : 'none';
+  });
+  tb.innerHTML = list.map(c => {
+    const sel  = clientSelected.has(c.id);
+    const sub  = [c.ciudad, c.pais].filter(Boolean).join(' · ');
+    const chk  = selectMode
+      ? `<td class="cliv-td-sel"><input type="checkbox" ${sel ? 'checked' : ''}
+           onclick="toggleClientCard('${c.id}')"></td>` : '';
+    return `<tr${sel ? ' style="background:var(--green-glow)"' : ''}>` + chk +
+      `<td><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
+        (sub ? `<span class="cliv-sub">${clivEsc(sub)}</span>` : '') + `</td>` +
+      `<td>${clivCelda(c.id, 'ruc', 'sin RUC', true)}</td>` +
+      `<td>${clivChips(c.id, 'tel', 'tel')}</td>` +
+      `<td>${clivChips(c.id, 'email', 'correo')}</td>` +
+      `<td style="max-width:250px">${clivCelda(c.id, 'dir_fiscal', 'sin dirección', false)}</td>` +
+      `<td class="cliv-td-acc"><button class="cliv-mas" title="Abrir ficha completa"
+          onclick="openEditCliente('${c.id}')">⋯</button></td></tr>`;
   }).join('');
 }
+
+// ── Vista Fichas ──────────────────────────────────────────
+// Muestra sólo los campos que tienen dato. Los que faltan aparecen
+// como botones al pasar el mouse, en vez de ocupar lugar con guiones.
+function clivFichas(list) {
+  const grid = document.getElementById('clientGrid');
+  if (!grid) return;
+  grid.innerHTML = list.map(c => {
+    const sel = clientSelected.has(c.id);
+    let cuerpo = '';
+    if (c.ruc)        cuerpo += `<div class="cliv-li"><span class="cliv-lk">RUC</span><span class="cliv-mono">${clivCelda(c.id,'ruc','',true)}</span></div>`;
+    if (c.tel)        cuerpo += `<div class="cliv-li"><span class="cliv-lk">Tel</span><span>${clivChips(c.id,'tel','')}</span></div>`;
+    if (c.email)      cuerpo += `<div class="cliv-li"><span class="cliv-lk">Mail</span><span>${clivChips(c.id,'email','')}</span></div>`;
+    if (c.dir_fiscal) cuerpo += `<div class="cliv-li"><span class="cliv-lk">Dir</span><span>${clivCelda(c.id,'dir_fiscal','',false)}</span></div>`;
+    if (c.notas)      cuerpo += `<div class="cliv-li"><span class="cliv-lk">Nota</span><span>${clivCelda(c.id,'notas','',false)}</span></div>`;
+    if (!cuerpo)      cuerpo  = `<div class="cliv-vacia">Sin datos de contacto todavía</div>`;
+
+    let faltan = '';
+    if (!c.tel)        faltan += `<button class="cliv-add" onclick="clivEditarChip(this,'${c.id}','tel',-1)">+ teléfono</button>`;
+    if (!c.email)      faltan += `<button class="cliv-add" onclick="clivEditarChip(this,'${c.id}','email',-1)">+ correo</button>`;
+    if (!c.ruc)        faltan += `<button class="cliv-add" onclick="clivEditar(this,'${c.id}','ruc')">+ RUC</button>`;
+    if (!c.dir_fiscal) faltan += `<button class="cliv-add" onclick="clivEditar(this,'${c.id}','dir_fiscal')">+ dirección</button>`;
+    faltan += `<button class="cliv-add" onclick="openEditCliente('${c.id}')">Ficha completa</button>`;
+
+    const sub = [c.ciudad, c.pais].filter(Boolean).join(' · ');
+    const chk = selectMode
+      ? `<div style="position:absolute;top:12px;right:12px"><input type="checkbox" ${sel ? 'checked' : ''}
+           onclick="toggleClientCard('${c.id}')"></div>` : '';
+
+    return `<div class="client-card cliv-fic${sel ? ' selected' : ''}" data-id="${c.id}">` + chk +
+      `<div class="cliv-fh"><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
+        (sub ? `<span class="cliv-sub" style="margin:0;white-space:nowrap">${clivEsc(sub)}</span>` : '') +
+      `</div><div class="cliv-fb">${cuerpo}</div>` +
+      `<div class="cliv-fa">${faltan}</div></div>`;
+  }).join('');
+}
+
+// ── Piezas editables ──────────────────────────────────────
+function clivCelda(id, campo, ph, mono) {
+  const o = clivObjs(id)[0];
+  const v = o ? String(o[campo] == null ? '' : o[campo]) : '';
+  return `<span class="cliv-ed${v ? '' : ' vacio'}${mono ? ' cliv-mono' : ''}"
+    data-ph="${clivEsc(ph)}" onclick="clivEditar(this,'${id}','${campo}')">${clivEsc(v)}</span>`;
+}
+
+function clivChips(id, campo, etiqueta) {
+  const o      = clivObjs(id)[0];
+  const partes = clivPartes(o ? o[campo] : '', campo);
+  let h = '<div class="cliv-chips">';
+  partes.forEach((v, x) => {
+    h += `<span class="cliv-chip${campo === 'email' ? ' mail' : ''}">` +
+         `<span class="cv" onclick="clivEditarChip(this,'${id}','${campo}',${x})">${clivEsc(v)}</span>` +
+         `<button class="cx" title="Quitar" onclick="clivQuitarChip('${id}','${campo}',${x})">✕</button></span>`;
+  });
+  h += `<button class="cliv-add" onclick="clivEditarChip(this,'${id}','${campo}',-1)">` +
+       (etiqueta ? '+ ' + clivEsc(etiqueta) : '+') + `</button></div>`;
+  return h;
+}
+
+// Cambia el <span> por un <input> en el mismo lugar. Enter o salir
+// del campo confirma; Escape cancela y deja lo que había.
+function clivEditar(el, id, campo) {
+  const o = clivObjs(id)[0];
+  if (!o) return;
+  const inp = document.createElement('input');
+  inp.className = 'cliv-inp';
+  inp.value = o[campo] == null ? '' : String(o[campo]);
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+
+  let cerrado = false;
+  const cerrar = (guardar) => {
+    if (cerrado) return;
+    cerrado = true;
+    if (guardar) clivSet(id, campo, inp.value.trim());
+    else         renderClientes(CLIV_LISTA);
+  };
+  inp.onblur = () => cerrar(true);
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { inp.onblur = null; cerrar(false); }
+  };
+}
+
+function clivEditarChip(el, id, campo, x) {
+  const o = clivObjs(id)[0];
+  if (!o) return;
+  const partes = clivPartes(o[campo], campo);
+  const nuevo  = (x < 0);
+
+  const inp = document.createElement('input');
+  inp.className = 'cliv-inp';
+  inp.style.minWidth = '170px';
+  inp.value = nuevo ? '' : (partes[x] || '');
+  inp.placeholder = (campo === 'tel') ? '+51 999 888 777' : 'nombre@empresa.com';
+  el.replaceWith(inp);
+  inp.focus(); inp.select();
+
+  let cerrado = false;
+  const cerrar = (guardar) => {
+    if (cerrado) return;
+    cerrado = true;
+    if (!guardar) { renderClientes(CLIV_LISTA); return; }
+    const v = inp.value.trim();
+    if (nuevo)   { if (v) partes.push(v); }
+    else if (v)  { partes[x] = v; }
+    else         { partes.splice(x, 1); }
+    clivSet(id, campo, clivUnir(partes, campo));
+  };
+  inp.onblur = () => cerrar(true);
+  inp.onkeydown = (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { inp.onblur = null; cerrar(false); }
+  };
+}
+
+function clivQuitarChip(id, campo, x) {
+  const o = clivObjs(id)[0];
+  if (!o) return;
+  const partes = clivPartes(o[campo], campo);
+  partes.splice(x, 1);
+  clivSet(id, campo, clivUnir(partes, campo));
+}
+
+// ── Guardado automático ───────────────────────────────────
+function clivSet(id, campo, valor) {
+  const objs = clivObjs(id);
+  if (!objs.length) return;
+  const antes = String(objs[0][campo] == null ? '' : objs[0][campo]);
+  if (antes === String(valor)) { renderClientes(CLIV_LISTA); return; }
+
+  objs.forEach(o => { o[campo] = valor; });
+  if (!CLIV_CAMBIOS[id]) CLIV_CAMBIOS[id] = {};
+  CLIV_CAMBIOS[id][campo] = valor;
+
+  renderClientes(CLIV_LISTA);
+  clivAgendar();
+}
+
+function clivAgendar() {
+  clivEstado('Sin guardar', '');
+  clearTimeout(CLIV_TIMER);
+  CLIV_TIMER = setTimeout(clivGuardar, CLIV_ESPERA);
+}
+
+function clivEstado(txt, clase) {
+  const el = document.getElementById('clivEstado');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'cliv-estado on ' + (clase || '');
+  clearTimeout(clivEstado._t);
+  if (clase === 'ok') {
+    clivEstado._t = setTimeout(() => { el.className = 'cliv-estado'; }, 2200);
+  }
+}
+
+function clivGuardar() {
+  clearTimeout(CLIV_TIMER);
+  if (CLIV_ENVIANDO) return;                       // el que está en vuelo se lleva lo nuevo al volver
+  const ids = Object.keys(CLIV_CAMBIOS);
+  if (!ids.length) return;
+
+  // Se saca de la cola ANTES de mandar, así lo que se teclee mientras
+  // viaja el request se acumula limpio para la próxima tanda.
+  const enviando  = CLIV_CAMBIOS;
+  CLIV_CAMBIOS    = {};
+  CLIV_ENVIANDO   = true;
+  clivEstado('Guardando…', '');
+
+  const items = ids.map(id => ({ id: id, data: enviando[id] }));
+
+  api('updateClientesBulk', { items: items }).then(r => {
+    CLIV_ENVIANDO = false;
+    if (!r || !r.ok) {
+      // Vuelve a la cola sin pisar lo que se tecleó mientras tanto.
+      ids.forEach(id => {
+        CLIV_CAMBIOS[id] = Object.assign({}, enviando[id], CLIV_CAMBIOS[id] || {});
+      });
+      clivEstado('No se guardó · reintentando', 'mal');
+      CLIV_TIMER = setTimeout(clivGuardar, 4000);
+      return;
+    }
+    const n = (r.data && r.data.actualizados) || ids.length;
+    clivEstado('✓ Guardado · ' + n + (n === 1 ? ' cliente' : ' clientes'), 'ok');
+    try { if (typeof cacheInvalidar === 'function') cacheInvalidar('getClientes'); } catch (e) {}
+    if (Object.keys(CLIV_CAMBIOS).length) clivAgendar();   // salió algo nuevo mientras viajaba
+  }).catch(() => {
+    CLIV_ENVIANDO = false;
+    ids.forEach(id => {
+      CLIV_CAMBIOS[id] = Object.assign({}, enviando[id], CLIV_CAMBIOS[id] || {});
+    });
+    clivEstado('Sin conexión · reintentando', 'mal');
+    CLIV_TIMER = setTimeout(clivGuardar, 4000);
+  });
+}
+
+// Si se cierra la pestaña con algo todavía en la cola, avisar. Es la
+// única red de seguridad posible: el guardado es automático pero no
+// instantáneo, y hay una ventana de poco más de un segundo.
+window.addEventListener('beforeunload', (e) => {
+  if (Object.keys(CLIV_CAMBIOS).length || CLIV_ENVIANDO) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // ── Carga inicial: últimos 20 clientes ────────────────────
 let buscarTimeout = null;
