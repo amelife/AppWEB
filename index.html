@@ -807,6 +807,25 @@
   .cliv-td-per { min-width:230px; }
   .cliv-td-dir { min-width:250px; max-width:330px; }
 
+  /* ── Destinatarios del email ── */
+  #cotEmailChips { display:flex; flex-direction:column; gap:6px; }
+  .cot-dest {
+    display:flex; align-items:center; gap:10px;
+    background:var(--green-glow); border:1px solid var(--border2);
+    border-radius:var(--radius); padding:7px 8px 7px 12px;
+  }
+  .cot-dest-txt { flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.35; }
+  .cot-dest-txt b { font-size:13px; font-weight:700; }
+  .cot-dest-txt span {
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--muted);
+    overflow-wrap:anywhere;
+  }
+  .cot-dest-x {
+    appearance:none; background:transparent; border:0; cursor:pointer; flex-shrink:0;
+    color:var(--muted); font-size:14px; line-height:1; padding:5px 7px; border-radius:var(--radius);
+  }
+  .cot-dest-x:hover { color:#C4534D; background:rgba(196,83,77,0.14); }
+
   /* ── Markup del Price Book ── */
   .pb-mk {
     display:inline-flex; align-items:center; gap:0;
@@ -8792,7 +8811,7 @@ async function cotEnviarPorEmail() {
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
 
   COT_ENVIO.datos  = r.data;
-  COT_ENVIO.emails = r.data.emailCliente ? [r.data.emailCliente] : [];
+  COT_ENVIO.emails = cotSepararEmails(r.data.emailCliente);
 
   document.getElementById('cotEmailResumen').innerHTML =
     `<b style="color:var(--text)">${cotEsc(r.data.numero)}</b> · ${cotEsc(r.data.cliente || '')} · ` +
@@ -8809,18 +8828,57 @@ async function cotEnviarPorEmail() {
   }, 120);
 }
 
+// La columna Email del cliente trae varios contactos juntos:
+// "Juan Chu <jchu@x.com>, logistica@x.com, ...". Entraban como UN solo
+// destinatario, así que o los mandabas a todos o a ninguno.
+function cotSepararEmails(txt) {
+  var s = String(txt == null ? '' : txt).trim();
+  if (!s) return [];
+
+  // Corta por coma o punto y coma, pero nunca adentro de los <>.
+  var trozos = [], buf = '', dentro = false;
+  for (var i = 0; i < s.length; i++) {
+    var ch = s.charAt(i);
+    if (ch === '<') dentro = true;
+    else if (ch === '>') dentro = false;
+    if (!dentro && (ch === ',' || ch === ';')) { trozos.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  trozos.push(buf);
+
+  var vistos = {}, out = [];
+  trozos.forEach(function(t) {
+    t = t.trim();
+    if (!t) return;
+    // Se compara por la dirección: el mismo correo con y sin nombre es el mismo.
+    var m = t.match(/<\s*([^<>]+?)\s*>$/);
+    var dir = (m ? m[1] : t).toLowerCase();
+    if (dir.indexOf('@') === -1 || vistos[dir]) return;
+    vistos[dir] = true;
+    out.push(t);
+  });
+  return out;
+}
+
 function cotEmailRenderChips() {
   const box = document.getElementById('cotEmailChips');
   if (!COT_ENVIO.emails.length) {
     box.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px 0">Sin destinatarios todavía</div>';
     return;
   }
-  box.innerHTML = COT_ENVIO.emails.map((e, i) => `
-    <span style="display:inline-flex;align-items:center;gap:6px;background:var(--green-glow);border:1px solid var(--border);
-                 border-radius:99px;padding:5px 10px;margin:0 6px 6px 0;font-size:12.5px">
-      ${cotEsc(e)}
-      <button class="tbl-action" title="Quitar" style="padding:0;font-size:12px" onclick="cotEmailQuitar(${i})">✕</button>
-    </span>`).join('');
+  box.innerHTML = COT_ENVIO.emails.map((e, i) => {
+    // Si viene con nombre, se muestra el nombre y debajo la dirección.
+    const m = String(e).match(/^(.*?)\s*<\s*([^<>]+?)\s*>$/);
+    const quien = m ? m[1].trim() : '';
+    const dir   = m ? m[2].trim() : String(e).trim();
+    return `<span class="cot-dest">
+      <span class="cot-dest-txt">` +
+        (quien ? `<b>${cotEsc(quien)}</b>` : '') +
+        `<span>${cotEsc(dir)}</span>
+      </span>
+      <button class="cot-dest-x" title="Quitar de la lista" onclick="cotEmailQuitar(${i})">✕</button>
+    </span>`;
+  }).join('');
 }
 
 function cotEmailAgregar() {
