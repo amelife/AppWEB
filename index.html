@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.1 | 2026-08-20 ARG - Clientes: vistas Lista y Fichas, edicion en el lugar con guardado automatico -->
+<!-- AMELIFE EMS Technologies - Web App v6.2 | 2026-08-20 ARG - Clientes: contactos por persona, marca de ficha completa, paises con buscador -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -574,7 +574,7 @@
   /* align-items:start — cada ficha mide lo que necesita. Sin esto, todas
      las de una fila se estiran al alto de la más cargada y la vista
      compacta deja de ser compacta. */
-  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; align-items:start; }
+  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(302px,1fr)); gap:14px; align-items:start; }
   .client-card {
     position:relative; background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg); padding:18px;
     transition:border-color var(--transition), transform var(--transition), box-shadow var(--transition);
@@ -646,27 +646,6 @@
   }
   .cliv-mono { font-family:'JetBrains Mono',monospace; font-size:13px; }
 
-  /* Etiquetas de teléfono y correo */
-  .cliv-chips { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
-  .cliv-chip {
-    display:inline-flex; align-items:center; gap:5px; max-width:100%;
-    background:var(--card2); border:1px solid var(--border2); border-radius:3px; padding:2px 4px 2px 8px;
-  }
-  .cliv-chip .cv {
-    cursor:text; font-family:'JetBrains Mono',monospace; font-size:12px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .cliv-chip.mail .cv { font-family:inherit; font-size:12.5px; }
-  /* Correo con persona: el nombre y la dirección se editan por separado,
-     cada uno con su propio clic dentro de la misma etiqueta. */
-  .cliv-chip .cq { cursor:text; font-size:12px; font-weight:600; color:var(--green); white-space:nowrap; }
-  .cliv-chip .cq.sinq { font-weight:400; color:var(--muted); opacity:.75; font-style:italic; }
-  .cliv-chip .csep { color:var(--muted); opacity:.5; font-size:11px; }
-  .cliv-chip .cx {
-    appearance:none; background:none; border:0; cursor:pointer; color:var(--muted);
-    font-size:14px; line-height:1; padding:0 2px; border-radius:2px;
-  }
-  .cliv-chip .cx:hover { color:#C4534D; background:rgba(196,83,77,0.15); }
   .cliv-add {
     appearance:none; background:none; border:1px dashed var(--border2); border-radius:3px;
     cursor:pointer; color:var(--muted); padding:3px 8px; line-height:1;
@@ -680,11 +659,15 @@
   .client-card.cliv-fic { cursor:default; padding:15px 16px 13px; }
   .client-card.cliv-fic:hover { transform:none; }
 
+  /* Nombre y check arriba, país debajo. Todo en una línea dejaba al
+     nombre del cliente partido en tres. */
   .cliv-fh {
-    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    display:flex; flex-direction:column; align-items:flex-start; gap:6px;
     margin:0 -16px; padding:0 16px 11px;
     border-bottom:1px solid var(--border2);
   }
+  .cliv-fh-top { display:flex; align-items:flex-start; gap:10px; width:100%; }
+  .cliv-fh-top .cliv-nom { flex:1; min-width:0; }
   .cliv-fic .cliv-nom { font-size:15px; letter-spacing:-0.01em; }
   /* El país como chip y no como texto suelto: deja de competir con el nombre */
   .cliv-fic .cliv-sub {
@@ -701,18 +684,14 @@
     font-size:12.5px; transition:background var(--transition);
   }
   .cliv-li:last-child { border-bottom:0; }
+  /* Contactos no entra en la grilla de dos columnas: la etiqueta de 52px
+     no alcanza para la palabra y se montaba encima del nombre. */
+  .cliv-li-full { display:block; }
+  .cliv-li-full .cliv-lk { display:block; text-align:left; margin-bottom:7px; padding-top:0; }
   .cliv-li:hover { background:var(--green-glow); }
   /* Sin esto la celda no puede achicarse y una etiqueta larga —un correo—
      se sale por el borde de la tarjeta en vez de acomodarse adentro. */
   .cliv-li > * { min-width:0; }
-  .cliv-fic .cliv-chips { min-width:0; }
-  /* En la tarjeta el correo largo baja de línea. Cortarlo con puntos
-     suspensivos deja una dirección que no se puede leer ni copiar. */
-  /* break-word y no anywhere: con anywhere el navegador corta donde le
-     queda cómodo e ignora el <wbr> que ponemos después de la arroba. */
-  .cliv-fic .cliv-chip .cv {
-    white-space:normal; overflow-wrap:break-word; text-overflow:clip; overflow:visible;
-  }
   .cliv-lk {
     padding-top:3px; text-align:right;
     font-family:var(--cond); font-size:11px; font-weight:700;
@@ -730,6 +709,67 @@
   .client-card.cliv-fic:hover .cliv-fa,
   .client-card.cliv-fic:focus-within .cliv-fa { opacity:1; }
   .cliv-vacia { font-size:12px; font-style:italic; color:var(--muted); opacity:.7; }
+
+  /* ── Contactos: una persona, y debajo lo suyo ── */
+  .cliv-pers { display:flex; flex-direction:column; gap:9px; align-items:flex-start; }
+  .cliv-per { width:100%; }
+  .cliv-per-h { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+  .cliv-per-n {
+    cursor:text; font-size:12.5px; font-weight:700; color:var(--green);
+    border-radius:3px; padding:1px 5px; margin-left:-5px;
+  }
+  .cliv-per-n:hover { background:var(--green-glow); }
+  .cliv-per-n.sinq { font-weight:400; font-style:italic; color:var(--muted); opacity:.75; }
+  .cliv-dato {
+    display:flex; align-items:baseline; gap:7px;
+    padding-left:11px; margin-bottom:1px;
+    border-left:2px solid var(--border2);
+  }
+  .cliv-dato .dk {
+    flex:0 0 26px; font-family:var(--cond); font-size:10.5px; font-weight:700;
+    letter-spacing:1px; text-transform:uppercase; color:var(--muted); opacity:.7;
+  }
+  .cliv-dato .dv {
+    cursor:text; font-size:12.5px; min-width:0;
+    overflow-wrap:break-word; border-radius:3px; padding:1px 4px; margin-left:-4px;
+  }
+  .cliv-dato .dv.mono { font-family:'JetBrains Mono',monospace; font-size:12px; }
+  .cliv-dato .dv:hover { background:var(--green-glow); }
+  .cliv-dato .cx {
+    appearance:none; background:none; border:0; cursor:pointer; color:var(--muted);
+    font-size:12px; line-height:1; padding:0 3px; border-radius:2px; opacity:.55;
+  }
+  .cliv-dato .cx:hover, .cliv-per-h .cx:hover { color:#C4534D; background:rgba(196,83,77,0.15); opacity:1; }
+  .cliv-per-h .cx {
+    appearance:none; background:none; border:0; cursor:pointer; color:var(--muted);
+    font-size:12px; line-height:1; padding:0 3px; border-radius:2px; opacity:.45;
+  }
+  .cliv-per-add { display:flex; gap:5px; margin-top:4px; padding-left:11px; }
+  .cliv-per-add .cliv-add { font-size:11px; padding:2px 7px; }
+  .cliv-add-per { margin-top:2px; }
+
+  /* ── Marca de ficha completa ── */
+  .cliv-chk {
+    appearance:none; cursor:pointer; flex-shrink:0;
+    width:22px; height:22px; border-radius:4px; line-height:1; font-size:12px;
+    background:transparent; border:1px solid var(--border2); color:transparent;
+    transition:background var(--transition), border-color var(--transition), color var(--transition);
+  }
+  .cliv-chk:hover { border-color:var(--muted); color:var(--muted); }
+  .cliv-chk.on { background:#3E86B5; border-color:#3E86B5; color:#fff; }
+  .cliv-td-chk { width:36px; text-align:center; }
+  .cliv-fh-r { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+
+  /* Celeste tenue: revisada y sin nada pendiente. */
+  .client-card.cliv-fic.completa { background:#EDF5FB; border-color:#A8CBE4; }
+  .cliv-tabla tr.completa { background:#EDF5FB; }
+  .cliv-tabla tr.completa:hover { background:#E3EFF8; }
+  [data-theme="dark"] .client-card.cliv-fic.completa {
+    background:rgba(87,175,210,0.085); border-color:rgba(87,175,210,0.32);
+  }
+  [data-theme="dark"] .cliv-tabla tr.completa { background:rgba(87,175,210,0.075); }
+  [data-theme="dark"] .cliv-tabla tr.completa:hover { background:rgba(87,175,210,0.12); }
+  .cliv-td-per { min-width:230px; }
 
   /* ===================== BANCOS ===================== */
   .bancos-lock { text-align:center; padding:80px 20px; }
@@ -1402,16 +1442,20 @@
       <!-- ===== CLIENTES ===== -->
       <div class="panel" id="panel-clientes">
 
+        <!-- Lista de países compartida por el filtro de la barra y el
+             campo del modal. Va acá y no adentro del modal: un datalist
+             dentro de algo oculto no siempre funciona. -->
+        <datalist id="clivPaisesLista"></datalist>
+
         <!-- Toolbar principal -->
         <div class="toolbar">
           <div class="search-box">
             <input type="text" id="clientSearch" placeholder="Buscar cliente..." oninput="filterClientes()" />
           </div>
-          <select class="filter-select" id="clientFilterPais" onchange="filterClientes()">
-            <option value="">Todos los países</option>
-            <option>Ecuador</option><option>Perú</option><option>Colombia</option>
-            <option>Argentina</option><option>EEUU</option><option>México</option>
-          </select>
+          <!-- Escribís y filtra. Antes era un desplegable de seis países
+               que además no filtraba nada: filterClientes() nunca lo leía. -->
+          <input class="filter-select" type="text" id="clientFilterPais" list="clivPaisesLista"
+                 autocomplete="off" placeholder="Todos los países" oninput="clivFiltrarPorPais()">
           <!-- Acciones bulk -->
           <div id="clientBulkBar" style="display:none;align-items:center;gap:8px">
             <span id="clientBulkCount" style="font-size:13px;font-weight:600;color:var(--green)"></span>
@@ -1444,8 +1488,8 @@
           <table class="data-table cliv-tabla">
             <thead><tr>
               <th class="cliv-th-sel" style="display:none"></th>
-              <th>Cliente</th><th>RUC / Tax ID</th><th>Teléfonos</th>
-              <th>Correos</th><th>Dirección</th><th></th>
+              <th>Cliente</th><th>RUC / Tax ID</th><th>Contactos</th>
+              <th>Dirección</th><th title="Ficha completa">✓</th><th></th>
             </tr></thead>
             <tbody id="clientTabla"></tbody>
           </table>
@@ -1897,7 +1941,12 @@
       <div class="field"><label>Empresa / Institución</label><input type="text" id="cliEmpresa" placeholder="Nombre de la organización" /></div>
       <div class="field"><label>Email</label><input type="email" id="cliEmail" placeholder="email@cliente.com" /></div>
       <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="cliTel" placeholder="+1 305 XXX XXXX" /></div>
-      <div class="field"><label>País</label><select id="cliPais"><option>Ecuador</option><option>Perú</option><option>Colombia</option><option>Argentina</option><option>EEUU</option><option>México</option><option>Otro</option></select></div>
+      <!-- Campo con lista: escribís dos letras y filtra, pero también
+           acepta cualquier país que no esté en la lista. -->
+      <div class="field"><label>País</label>
+        <input type="text" id="cliPais" list="clivPaisesLista" autocomplete="off"
+               placeholder="Escribí y elegí, o poné el que quieras">
+      </div>
       <div class="field"><label>Ciudad</label><input type="text" id="cliCiudad" placeholder="Ciudad" /></div>
       <div class="field"><label>RUC / Tax ID <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label><input type="text" id="cliRuc" placeholder="20607536563" /></div>
       <div class="field"><label>Domicilio fiscal <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label><input type="text" id="cliDirFiscal" placeholder="Av. Ejemplo 123, Lima" /></div>
@@ -3950,6 +3999,28 @@ const CLIV_BANDERAS = {
   'turquia':'🇹🇷', 'sudafrica':'🇿🇦', 'australia':'🇦🇺'
 };
 
+// Los mismos pa\u00edses de arriba, escritos como se muestran. Alimentan
+// el campo del modal y el filtro de la barra: los dos aceptan escribir
+// libre, as\u00ed que un pa\u00eds que no est\u00e9 ac\u00e1 igual se puede cargar.
+const CLIV_PAISES = [
+  'Alemania','Argentina','Aruba','Australia','Bahamas','Barbados','Belice','Bolivia',
+  'Brasil','Canad\u00e1','Chile','China','Colombia','Corea del Sur','Costa Rica','Cuba',
+  'Curazao','Ecuador','EEUU','El Salvador','Espa\u00f1a','Francia','Guatemala','Guyana',
+  'Hait\u00ed','Honduras','India','Israel','Italia','Jamaica','Jap\u00f3n','M\u00e9xico','Nicaragua',
+  'Panam\u00e1','Paraguay','Per\u00fa','Portugal','Puerto Rico','Reino Unido',
+  'Rep\u00fablica Dominicana','Sud\u00e1frica','Surinam','Trinidad y Tobago','Turqu\u00eda',
+  'Uruguay','Venezuela'
+];
+
+function clivLlenarPaises() {
+  const dl = document.getElementById('clivPaisesLista');
+  if (!dl || dl.childElementCount) return;
+  dl.innerHTML = CLIV_PAISES.map(p => {
+    const b = clivBandera(p);
+    return `<option value="${clivEsc(p)}">${b ? b + ' ' : ''}${clivEsc(p)}</option>`;
+  }).join('');
+}
+
 function clivNorm(s) {
   return String(s == null ? '' : s)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -3969,19 +4040,6 @@ function clivSub(c) {
 function clivEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g, ch =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[ch]);
-}
-
-// El Sheet guarda un solo texto por columna. Varios teléfonos conviven
-// separados por barra —que es como venían y como los dejó la limpieza—
-// y varios correos por coma.
-function clivPartes(txt, campo) {
-  const s = String(txt == null ? '' : txt).trim();
-  if (!s) return [];
-  const sep = (campo === 'tel') ? /\s*\/\s*/ : /\s*[,;\/]\s*/;
-  return s.split(sep).map(x => x.trim()).filter(Boolean);
-}
-function clivUnir(arr, campo) {
-  return arr.join(campo === 'tel' ? ' / ' : ', ');
 }
 
 // La búsqueda en el Sheet devuelve objetos nuevos, distintos de los de
@@ -4016,6 +4074,7 @@ function renderClientes(data) {
 
   if (!CLIV_INIT) {
     CLIV_INIT = true;
+    clivLlenarPaises();
     let v = 'lista', o = 'recientes';
     try {
       v = localStorage.getItem('AME_CLI_VISTA') || 'lista';
@@ -4042,9 +4101,10 @@ function renderClientes(data) {
     return;
   }
 
-  const vis = clivOrdenar(list);
+  const vis = clivOrdenar(clivFiltrarPais(list));
   if (CLIV_VISTA === 'lista') clivTabla(vis);
   else                        clivFichas(vis);
+  clivEtiqueta(vis.length);
 }
 
 // ── Vista Lista ───────────────────────────────────────────
@@ -4055,18 +4115,20 @@ function clivTabla(list) {
     th.style.display = selectMode ? '' : 'none';
   });
   tb.innerHTML = list.map(c => {
-    const sel  = clientSelected.has(c.id);
-    const sub  = clivSub(c);
-    const chk  = selectMode
+    const sel      = clientSelected.has(c.id);
+    const completo = clivEsCompleto(c);
+    const sub      = clivSub(c);
+    const chk      = selectMode
       ? `<td class="cliv-td-sel"><input type="checkbox" ${sel ? 'checked' : ''}
            onclick="toggleClientCard('${c.id}')"></td>` : '';
-    return `<tr${sel ? ' style="background:var(--green-glow)"' : ''}>` + chk +
+    const clases = (completo ? ' class="completa"' : '');
+    return `<tr${clases}${sel ? ' style="background:var(--green-glow)"' : ''}>` + chk +
       `<td><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
         (sub ? `<span class="cliv-sub">${sub}</span>` : '') + `</td>` +
       `<td>${clivCelda(c.id, 'ruc', 'sin RUC', true)}</td>` +
-      `<td>${clivChips(c.id, 'tel', 'tel')}</td>` +
-      `<td>${clivCorreos(c.id, 'correo')}</td>` +
+      `<td class="cliv-td-per">${clivPersonas(c.id)}</td>` +
       `<td style="max-width:250px">${clivCelda(c.id, 'dir_fiscal', 'sin dirección', false)}</td>` +
+      `<td class="cliv-td-chk">${clivCheck(c.id, completo)}</td>` +
       `<td class="cliv-td-acc"><button class="cliv-mas" title="Abrir ficha completa"
           onclick="openEditCliente('${c.id}')">⋯</button></td></tr>`;
   }).join('');
@@ -4079,18 +4141,16 @@ function clivFichas(list) {
   const grid = document.getElementById('clientGrid');
   if (!grid) return;
   grid.innerHTML = list.map(c => {
-    const sel = clientSelected.has(c.id);
+    const sel      = clientSelected.has(c.id);
+    const completo = clivEsCompleto(c);
+
     let cuerpo = '';
     if (c.ruc)        cuerpo += `<div class="cliv-li"><span class="cliv-lk">RUC</span><span class="cliv-mono">${clivCelda(c.id,'ruc','',true)}</span></div>`;
-    if (c.tel)        cuerpo += `<div class="cliv-li"><span class="cliv-lk">Tel</span><span>${clivChips(c.id,'tel','')}</span></div>`;
-    if (c.email)      cuerpo += `<div class="cliv-li"><span class="cliv-lk">Mail</span><span>${clivCorreos(c.id,'')}</span></div>`;
+    cuerpo += `<div class="cliv-li cliv-li-full"><span class="cliv-lk">Contactos</span>${clivPersonas(c.id)}</div>`;
     if (c.dir_fiscal) cuerpo += `<div class="cliv-li"><span class="cliv-lk">Dir</span><span>${clivCelda(c.id,'dir_fiscal','',false)}</span></div>`;
     if (c.notas)      cuerpo += `<div class="cliv-li"><span class="cliv-lk">Nota</span><span>${clivCelda(c.id,'notas','',false)}</span></div>`;
-    if (!cuerpo)      cuerpo  = `<div class="cliv-vacia">Sin datos de contacto todavía</div>`;
 
     let faltan = '';
-    if (!c.tel)        faltan += `<button class="cliv-add" onclick="clivEditarChip(this,'${c.id}','tel',-1)">+ teléfono</button>`;
-    if (!c.email)      faltan += `<button class="cliv-add" onclick="clivEditCorreo(this,'${c.id}',-1,'m')">+ correo</button>`;
     if (!c.ruc)        faltan += `<button class="cliv-add" onclick="clivEditar(this,'${c.id}','ruc')">+ RUC</button>`;
     if (!c.dir_fiscal) faltan += `<button class="cliv-add" onclick="clivEditar(this,'${c.id}','dir_fiscal')">+ dirección</button>`;
     faltan += `<button class="cliv-add" onclick="openEditCliente('${c.id}')">Ficha completa</button>`;
@@ -4100,9 +4160,11 @@ function clivFichas(list) {
       ? `<div style="position:absolute;top:12px;right:12px"><input type="checkbox" ${sel ? 'checked' : ''}
            onclick="toggleClientCard('${c.id}')"></div>` : '';
 
-    return `<div class="client-card cliv-fic${sel ? ' selected' : ''}" data-id="${c.id}">` + chk +
-      `<div class="cliv-fh"><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
-        (sub ? `<span class="cliv-sub" style="margin:0;white-space:nowrap">${sub}</span>` : '') +
+    return `<div class="client-card cliv-fic${completo ? ' completa' : ''}${sel ? ' selected' : ''}" data-id="${c.id}">` + chk +
+      `<div class="cliv-fh">` +
+        `<span class="cliv-fh-top"><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
+          clivCheck(c.id, completo) + `</span>` +
+        (sub ? `<span class="cliv-sub">${sub}</span>` : '') +
       `</div><div class="cliv-fb">${cuerpo}</div>` +
       `<div class="cliv-fa">${faltan}</div></div>`;
   }).join('');
@@ -4116,119 +4178,190 @@ function clivCelda(id, campo, ph, mono) {
     data-ph="${clivEsc(ph)}" onclick="clivEditar(this,'${id}','${campo}')">${clivEsc(v)}</span>`;
 }
 
-function clivChips(id, campo, etiqueta) {
-  const o      = clivObjs(id)[0];
-  const partes = clivPartes(o ? o[campo] : '', campo);
-  let h = '<div class="cliv-chips">';
-  partes.forEach((v, x) => {
-    h += `<span class="cliv-chip${campo === 'email' ? ' mail' : ''}">` +
-         `<span class="cv" onclick="clivEditarChip(this,'${id}','${campo}',${x})">${clivEsc(v)}</span>` +
-         `<button class="cx" title="Quitar" onclick="clivQuitarChip('${id}','${campo}',${x})">✕</button></span>`;
-  });
-  h += `<button class="cliv-add" onclick="clivEditarChip(this,'${id}','${campo}',-1)">` +
-       (etiqueta ? '+ ' + clivEsc(etiqueta) : '+') + `</button></div>`;
-  return h;
-}
+// ── Contactos: personas, no campos sueltos ────────────────
+// Un cliente tiene personas, y cada persona tiene su teléfono y su
+// correo. Se siguen guardando en las dos columnas de siempre —Teléfono
+// y Email— con el formato Nombre <valor>, y se agrupan por nombre al
+// leer. Así no hay que migrar la planilla, cada celda se entiende sola,
+// y un correo suelto sin persona sigue siendo válido.
 
-// ── Correos con persona de contacto ───────────────────────
-// Van en la misma celda del Sheet, con el formato de toda la vida de
-// los clientes de correo: Alejandra Ponce <alejandra.ponce@zoll.com>,
-// separados por coma. Un correo suelto sin nombre sigue siendo válido,
-// así lo que ya está cargado se lee sin migrar nada — y si algún día
-// esto va a un campo Para: de un mail, entra tal cual.
-function clivPartirCorreos(txt) {
+function clivPartirPares(txt) {
   const s = String(txt == null ? '' : txt).trim();
   if (!s) return [];
-  // Corta por coma o punto y coma, pero NUNCA adentro de los <>.
+  // Corta por coma, punto y coma o barra, pero NUNCA adentro de los <>.
   const trozos = [];
   let buf = '', dentro = false;
   for (const ch of s) {
     if (ch === '<') dentro = true;
     else if (ch === '>') dentro = false;
-    if (!dentro && (ch === ',' || ch === ';')) { trozos.push(buf); buf = ''; continue; }
+    if (!dentro && (ch === ',' || ch === ';' || ch === '/')) { trozos.push(buf); buf = ''; continue; }
     buf += ch;
   }
   trozos.push(buf);
   return trozos.map(t => t.trim()).filter(Boolean).map(t => {
     const m = t.match(/^(.*?)\s*<\s*([^<>]+?)\s*>$/);
-    return m ? { q: m[1].trim().replace(/^["']|["']$/g, ''), m: m[2].trim() }
-             : { q: '', m: t };
+    return m ? { q: m[1].trim().replace(/^["']|["']$/g, ''), v: m[2].trim() }
+             : { q: '', v: t };
   });
 }
-function clivArmarCorreos(arr) {
-  return arr.filter(e => e.m).map(e => e.q ? (e.q + ' <' + e.m + '>') : e.m).join(', ');
-}
-// El nombre no puede llevar coma, punto y coma ni <>: romperían el formato.
+
+// El nombre no puede llevar coma, punto y coma, barra ni <>: romperían
+// el formato con el que se guarda.
 function clivLimpiarQuien(s) {
-  return String(s == null ? '' : s).replace(/[,;<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  return String(s == null ? '' : s).replace(/[,;<>\/]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function clivCorreos(id, etiqueta) {
-  const o     = clivObjs(id)[0];
-  const lista = clivPartirCorreos(o ? o.email : '');
-  let h = '<div class="cliv-chips">';
-  lista.forEach((e, x) => {
-    h += `<span class="cliv-chip mail">` +
-      `<span class="cq${e.q ? '' : ' sinq'}" title="Persona de contacto"` +
-        ` onclick="clivEditCorreo(this,'${id}',${x},'q')">${e.q ? clivEsc(e.q) : 'quién'}</span>` +
-      `<span class="csep">·</span>` +
-      // El <wbr> le da al navegador un lugar donde cortar la dirección
-      // si no entra: parte después de la arroba en vez de a mitad de
-      // palabra. No es texto, así que copiar el correo lo trae limpio.
-      `<span class="cv" onclick="clivEditCorreo(this,'${id}',${x},'m')">` +
-        clivEsc(e.m).replace('@', '@<wbr>') + `</span>` +
-      `<button class="cx" title="Quitar" onclick="clivQuitarCorreo('${id}',${x})">✕</button></span>`;
+function clivContactos(c) {
+  const orden = [], mapa = {};
+  const meter = (par, tipo) => {
+    const k = clivNorm(par.q);
+    if (!mapa[k]) { mapa[k] = { q: par.q, tel: [], mail: [] }; orden.push(k); }
+    if (par.q && !mapa[k].q) mapa[k].q = par.q;
+    mapa[k][tipo].push(par.v);
+  };
+  clivPartirPares(c ? c.tel   : '').forEach(p => meter(p, 'tel'));
+  clivPartirPares(c ? c.email : '').forEach(p => meter(p, 'mail'));
+  const arr = orden.map(k => mapa[k]);
+  // Los sin nombre al final: son datos de la empresa, no de una persona.
+  return arr.filter(x => x.q).concat(arr.filter(x => !x.q));
+}
+
+function clivArmarColumnas(cts) {
+  const tel = [], mail = [];
+  cts.forEach(ct => {
+    ct.tel.forEach(v  => { if (v) tel.push(ct.q  ? ct.q + ' <' + v + '>' : v); });
+    ct.mail.forEach(v => { if (v) mail.push(ct.q ? ct.q + ' <' + v + '>' : v); });
   });
-  h += `<button class="cliv-add" onclick="clivEditCorreo(this,'${id}',-1,'m')">` +
-       (etiqueta ? '+ ' + clivEsc(etiqueta) : '+') + `</button></div>`;
-  return h;
+  return { tel: tel.join(' / '), email: mail.join(', ') };
 }
 
-function clivEditCorreo(el, id, x, cual) {
-  const o = clivObjs(id)[0];
-  if (!o) return;
-  const lista = clivPartirCorreos(o.email);
-  const nuevo = (x < 0);
+// Una persona sin teléfono ni correo no deja rastro en las columnas, así
+// que se sostiene acá mientras se la está cargando. Si no, desaparecería
+// entre que escribís el nombre y escribís el teléfono.
+let CLIV_PENDIENTE = null;   // { id, q }
 
-  const inp = document.createElement('input');
-  inp.className = 'cliv-inp';
-  inp.style.minWidth = (cual === 'q') ? '150px' : '190px';
-  inp.value = nuevo ? '' : (lista[x] ? lista[x][cual] : '');
-  inp.placeholder = (cual === 'q') ? 'Nombre y apellido' : 'nombre@empresa.com';
-  el.replaceWith(inp);
-  inp.focus(); inp.select();
-
-  let cerrado = false;
-  const cerrar = (guardar) => {
-    if (cerrado) return;
-    cerrado = true;
-    if (!guardar) { renderClientes(CLIV_LISTA); return; }
-    const v = inp.value.trim();
-    if (nuevo) {
-      // Acepta un correo suelto o un "Nombre <correo>" pegado de una.
-      if (v) lista.push(clivPartirCorreos(v)[0] || { q: '', m: v });
-    } else if (cual === 'q') {
-      lista[x].q = clivLimpiarQuien(v);
-    } else if (v) {
-      lista[x].m = v;
-    } else {
-      lista.splice(x, 1);          // borrar la dirección borra la entrada
-    }
-    clivSet(id, 'email', clivArmarCorreos(lista));
-  };
-  inp.onblur = () => cerrar(true);
-  inp.onkeydown = (e) => {
-    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
-    if (e.key === 'Escape') { inp.onblur = null; cerrar(false); }
-  };
+function clivSetContactos(id, cts) {
+  const conDatos = cts.filter(ct => ct.tel.length || ct.mail.length);
+  const sinDatos = cts.filter(ct => ct.q && !ct.tel.length && !ct.mail.length);
+  CLIV_PENDIENTE = sinDatos.length
+    ? { id: id, q: sinDatos[sinDatos.length - 1].q }
+    : null;
+  clivSetVarios(id, clivArmarColumnas(conDatos));
 }
 
-function clivQuitarCorreo(id, x) {
-  const o = clivObjs(id)[0];
-  if (!o) return;
-  const lista = clivPartirCorreos(o.email);
-  lista.splice(x, 1);
-  clivSet(id, 'email', clivArmarCorreos(lista));
+function clivListaContactos(id) {
+  const cts = clivContactos(clivObjs(id)[0]);
+  if (CLIV_PENDIENTE && CLIV_PENDIENTE.id === id) {
+    cts.push({ q: CLIV_PENDIENTE.q, tel: [], mail: [] });
+  }
+  return cts;
+}
+
+// ── Marca de ficha completa ───────────────────────────────
+function clivEsCompleto(c) {
+  const v = c ? String(c.completo == null ? '' : c.completo).trim().toLowerCase() : '';
+  return v === 'si' || v === 'sí' || v === 'true' || v === '1' || v === 'x';
+}
+function clivToggleCompleto(id) {
+  const c = clivObjs(id)[0];
+  if (!c) return;
+  clivSetVarios(id, { completo: clivEsCompleto(c) ? '' : 'SI' });
+}
+function clivCheck(id, completo) {
+  return `<button class="cliv-chk${completo ? ' on' : ''}" type="button"` +
+    ` title="${completo ? 'Ficha completa · clic para desmarcar' : 'Marcar la ficha como completa'}"` +
+    ` onclick="clivToggleCompleto('${id}')">✓</button>`;
+}
+
+// ── Dibujo de los contactos ───────────────────────────────
+// Cuando la ficha está marcada completa no se muestran las cruces:
+// ya está revisada y no hay por qué borrar nada de un clic distraído.
+function clivPersonas(id) {
+  const c        = clivObjs(id)[0];
+  const completo = clivEsCompleto(c);
+  const cts      = clivListaContactos(id);
+
+  let h = '<div class="cliv-pers">';
+  cts.forEach((ct, i) => {
+    const vacia = !ct.tel.length && !ct.mail.length;
+    h += `<div class="cliv-per">`;
+    h += `<div class="cliv-per-h">` +
+      `<span class="cliv-per-n${ct.q ? '' : ' sinq'}"` +
+        ` onclick="clivEditPersona(this,'${id}',${i})">` +
+        `${ct.q ? clivEsc(ct.q) : 'sin nombre'}</span>` +
+      (completo ? '' : `<button class="cx" title="Quitar contacto"` +
+        ` onclick="clivQuitarPersona('${id}',${i})">✕</button>`) +
+      `</div>`;
+
+    ct.tel.forEach((v, x) => {
+      h += `<div class="cliv-dato"><span class="dk">tel</span>` +
+        `<span class="dv mono" onclick="clivEditDato(this,'${id}',${i},'tel',${x})">${clivEsc(v)}</span>` +
+        (completo ? '' : `<button class="cx" onclick="clivQuitarDato('${id}',${i},'tel',${x})">✕</button>`) +
+        `</div>`;
+    });
+    ct.mail.forEach((v, x) => {
+      h += `<div class="cliv-dato"><span class="dk">mail</span>` +
+        `<span class="dv" onclick="clivEditDato(this,'${id}',${i},'mail',${x})">` +
+          clivEsc(v).replace('@', '@<wbr>') + `</span>` +
+        (completo ? '' : `<button class="cx" onclick="clivQuitarDato('${id}',${i},'mail',${x})">✕</button>`) +
+        `</div>`;
+    });
+
+    if (vacia) h += `<div class="cliv-dato"><span class="cliv-vacia">falta el teléfono o el correo</span></div>`;
+    h += `<div class="cliv-per-add">` +
+      `<button class="cliv-add" onclick="clivNuevoDato(this,'${id}',${i},'tel')">+ tel</button>` +
+      `<button class="cliv-add" onclick="clivNuevoDato(this,'${id}',${i},'mail')">+ correo</button>` +
+      `</div></div>`;
+  });
+
+  h += `<button class="cliv-add cliv-add-per" onclick="clivNuevaPersona(this,'${id}')">+ contacto</button>`;
+  return h + '</div>';
+}
+
+// ── Edición de contactos ──────────────────────────────────
+function clivEditPersona(el, id, i) {
+  const cts = clivListaContactos(id);
+  if (!cts[i]) return;
+  clivInput(el, cts[i].q, 'Nombre y apellido', v => {
+    cts[i].q = clivLimpiarQuien(v);
+    clivSetContactos(id, cts);
+  });
+}
+function clivQuitarPersona(id, i) {
+  const cts = clivListaContactos(id);
+  cts.splice(i, 1);
+  clivSetContactos(id, cts);
+}
+function clivEditDato(el, id, i, tipo, x) {
+  const cts = clivListaContactos(id);
+  if (!cts[i]) return;
+  clivInput(el, cts[i][tipo][x], tipo === 'tel' ? '+51 999 888 777' : 'nombre@empresa.com', v => {
+    if (v) cts[i][tipo][x] = v;
+    else   cts[i][tipo].splice(x, 1);
+    clivSetContactos(id, cts);
+  });
+}
+function clivQuitarDato(id, i, tipo, x) {
+  const cts = clivListaContactos(id);
+  if (!cts[i]) return;
+  cts[i][tipo].splice(x, 1);
+  clivSetContactos(id, cts);
+}
+function clivNuevoDato(el, id, i, tipo) {
+  const cts = clivListaContactos(id);
+  if (!cts[i]) return;
+  clivInput(el, '', tipo === 'tel' ? '+51 999 888 777' : 'nombre@empresa.com', v => {
+    if (v) cts[i][tipo].push(v);
+    clivSetContactos(id, cts);
+  });
+}
+function clivNuevaPersona(el, id) {
+  const cts = clivListaContactos(id);
+  clivInput(el, '', 'Nombre y apellido', v => {
+    const q = clivLimpiarQuien(v);
+    if (q) cts.push({ q: q, tel: [], mail: [] });
+    clivSetContactos(id, cts);
+  });
 }
 
 // ── Orden de la lista ─────────────────────────────────────
@@ -4240,45 +4373,68 @@ function clivOrdenar(list) {
     String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', { sensitivity: 'base' }));
 }
 
+// Ordenar de la A a la Z, o filtrar por país, sobre los últimos 20 no
+// dice nada: hay que mirarlos a todos. Se piden UNA vez y quedan
+// guardados, así ir y volver después no cuesta otro viaje.
+function clivAsegurarTodos(cb) {
+  if (CLIV_TODOS) { cb(); return; }
+  const lbl = document.getElementById('clientCountLabel');
+  if (lbl) lbl.textContent = 'Trayendo todos los clientes…';
+  api('getClientes').then(r => {
+    if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo traer la lista', 'error'); return; }
+    CLIV_TODOS = r.data;
+    cb();
+  });
+}
+
+function clivPaisActivo() {
+  const el = document.getElementById('clientFilterPais');
+  return el ? clivNorm(el.value) : '';
+}
+function clivFiltrarPais(list) {
+  const v = clivPaisActivo();
+  if (!v) return list;
+  return list.filter(c => clivNorm(c.pais).indexOf(v) > -1);
+}
+function clivFiltrarPorPais() {
+  if (!clivPaisActivo()) {
+    if (CLIV_ORDEN === 'alfa') clivOrden('alfa');
+    else                       loadClientesRecientes();
+    return;
+  }
+  clivAsegurarTodos(() => { CLIENTES = CLIV_TODOS; renderClientes(); });
+}
+
+function clivEtiqueta(n) {
+  const lbl = document.getElementById('clientCountLabel');
+  if (!lbl) return;
+  const bus = document.getElementById('clientSearch');
+  if (bus && bus.value.trim()) return;          // el buscador pone la suya
+  const p    = document.getElementById('clientFilterPais');
+  const pais = p ? p.value.trim() : '';
+  if (pais)                    lbl.textContent = n + (n === 1 ? ' cliente en ' : ' clientes en ') + pais;
+  else if (CLIV_ORDEN === 'alfa') lbl.textContent = n + ' clientes · de la A a la Z';
+  else                         lbl.textContent = 'Últimos 20 · escribí para buscar entre todos';
+}
+
 function clivOrden(v) {
   CLIV_ORDEN = (v === 'alfa') ? 'alfa' : 'recientes';
   try { localStorage.setItem('AME_CLI_ORDEN', CLIV_ORDEN); } catch (e) {}
   document.querySelectorAll('#clivOrdenSw .cliv-sw-b').forEach(b => {
     b.classList.toggle('on', b.dataset.o === CLIV_ORDEN);
   });
-  const lbl = document.getElementById('clientCountLabel');
 
-  if (CLIV_ORDEN !== 'alfa') { loadClientesRecientes(); return; }
-
-  // De la A a la Z sobre los últimos 20 no dice nada: hay que traerlos
-  // todos. Se piden UNA vez y quedan guardados para ir y volver gratis.
-  const pintar = () => {
-    CLIENTES = CLIV_TODOS;
-    renderClientes();
-    if (lbl) lbl.textContent = CLIV_TODOS.length + ' clientes · de la A a la Z';
-  };
-  if (CLIV_TODOS) { pintar(); return; }
-
-  if (lbl) lbl.textContent = 'Trayendo todos los clientes…';
-  api('getClientes').then(r => {
-    if (!r || !r.ok) {
-      showToast((r && r.error) || 'No se pudo traer la lista', 'error');
-      clivOrden('recientes');
-      return;
-    }
-    CLIV_TODOS = r.data;
-    pintar();
-  });
+  if (CLIV_ORDEN !== 'alfa' && !clivPaisActivo()) { loadClientesRecientes(); return; }
+  clivAsegurarTodos(() => { CLIENTES = CLIV_TODOS; renderClientes(); });
 }
 
 // Cambia el <span> por un <input> en el mismo lugar. Enter o salir
 // del campo confirma; Escape cancela y deja lo que había.
-function clivEditar(el, id, campo) {
-  const o = clivObjs(id)[0];
-  if (!o) return;
+function clivInput(el, valor, ph, alGuardar) {
   const inp = document.createElement('input');
   inp.className = 'cliv-inp';
-  inp.value = o[campo] == null ? '' : String(o[campo]);
+  inp.value = (valor == null) ? '' : String(valor);
+  if (ph) inp.placeholder = ph;
   el.replaceWith(inp);
   inp.focus(); inp.select();
 
@@ -4286,7 +4442,7 @@ function clivEditar(el, id, campo) {
   const cerrar = (guardar) => {
     if (cerrado) return;
     cerrado = true;
-    if (guardar) clivSet(id, campo, inp.value.trim());
+    if (guardar) alGuardar(inp.value.trim());
     else         renderClientes(CLIV_LISTA);
   };
   inp.onblur = () => cerrar(true);
@@ -4296,59 +4452,37 @@ function clivEditar(el, id, campo) {
   };
 }
 
-function clivEditarChip(el, id, campo, x) {
+function clivEditar(el, id, campo) {
   const o = clivObjs(id)[0];
   if (!o) return;
-  const partes = clivPartes(o[campo], campo);
-  const nuevo  = (x < 0);
-
-  const inp = document.createElement('input');
-  inp.className = 'cliv-inp';
-  inp.style.minWidth = '170px';
-  inp.value = nuevo ? '' : (partes[x] || '');
-  inp.placeholder = (campo === 'tel') ? '+51 999 888 777' : 'nombre@empresa.com';
-  el.replaceWith(inp);
-  inp.focus(); inp.select();
-
-  let cerrado = false;
-  const cerrar = (guardar) => {
-    if (cerrado) return;
-    cerrado = true;
-    if (!guardar) { renderClientes(CLIV_LISTA); return; }
-    const v = inp.value.trim();
-    if (nuevo)   { if (v) partes.push(v); }
-    else if (v)  { partes[x] = v; }
-    else         { partes.splice(x, 1); }
-    clivSet(id, campo, clivUnir(partes, campo));
-  };
-  inp.onblur = () => cerrar(true);
-  inp.onkeydown = (e) => {
-    if (e.key === 'Enter')  { e.preventDefault(); inp.blur(); }
-    if (e.key === 'Escape') { inp.onblur = null; cerrar(false); }
-  };
-}
-
-function clivQuitarChip(id, campo, x) {
-  const o = clivObjs(id)[0];
-  if (!o) return;
-  const partes = clivPartes(o[campo], campo);
-  partes.splice(x, 1);
-  clivSet(id, campo, clivUnir(partes, campo));
+  clivInput(el, o[campo], '', v => clivSet(id, campo, v));
 }
 
 // ── Guardado automático ───────────────────────────────────
-function clivSet(id, campo, valor) {
+// Varios campos de un saque: al tocar un contacto cambian las DOS
+// columnas —Teléfono y Email— y tienen que viajar juntas.
+function clivSetVarios(id, obj) {
   const objs = clivObjs(id);
   if (!objs.length) return;
-  const antes = String(objs[0][campo] == null ? '' : objs[0][campo]);
-  if (antes === String(valor)) { renderClientes(CLIV_LISTA); return; }
+  let hubo = false;
 
-  objs.forEach(o => { o[campo] = valor; });
-  if (!CLIV_CAMBIOS[id]) CLIV_CAMBIOS[id] = {};
-  CLIV_CAMBIOS[id][campo] = valor;
+  Object.keys(obj).forEach(campo => {
+    const antes = String(objs[0][campo] == null ? '' : objs[0][campo]);
+    if (antes === String(obj[campo])) return;
+    objs.forEach(o => { o[campo] = obj[campo]; });
+    if (!CLIV_CAMBIOS[id]) CLIV_CAMBIOS[id] = {};
+    CLIV_CAMBIOS[id][campo] = obj[campo];
+    hubo = true;
+  });
 
   renderClientes(CLIV_LISTA);
-  clivAgendar();
+  if (hubo) clivAgendar();
+}
+
+function clivSet(id, campo, valor) {
+  const o = {};
+  o[campo] = valor;
+  clivSetVarios(id, o);
 }
 
 function clivAgendar() {
@@ -4479,6 +4613,12 @@ function saveCliente() {
   };
   if (!data.nombre) { showToast('El nombre es requerido', 'error'); return; }
   const editId = document.getElementById('modalCliente').dataset.editId;
+  // updateCliente pisa la fila entera. Sin esto, guardar desde el modal
+  // borraría la marca de ficha completa, que no está en el formulario.
+  if (editId) {
+    const prev = clivObjs(editId)[0];
+    data.completo = prev ? (prev.completo || '') : '';
+  }
   const fn     = editId ? 'updateCliente' : 'addCliente';
   const args   = editId ? [editId, data] : [data];
 
