@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.2 | 2026-08-20 ARG - Clientes: contactos por persona, marca de ficha completa, paises con buscador -->
+<!-- AMELIFE EMS Technologies - Web App v6.3 | 2026-08-20 ARG - Clientes: contactos por persona, ficha completa, paises con buscador, boton Copiar para WhatsApp -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -622,7 +622,7 @@
     display:block; margin-top:2px; font-family:var(--cond); font-size:12px;
     letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
   }
-  .cliv-td-acc { width:44px; text-align:right; }
+  .cliv-td-acc { width:104px; text-align:right; white-space:nowrap; }
   .cliv-td-sel { width:34px; }
   .cliv-mas {
     appearance:none; background:transparent; border:0; cursor:pointer; color:var(--muted);
@@ -758,6 +758,15 @@
   .cliv-chk:hover { border-color:var(--muted); color:var(--muted); }
   .cliv-chk.on { background:#3E86B5; border-color:#3E86B5; color:#fff; }
   .cliv-td-chk { width:36px; text-align:center; }
+  .cliv-copiar {
+    appearance:none; cursor:pointer; flex-shrink:0; white-space:nowrap;
+    background:transparent; border:1px solid var(--border2); border-radius:4px;
+    color:var(--muted); padding:3px 9px; line-height:1.35;
+    font-family:var(--cond); font-size:11.5px; font-weight:700;
+    letter-spacing:1px; text-transform:uppercase;
+    transition:color var(--transition), border-color var(--transition), background var(--transition);
+  }
+  .cliv-copiar:hover { color:var(--green); border-color:var(--green); background:var(--green-glow); }
   .cliv-fh-r { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 
   /* Celeste tenue: revisada y sin nada pendiente. */
@@ -4129,7 +4138,7 @@ function clivTabla(list) {
       `<td class="cliv-td-per">${clivPersonas(c.id)}</td>` +
       `<td style="max-width:250px">${clivCelda(c.id, 'dir_fiscal', 'sin dirección', false)}</td>` +
       `<td class="cliv-td-chk">${clivCheck(c.id, completo)}</td>` +
-      `<td class="cliv-td-acc"><button class="cliv-mas" title="Abrir ficha completa"
+      `<td class="cliv-td-acc">${clivBotonCopiar(c.id)}<button class="cliv-mas" title="Abrir ficha completa"
           onclick="openEditCliente('${c.id}')">⋯</button></td></tr>`;
   }).join('');
 }
@@ -4163,7 +4172,7 @@ function clivFichas(list) {
     return `<div class="client-card cliv-fic${completo ? ' completa' : ''}${sel ? ' selected' : ''}" data-id="${c.id}">` + chk +
       `<div class="cliv-fh">` +
         `<span class="cliv-fh-top"><span class="cliv-nom">${clivEsc(c.nombre || '—')}</span>` +
-          clivCheck(c.id, completo) + `</span>` +
+          clivBotonCopiar(c.id) + clivCheck(c.id, completo) + `</span>` +
         (sub ? `<span class="cliv-sub">${sub}</span>` : '') +
       `</div><div class="cliv-fb">${cuerpo}</div>` +
       `<div class="cliv-fa">${faltan}</div></div>`;
@@ -4255,6 +4264,72 @@ function clivListaContactos(id) {
     cts.push({ q: CLIV_PENDIENTE.q, tel: [], mail: [] });
   }
   return cts;
+}
+
+// ── Copiar la ficha para WhatsApp ─────────────────────────
+// WhatsApp pone en negrita lo que va entre asteriscos, y sólo si no
+// hay espacio pegado adentro: *Teléfono:* sí, * Teléfono: * no.
+// Los campos vacíos no se escriben: un "Dirección: —" no le sirve
+// a nadie del otro lado.
+function clivTextoCopia(id) {
+  const c = clivObjs(id)[0];
+  if (!c) return '';
+  const L = [];
+
+  L.push('*' + (c.nombre || 'Cliente') + '*');
+  const lugar = [c.ciudad, c.pais].filter(Boolean).join(' · ');
+  if (lugar) {
+    const b = clivBandera(c.pais);
+    L.push((b ? b + ' ' : '') + lugar);
+  }
+
+  const datos = [];
+  if (c.empresa && clivNorm(c.empresa) !== clivNorm(c.nombre)) datos.push('*Empresa:* ' + c.empresa);
+  if (c.ruc)        datos.push('*RUC:* ' + c.ruc);
+  if (c.dir_fiscal) datos.push('*Dirección:* ' + c.dir_fiscal);
+  if (datos.length) { L.push(''); L.push.apply(L, datos); }
+
+  clivContactos(c).forEach(ct => {
+    const bloque = [];
+    if (ct.q) bloque.push('*Contacto:* ' + ct.q);
+    ct.tel.forEach(v  => bloque.push('*Teléfono:* ' + v));
+    ct.mail.forEach(v => bloque.push('*Correo:* ' + v));
+    if (bloque.length) { L.push(''); L.push.apply(L, bloque); }
+  });
+
+  if (c.notas) { L.push(''); L.push('*Notas:* ' + c.notas); }
+
+  return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function clivCopiarViejo(txt) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const r = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return r;
+  } catch (e) { return false; }
+}
+
+function clivCopiar(id) {
+  const txt = clivTextoCopia(id);
+  if (!txt) { showToast('No encontré esa ficha', 'error'); return; }
+  const bien = () => showToast('Ficha copiada · pegala en WhatsApp', 'success');
+  const mal  = () => showToast('No pude copiar la ficha', 'error');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(bien).catch(() => { clivCopiarViejo(txt) ? bien() : mal(); });
+  } else {
+    clivCopiarViejo(txt) ? bien() : mal();
+  }
+}
+function clivBotonCopiar(id) {
+  return `<button class="cliv-copiar" type="button" title="Copiar la ficha lista para pegar"` +
+    ` onclick="clivCopiar('${id}')">Copiar</button>`;
 }
 
 // ── Marca de ficha completa ───────────────────────────────
