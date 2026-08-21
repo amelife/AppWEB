@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.7 | 2026-08-21 ARG - Notas a la vista con copiar propio, ordenado editable, ETA legible en trackings -->
+<!-- AMELIFE EMS Technologies - Web App v6.8 | 2026-08-21 ARG - Copiar item en Price Book, PN en la proforma, notas a la vista, ETA legible -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3999,8 +3999,7 @@ function renderPriceBook() {
         <td>${r.desc}</td>
         <td><b>$${Number(r.price).toLocaleString()}</b></td>
         <td>
-          <button class="tbl-txt" title="Al inventario" onclick='addToInv(${JSON.stringify(r).replace(/'/g,"&#39;")})'>Al inv.</button>
-
+          <button class="tbl-txt" title="Copiar el ítem listo para pegar" onclick="pbCopiar('${r.pn}')">Copiar ítem</button>
         </td>
       </tr>`).join('');
     contents.innerHTML += `
@@ -4016,6 +4015,16 @@ function renderPriceBook() {
       </div>`;
   });
   pbCarrito();
+}
+
+// Copiar un ítem del Price Book, igual que en Inventario: el PN en
+// negrita, la descripción debajo y el renglón del precio vacío para
+// completarlo a mano. El de lista no va: no es el que se cotiza.
+function pbCopiar(pn) {
+  const it = PRICEBOOK_DATA.find(x => String(x.pn) === String(pn));
+  if (!it) { showToast('No encontré ese ítem', 'error'); return; }
+  copiarAlPortapapeles('*' + (it.pn || 'S/N') + '*\n' + (it.desc || '') + '\nUSD ',
+                       'Ítem copiado · pegalo y ponele el precio');
 }
 
 function switchPBTab(id, el) {
@@ -4075,7 +4084,8 @@ function filterPB() {
           '<td><span class="badge es-muted">' + cotEsc(r.categoria) + '</span></td>' +
           '<td class="num"><b>$' + Number(r.price).toLocaleString() + '</b></td>' +
           '<td style="text-align:right;white-space:nowrap">' +
-            '<button class="tbl-txt" onclick=\'addToInv(' + JSON.stringify(r).replace(/'/g, "&#39;") + ')\'>Al inv.</button>' +
+            '<button class="tbl-txt" title="Copiar el ítem listo para pegar"' +
+              ' onclick="pbCopiar(\'' + cotEsc(r.pn) + '\')">Copiar ítem</button>' +
           '</td>' +
         '</tr>').join('') +
     '</tbody></table>' +
