@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.1 | 2026-08-21 ARG - Price Book cacheado en el navegador, markup al copiar, PN sin autoenlace de WhatsApp -->
+<!-- AMELIFE EMS Technologies - Web App v7.2 | 2026-08-21 ARG - Notas como lista de titulos que se abren, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -827,43 +827,44 @@
   .pb-mk-b.on { background:var(--green); color:#0A140A; }
 
   /* ============ DATOS IMPORTANTES ============ */
-  /* Las notas viven a la vista. El editor aparece sólo al crear o editar:
-     lo que se hace todo el tiempo es leer y copiar, no escribir. */
-  .not-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
-    gap:13px; align-items:start;
+  /* Lista de títulos. El cuerpo aparece al abrir la nota: lo que se
+     hace todo el tiempo es buscar una y copiarla, no leerlas todas. */
+  .not-lista {
+    background:var(--card); border:1px solid var(--border2);
+    border-radius:var(--radius-lg); overflow:hidden;
   }
-  .not-card {
-    background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
-    padding:14px 16px 12px; box-shadow:var(--shadow);
-    transition:border-color var(--transition), box-shadow var(--transition);
-  }
-  .not-card:hover { border-color:var(--green); box-shadow:0 6px 20px rgba(59,138,40,0.13); }
-  .not-card.sel  { border-color:var(--green); background:var(--green-glow); }
+  .not-fila { border-bottom:1px solid var(--border2); }
+  .not-fila:last-child { border-bottom:0; }
+  .not-fila.abierta { background:var(--green-glow); }
 
-  .not-card-cab {
-    display:flex; align-items:baseline; gap:10px;
-    padding-bottom:10px; margin-bottom:11px; border-bottom:1px solid var(--border2);
+  .not-cab {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 16px; cursor:pointer;
   }
-  .not-card-tit { flex:1; min-width:0; font-size:14.5px; font-weight:700; line-height:1.3; }
-  .not-card-fec {
+  .not-cab:hover { background:var(--card2); }
+  .not-fila.abierta .not-cab:hover { background:transparent; }
+  .not-chev {
+    flex-shrink:0; width:10px; color:var(--muted); font-size:11px; line-height:1;
+    transition:transform var(--transition);
+  }
+  .not-fila.abierta .not-chev { transform:rotate(90deg); color:var(--green); }
+  .not-tit { flex:1; min-width:0; font-size:14.5px; font-weight:700; line-height:1.3; }
+  .not-fec {
     flex-shrink:0; font-family:var(--cond); font-size:11.5px;
     letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
   }
-  /* El texto se muestra tal cual va a viajar, con los asteriscos a la
-     vista: lo que se ve acá es exactamente lo que se pega. */
-  .not-card-cuerpo {
-    max-height:300px; overflow-y:auto;
-    font-size:13px; line-height:1.6; white-space:pre-wrap; overflow-wrap:break-word;
+  .not-cab .btn { padding:5px 12px; font-size:12px; flex-shrink:0; }
+
+  .not-cuerpo { padding:2px 16px 14px 38px; border-top:1px solid var(--border2); }
+  /* El texto se ve tal cual va a viajar, con los asteriscos: lo que se
+     lee acá es exactamente lo que se pega. */
+  .not-txt {
+    max-height:420px; overflow-y:auto; margin-bottom:12px;
+    font-size:13px; line-height:1.65; white-space:pre-wrap; overflow-wrap:break-word;
   }
-  .not-card-cuerpo.crudo { color:var(--muted); font-style:italic; }
-  .not-card-pie {
-    display:flex; align-items:center; gap:7px;
-    margin-top:11px; padding-top:10px; border-top:1px solid var(--border2);
-  }
-  .not-card-pie .btn { padding:6px 13px; font-size:12px; }
+  .not-txt.crudo { color:var(--muted); font-style:italic; }
   .not-vacia {
-    grid-column:1/-1; padding:44px 20px; text-align:center;
+    padding:44px 20px; text-align:center;
     font-size:14px; color:var(--muted); line-height:1.7;
   }
 
@@ -1595,7 +1596,7 @@
             <button class="btn btn-primary" onclick="notNueva()">+ Nueva nota</button>
           </div>
           <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="notCuenta"></div>
-          <div class="not-grid" id="notGrid"></div>
+          <div class="not-lista" id="notGrid"></div>
         </div>
 
         <!-- El editor sólo aparece al crear o editar -->
@@ -4348,21 +4349,25 @@ function notRender() {
   }
 
   g.innerHTML = L.map(n => {
-    const t = notTexto(n);
-    return '<div class="not-card' + (n.id === NOT_STATE.sel ? ' sel' : '') + '"' +
-      ' onclick="notSel(\'' + n.id + '\')">' +
-      '<div class="not-card-cab">' +
-        '<span class="not-card-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
-        '<span class="not-card-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
-      '</div>' +
-      '<div class="not-card-cuerpo' + (t.crudo ? ' crudo' : '') + '">' +
-        (t.txt ? cotEsc(t.txt) : 'Nota vacía') + '</div>' +
-      '<div class="not-card-pie">' +
-        '<button class="btn btn-primary" onclick="event.stopPropagation();notCopiar(\'' + n.id + '\')">Copiar</button>' +
+    const abierta = (n.id === NOT_STATE.sel);
+    let h = '<div class="not-fila' + (abierta ? ' abierta' : '') + '">' +
+      '<div class="not-cab" onclick="notSel(\'' + n.id + '\')">' +
+        '<span class="not-chev">▶</span>' +
+        '<span class="not-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
+        '<span class="not-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
         '<button class="btn btn-outline" onclick="event.stopPropagation();notEditar(\'' + n.id + '\')">Editar</button>' +
-        '<span style="flex:1"></span>' +
         '<button class="btn btn-outline peligro" onclick="event.stopPropagation();notBorrar(\'' + n.id + '\')">Borrar</button>' +
-      '</div></div>';
+      '</div>';
+
+    if (abierta) {
+      const t = notTexto(n);
+      h += '<div class="not-cuerpo">' +
+        '<div class="not-txt' + (t.crudo ? ' crudo' : '') + '">' +
+          (t.txt ? cotEsc(t.txt) : 'Nota vacía') + '</div>' +
+        '<button class="btn btn-primary" onclick="notCopiar(\'' + n.id + '\')">Copiar</button>' +
+      '</div>';
+    }
+    return h + '</div>';
   }).join('');
 }
 
