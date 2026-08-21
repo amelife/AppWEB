@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.6 | 2026-08-21 ARG - Datos Importantes (notas ordenadas con IA), copiar item de inventario y copiar tracking -->
+<!-- AMELIFE EMS Technologies - Web App v6.7 | 2026-08-21 ARG - Notas a la vista con copiar propio, ordenado editable, ETA legible en trackings -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -808,36 +808,56 @@
   .cliv-td-dir { min-width:250px; max-width:330px; }
 
   /* ============ DATOS IMPORTANTES ============ */
-  .not-wrap { display:grid; grid-template-columns:270px 1fr; gap:14px; align-items:start; }
-  @media(max-width:900px){ .not-wrap { grid-template-columns:1fr; } }
-
-  .not-rail {
+  /* Las notas viven a la vista. El editor aparece sólo al crear o editar:
+     lo que se hace todo el tiempo es leer y copiar, no escribir. */
+  .not-grid {
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr));
+    gap:13px; align-items:start;
+  }
+  .not-card {
     background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
-    overflow:hidden; max-height:640px; overflow-y:auto;
+    padding:14px 16px 12px; box-shadow:var(--shadow);
+    transition:border-color var(--transition), box-shadow var(--transition);
   }
-  .not-ri {
-    display:block; width:100%; text-align:left; appearance:none; background:none; border:0;
-    border-bottom:1px solid var(--border2); padding:11px 14px; cursor:pointer;
-    color:var(--text); font:inherit;
-  }
-  .not-ri:last-child { border-bottom:0; }
-  .not-ri:hover { background:var(--card2); }
-  .not-ri.on { background:var(--green-glow); box-shadow:inset 3px 0 0 var(--green); }
-  .not-ri .rt { display:block; font-size:13.5px; font-weight:600; line-height:1.3; }
-  .not-ri .rf {
-    font-family:var(--cond); font-size:11.5px; letter-spacing:1.1px;
-    text-transform:uppercase; color:var(--muted);
-  }
-  .not-vacia { padding:26px 16px; text-align:center; font-size:13px; color:var(--muted); }
+  .not-card:hover { border-color:var(--green); box-shadow:0 6px 20px rgba(59,138,40,0.13); }
+  .not-card.sel  { border-color:var(--green); background:var(--green-glow); }
 
+  .not-card-cab {
+    display:flex; align-items:baseline; gap:10px;
+    padding-bottom:10px; margin-bottom:11px; border-bottom:1px solid var(--border2);
+  }
+  .not-card-tit { flex:1; min-width:0; font-size:14.5px; font-weight:700; line-height:1.3; }
+  .not-card-fec {
+    flex-shrink:0; font-family:var(--cond); font-size:11.5px;
+    letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
+  }
+  /* El texto se muestra tal cual va a viajar, con los asteriscos a la
+     vista: lo que se ve acá es exactamente lo que se pega. */
+  .not-card-cuerpo {
+    max-height:300px; overflow-y:auto;
+    font-size:13px; line-height:1.6; white-space:pre-wrap; overflow-wrap:break-word;
+  }
+  .not-card-cuerpo.crudo { color:var(--muted); font-style:italic; }
+  .not-card-pie {
+    display:flex; align-items:center; gap:7px;
+    margin-top:11px; padding-top:10px; border-top:1px solid var(--border2);
+  }
+  .not-card-pie .btn { padding:6px 13px; font-size:12px; }
+  .not-vacia {
+    grid-column:1/-1; padding:44px 20px; text-align:center;
+    font-size:14px; color:var(--muted); line-height:1.7;
+  }
+
+  /* ── Editor ── */
   .not-editor {
     background:var(--card); border:1px solid var(--border2); border-radius:var(--radius-lg);
     padding:16px 18px 15px;
   }
+  .not-ed-cab { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
   .not-titulo {
-    width:100%; background:transparent; border:0; border-bottom:2px solid var(--border2);
-    color:var(--text); font:inherit; font-size:19px; font-weight:700;
-    padding:0 0 9px; margin-bottom:14px; outline:none;
+    flex:1; min-width:0; background:transparent; border:0;
+    border-bottom:2px solid var(--border2); color:var(--text);
+    font:inherit; font-size:19px; font-weight:700; padding:0 0 9px; outline:none;
   }
   .not-titulo:focus { border-bottom-color:var(--green); }
 
@@ -848,26 +868,14 @@
     font-family:var(--cond); font-size:12px; font-weight:700;
     letter-spacing:1.3px; text-transform:uppercase; color:var(--muted);
   }
-  .not-lbl b { color:var(--green); font-weight:700; }
   .not-lbl .meta { margin-left:auto; font-size:11px; letter-spacing:.8px; opacity:.8; }
 
-  #notCrudo {
-    width:100%; min-height:330px; resize:vertical;
+  #notCrudo, #notOrdenado {
+    width:100%; min-height:340px; resize:vertical;
     background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius);
     padding:12px 13px; color:var(--text); font:inherit; font-size:13.5px; line-height:1.6;
   }
-  #notCrudo:focus { outline:none; border-color:var(--green); }
-
-  /* La salida se muestra tal cual va a viajar: texto plano con los
-     asteriscos de WhatsApp a la vista, para que no haya sorpresas al pegar. */
-  .not-salida {
-    min-height:330px; max-height:520px; overflow-y:auto;
-    background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius);
-    padding:12px 13px; font-size:13.5px; line-height:1.65; white-space:pre-wrap;
-    overflow-wrap:break-word;
-  }
-  .not-salida.esperando { display:flex; align-items:center; justify-content:center;
-    color:var(--muted); font-style:italic; text-align:center; }
+  #notCrudo:focus, #notOrdenado:focus { outline:none; border-color:var(--green); }
 
   .not-acciones {
     display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -1549,37 +1557,42 @@
 
       <!-- ===== DATOS IMPORTANTES ===== -->
       <div class="panel" id="panel-datos">
-        <div class="toolbar">
-          <div class="search-box">
-            <input type="text" id="notBuscar" placeholder="Buscar en las notas..." oninput="notFiltrar()" />
+
+        <!-- Vista principal: todas las notas a la vista -->
+        <div id="notVista">
+          <div class="toolbar">
+            <div class="search-box">
+              <input type="text" id="notBuscar" placeholder="Buscar en las notas..." oninput="notFiltrar()" />
+            </div>
+            <button class="btn btn-primary" onclick="notNueva()">+ Nueva nota</button>
           </div>
-          <button class="btn btn-primary" onclick="notNueva()">+ Nueva nota</button>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:12px" id="notCuenta"></div>
+          <div class="not-grid" id="notGrid"></div>
         </div>
 
-        <div class="not-wrap">
-          <div class="not-rail" id="notRail"></div>
-
-          <div class="not-editor">
+        <!-- El editor sólo aparece al crear o editar -->
+        <div id="notEditor" class="not-editor" style="display:none">
+          <div class="not-ed-cab">
+            <button class="btn btn-outline" onclick="notCerrar()">← Volver</button>
             <input type="text" id="notTitulo" class="not-titulo" placeholder="Título de la nota">
+          </div>
 
-            <div class="not-cols">
-              <div>
-                <div class="not-lbl">Pegá acá lo que anotaste</div>
-                <textarea id="notCrudo" placeholder="Lo que dijo el cliente por teléfono, condiciones de la operación, números de guía, pendientes… tal como te salga. Después se ordena solo."></textarea>
-              </div>
-              <div>
-                <div class="not-lbl">Ordenado<span class="meta" id="notMeta"></span></div>
-                <div class="not-salida esperando" id="notOrdenado">Apretá Ordenar y acá aparece listo para copiar</div>
-              </div>
+          <div class="not-cols">
+            <div>
+              <div class="not-lbl">Pegá acá lo que anotaste</div>
+              <textarea id="notCrudo" placeholder="Lo que dijo el cliente por teléfono, condiciones de la operación, números de guía, pendientes… tal como te salga."></textarea>
             </div>
+            <div>
+              <div class="not-lbl">Ordenado · se puede editar<span class="meta" id="notMeta"></span></div>
+              <textarea id="notOrdenado" placeholder="Apretá Ordenar y acá aparece. Después lo podés corregir a mano."></textarea>
+            </div>
+          </div>
 
-            <div class="not-acciones">
-              <button class="btn btn-outline" onclick="notBorrarNota()" id="notBtnBorrar" style="display:none">Borrar nota</button>
-              <span style="flex:1"></span>
-              <button class="btn btn-outline" onclick="notGuardar()">Guardar</button>
-              <button class="btn btn-outline" onclick="notOrdenar()" id="notBtnOrdenar">Ordenar</button>
-              <button class="btn btn-primary" onclick="notCopiar()">Copiar para WhatsApp</button>
-            </div>
+          <div class="not-acciones">
+            <button class="btn btn-outline peligro" onclick="notBorrarNota()" id="notBtnBorrar" style="display:none">Borrar nota</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-outline" onclick="notOrdenar()" id="notBtnOrdenar">Ordenar</button>
+            <button class="btn btn-primary" onclick="notGuardar()">Guardar</button>
           </div>
         </div>
       </div>
@@ -4140,28 +4153,25 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // ============================================
 //  DATOS IMPORTANTES
 // ============================================
-// Un lugar para pegar lo que se anota a las apuradas. El texto crudo
-// queda guardado tal cual se escribió, y aparte se guarda la versión
-// ordenada. Nunca se pisa el original: si el ordenado no convence, se
-// vuelve a ordenar y listo.
+// Lo que se hace todo el tiempo es leer una nota y copiarla, no
+// escribirla. Por eso la vista principal son todas las notas a la vista
+// con su botón de copiar, y el editor aparece sólo al crear o editar.
 
-var NOT_STATE = { lista: [], sel: null, cargado: false, ordenando: false };
+var NOT_STATE = { lista: [], sel: null, cargado: false, ordenando: false, editando: null };
 
 function notCargar(forzar) {
   if (NOT_STATE.cargado && !forzar) { notRender(); return; }
-  const rail = document.getElementById('notRail');
-  if (rail) rail.innerHTML = '<div class="not-vacia">Cargando…</div>';
+  const g = document.getElementById('notGrid');
+  if (g) g.innerHTML = '<div class="not-vacia">Cargando…</div>';
   api('getNotas').then(r => {
     if (!r || !r.ok) {
       showToast((r && r.error) || 'No pude cargar las notas', 'error');
-      if (rail) rail.innerHTML = '<div class="not-vacia">No se pudieron cargar</div>';
+      if (g) g.innerHTML = '<div class="not-vacia">No se pudieron cargar</div>';
       return;
     }
     NOT_STATE.lista = r.data || [];
     NOT_STATE.cargado = true;
-    if (!NOT_STATE.sel && NOT_STATE.lista.length) NOT_STATE.sel = NOT_STATE.lista[0].id;
     notRender();
-    notPintarSel();
   });
 }
 
@@ -4174,80 +4184,99 @@ function notFiltradas() {
       .toLowerCase().indexOf(q) > -1);
 }
 
+// Lo que se muestra es lo ordenado. Si todavía no se ordenó, se muestra
+// el crudo en gris, para que la nota igual sirva.
+function notTexto(n) {
+  const o = String(n.ordenado || '').trim();
+  return o ? { txt: o, crudo: false } : { txt: String(n.crudo || '').trim(), crudo: true };
+}
+
 function notRender() {
-  const rail = document.getElementById('notRail');
-  if (!rail) return;
+  const g = document.getElementById('notGrid');
+  const c = document.getElementById('notCuenta');
+  if (!g) return;
   const L = notFiltradas();
+
+  if (c) {
+    c.textContent = NOT_STATE.lista.length
+      ? (L.length === NOT_STATE.lista.length
+          ? NOT_STATE.lista.length + (NOT_STATE.lista.length === 1 ? ' nota' : ' notas')
+          : L.length + ' de ' + NOT_STATE.lista.length)
+      : '';
+  }
+
   if (!L.length) {
-    rail.innerHTML = '<div class="not-vacia">' +
-      (NOT_STATE.lista.length ? 'Ninguna coincide' : 'Todavía no hay notas.<br>Empezá con «+ Nueva nota»') +
-      '</div>';
+    g.innerHTML = '<div class="not-vacia">' + (NOT_STATE.lista.length
+      ? 'Ninguna nota coincide con la búsqueda'
+      : 'Todavía no hay notas.<br>Empezá con <b>+ Nueva nota</b>: pegás lo que anotaste y se acomoda solo.')
+      + '</div>';
     return;
   }
-  rail.innerHTML = L.map(n =>
-    '<button class="not-ri' + (n.id === NOT_STATE.sel ? ' on' : '') + '"' +
-    ' onclick="notAbrir(\'' + n.id + '\')">' +
-    '<span class="rt">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
-    '<span class="rf">' + cotEsc(String(n.fecha || '').slice(0, 16)) +
-      (n.ordenado ? ' · ordenada' : '') + '</span></button>'
-  ).join('');
+
+  g.innerHTML = L.map(n => {
+    const t = notTexto(n);
+    return '<div class="not-card' + (n.id === NOT_STATE.sel ? ' sel' : '') + '"' +
+      ' onclick="notSel(\'' + n.id + '\')">' +
+      '<div class="not-card-cab">' +
+        '<span class="not-card-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
+        '<span class="not-card-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
+      '</div>' +
+      '<div class="not-card-cuerpo' + (t.crudo ? ' crudo' : '') + '">' +
+        (t.txt ? cotEsc(t.txt) : 'Nota vacía') + '</div>' +
+      '<div class="not-card-pie">' +
+        '<button class="btn btn-primary" onclick="event.stopPropagation();notCopiar(\'' + n.id + '\')">Copiar</button>' +
+        '<button class="btn btn-outline" onclick="event.stopPropagation();notEditar(\'' + n.id + '\')">Editar</button>' +
+        '<span style="flex:1"></span>' +
+        '<button class="btn btn-outline peligro" onclick="event.stopPropagation();notBorrar(\'' + n.id + '\')">Borrar</button>' +
+      '</div></div>';
+  }).join('');
 }
 
 function notFiltrar() { notRender(); }
+function notSel(id) { NOT_STATE.sel = (NOT_STATE.sel === id ? null : id); notRender(); }
 
-function notPintarSel() {
-  const n = NOT_STATE.lista.find(x => x.id === NOT_STATE.sel);
-  const t  = document.getElementById('notTitulo');
-  const c  = document.getElementById('notCrudo');
-  const o  = document.getElementById('notOrdenado');
-  const bb = document.getElementById('notBtnBorrar');
-  const m  = document.getElementById('notMeta');
-  if (!t || !c || !o) return;
+function notCopiar(id) {
+  const n = NOT_STATE.lista.find(x => x.id === id);
+  if (!n) { showToast('No encontré esa nota', 'error'); return; }
+  const t = notTexto(n);
+  if (!t.txt) { showToast('La nota está vacía', 'error'); return; }
+  copiarAlPortapapeles(t.txt,
+    t.crudo ? 'Copiada sin ordenar' : 'Nota copiada · pegala en WhatsApp');
+}
 
-  t.value = n ? (n.titulo || '') : '';
-  c.value = n ? (n.crudo  || '') : '';
-  notMostrarOrdenado(n ? (n.ordenado || '') : '');
-  if (bb) bb.style.display = n ? '' : 'none';
-  if (m)  m.textContent = '';
+// ── Editor ────────────────────────────────────────────────
+function notAbrirEditor(n) {
+  NOT_STATE.editando = n ? n.id : null;
+  document.getElementById('notTitulo').value   = n ? (n.titulo   || '') : '';
+  document.getElementById('notCrudo').value    = n ? (n.crudo    || '') : '';
+  document.getElementById('notOrdenado').value = n ? (n.ordenado || '') : '';
+  document.getElementById('notMeta').textContent = '';
+  document.getElementById('notBtnBorrar').style.display = n ? '' : 'none';
+  document.getElementById('notVista').style.display  = 'none';
+  document.getElementById('notEditor').style.display = '';
+  document.getElementById('notTitulo').focus();
+}
+
+function notCerrar() {
+  NOT_STATE.editando = null;
+  document.getElementById('notEditor').style.display = 'none';
+  document.getElementById('notVista').style.display  = '';
   notRender();
 }
 
-function notMostrarOrdenado(txt) {
-  const o = document.getElementById('notOrdenado');
-  if (!o) return;
-  if (txt) {
-    o.classList.remove('esperando');
-    o.textContent = txt;
-  } else {
-    o.classList.add('esperando');
-    o.textContent = 'Apretá Ordenar y acá aparece listo para copiar';
-  }
-}
-
-function notAbrir(id) {
-  NOT_STATE.sel = id;
-  notPintarSel();
-}
-
-function notNueva() {
-  NOT_STATE.sel = null;
-  notPintarSel();
-  const t = document.getElementById('notTitulo');
-  if (t) t.focus();
-}
+function notNueva()      { notAbrirEditor(null); }
+function notEditar(id)   { notAbrirEditor(NOT_STATE.lista.find(x => x.id === id) || null); }
 
 function notGuardar() {
-  const titulo = document.getElementById('notTitulo').value.trim();
-  const crudo  = document.getElementById('notCrudo').value.trim();
-  const o      = document.getElementById('notOrdenado');
-  const ordenado = o.classList.contains('esperando') ? '' : o.textContent;
-
-  if (!titulo && !crudo) { showToast('La nota está vacía', 'error'); return; }
+  const titulo   = document.getElementById('notTitulo').value.trim();
+  const crudo    = document.getElementById('notCrudo').value.trim();
+  const ordenado = document.getElementById('notOrdenado').value.trim();
+  if (!titulo && !crudo && !ordenado) { showToast('La nota está vacía', 'error'); return; }
 
   const data = { titulo: titulo, crudo: crudo, ordenado: ordenado };
-  if (NOT_STATE.sel) {
-    data.id = NOT_STATE.sel;
-    const prev = NOT_STATE.lista.find(x => x.id === NOT_STATE.sel);
+  if (NOT_STATE.editando) {
+    data.id = NOT_STATE.editando;
+    const prev = NOT_STATE.lista.find(x => x.id === NOT_STATE.editando);
     if (prev) data.fecha = prev.fecha;
   }
 
@@ -4255,6 +4284,7 @@ function notGuardar() {
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo guardar', 'error'); return; }
     if (r.data && r.data.id) NOT_STATE.sel = r.data.id;
     showToast('Nota guardada', 'success');
+    notCerrar();
     notCargar(true);
   });
 }
@@ -4265,53 +4295,44 @@ function notOrdenar() {
   if (!crudo) { showToast('Pegá algo antes de ordenar', 'error'); return; }
 
   const btn = document.getElementById('notBtnOrdenar');
-  const o   = document.getElementById('notOrdenado');
+  const sal = document.getElementById('notOrdenado');
+  const antes = sal.value;
   NOT_STATE.ordenando = true;
   if (btn) { btn.disabled = true; btn.textContent = 'Ordenando…'; }
-  o.classList.add('esperando');
-  o.textContent = 'Ordenando… esto tarda unos segundos';
+  sal.value = 'Ordenando… esto tarda unos segundos';
 
   api('ordenarNotaIA', { texto: crudo }).then(r => {
     NOT_STATE.ordenando = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Ordenar'; }
     if (!r || !r.ok) {
+      sal.value = antes;                    // no se pierde lo que había
       showToast((r && r.error) || 'No pude ordenar la nota', 'error');
-      notMostrarOrdenado('');
       return;
     }
-    notMostrarOrdenado(r.data.ordenado || '');
+    sal.value = r.data.ordenado || '';
     const m = document.getElementById('notMeta');
     if (m && r.data.costo) m.textContent = 'USD ' + Number(r.data.costo).toFixed(4);
-    showToast('Listo · revisalo y guardá', 'success');
+    showToast('Listo · corregí lo que quieras y guardá', 'success');
   }).catch(() => {
     NOT_STATE.ordenando = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Ordenar'; }
-    notMostrarOrdenado('');
+    sal.value = antes;
     showToast('Se cortó la conexión', 'error');
   });
 }
 
-function notCopiar() {
-  const o = document.getElementById('notOrdenado');
-  const txt = o.classList.contains('esperando')
-    ? document.getElementById('notCrudo').value.trim()
-    : o.textContent;
-  if (!txt) { showToast('No hay nada para copiar', 'error'); return; }
-  copiarAlPortapapeles(txt,
-    o.classList.contains('esperando') ? 'Copiado sin ordenar' : 'Nota copiada · pegala en WhatsApp');
-}
+function notBorrarNota() { if (NOT_STATE.editando) notBorrar(NOT_STATE.editando); }
 
-function notBorrarNota() {
-  if (!NOT_STATE.sel) return;
-  const n = NOT_STATE.lista.find(x => x.id === NOT_STATE.sel);
+function notBorrar(id) {
+  const n = NOT_STATE.lista.find(x => x.id === id);
   const nom = n ? (n.titulo || 'esta nota') : 'esta nota';
   if (!confirm('¿Borrar "' + nom + '"?\n\nNo se puede deshacer.')) return;
-  api('deleteNota', { id: NOT_STATE.sel }).then(r => {
+  api('deleteNota', { id: id }).then(r => {
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo borrar', 'error'); return; }
-    NOT_STATE.sel = null;
+    if (NOT_STATE.sel === id) NOT_STATE.sel = null;
     showToast('Nota borrada', 'success');
+    if (NOT_STATE.editando === id) notCerrar();
     notCargar(true);
-    notPintarSel();
   });
 }
 
@@ -5526,11 +5547,29 @@ function trkFiltrar() {
 }
 
 /** Días que faltan para la ETA. Negativo = ya se pasó. */
+// new Date('2026-08-21') se lee como medianoche UTC, que en Argentina es
+// el día anterior a las 21. Se arma la fecha por partes para que el
+// cálculo de días no arrastre esas tres horas.
+function trkFechaObj(eta) {
+  const m = String(eta || '').slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+const TRK_MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+/** "2026-08-21" -> "21 ago 2026". Entra en una línea y no se corta. */
+function trkFecha(eta) {
+  const d = trkFechaObj(eta);
+  if (!d) return String(eta || '').slice(0, 10);
+  return d.getDate() + ' ' + TRK_MESES[d.getMonth()] + ' ' + d.getFullYear();
+}
+
 function trkDiasETA(eta) {
-  if (!eta) return null;
-  const d = new Date(String(eta).slice(0, 10));
-  if (isNaN(d.getTime())) return null;
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const d = trkFechaObj(eta);
+  if (!d) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
   return Math.round((d - hoy) / 86400000);
 }
 
@@ -5546,11 +5585,13 @@ function trkRender(lista) {
   tb.innerHTML = lista.map(t => {
     const enCamino = ['Arribado','Entregado'].indexOf(t.estado) === -1;
     const dias = trkDiasETA(t.eta);
-    let etaTxt = t.eta ? cotEsc(String(t.eta).slice(0,10)) : '—';
+    let etaTxt = t.eta ? cotEsc(trkFecha(t.eta)) : '—';
     if (enCamino && dias !== null) {
       etaTxt += dias < 0
-        ? '<div style="color:var(--danger);font-size:11px;font-weight:600">' + Math.abs(dias) + ' días de atraso</div>'
-        : '<div style="color:var(--muted);font-size:11px">en ' + dias + ' días</div>';
+        ? '<div style="color:var(--danger);font-size:11px;font-weight:600">' +
+          Math.abs(dias) + (Math.abs(dias) === 1 ? ' día' : ' días') + ' de atraso</div>'
+        : '<div style="color:var(--muted);font-size:11px">' +
+          (dias === 0 ? 'llega hoy' : dias === 1 ? 'llega mañana' : 'en ' + dias + ' días') + '</div>';
     } else if (t.demora !== null && t.demora !== undefined) {
       etaTxt += '<div style="font-size:11px;color:' + (t.demora > 0 ? 'var(--warning)' : 'var(--green)') + '">' +
                 (t.demora > 0 ? '+' + t.demora + ' días' : t.demora === 0 ? 'en fecha' : t.demora + ' días') + '</div>';
@@ -5574,7 +5615,7 @@ function trkRender(lista) {
       '<td style="font-size:12px">' + cotEsc(t.fabricante || '—') + '</td>' +
       '<td style="min-width:190px;white-space:normal;line-height:1.35">' + cotEsc(t.contenido || '—') + '</td>' +
       '<td style="font-size:13px;color:var(--muted);white-space:normal;min-width:120px">' + cotEsc(t.origen || '—') + ' → ' + cotEsc(t.destino || '—') + '</td>' +
-      '<td style="font-size:11.5px">' + etaTxt + '</td>' +
+      '<td style="font-size:11.5px;white-space:nowrap">' + etaTxt + '</td>' +
       '<td><span class="badge ' + (TRK_BADGE[t.estado] || 'es-muted') + '">' + cotEsc(t.estado) + '</span>' +
         (t.adjuntos && t.adjuntos.length ? '<div style="font-size:11px;color:var(--green);margin-top:3px">' + t.adjuntos.length + ' doc.</div>' : '') + '</td>' +
       '<td><div class="acciones">' +
@@ -5616,10 +5657,11 @@ function trkCopiar(id) {
   if (t.eta) {
     const dias = trkDiasETA(t.eta);
     const enCamino = ['Arribado','Entregado'].indexOf(t.estado) === -1;
-    let eta = String(t.eta).slice(0, 10);
+    let eta = trkFecha(t.eta);
     if (enCamino && dias !== null) {
-      eta += dias < 0 ? ' (' + Math.abs(dias) + ' días de atraso)'
+      eta += dias < 0 ? ' (' + Math.abs(dias) + (Math.abs(dias) === 1 ? ' día' : ' días') + ' de atraso)'
            : dias === 0 ? ' (llega hoy)'
+           : dias === 1 ? ' (llega mañana)'
            : ' (en ' + dias + ' días)';
     }
     L.push('*ETA:* ' + eta);
