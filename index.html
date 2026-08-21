@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.2 | 2026-08-21 ARG - Notas como lista de titulos que se abren, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.3 | 2026-08-21 ARG - Notas: Copiar, Editar y Borrar en el renglon, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -859,7 +859,7 @@
   /* El texto se ve tal cual va a viajar, con los asteriscos: lo que se
      lee acá es exactamente lo que se pega. */
   .not-txt {
-    max-height:420px; overflow-y:auto; margin-bottom:12px;
+    max-height:420px; overflow-y:auto;
     font-size:13px; line-height:1.65; white-space:pre-wrap; overflow-wrap:break-word;
   }
   .not-txt.crudo { color:var(--muted); font-style:italic; }
@@ -4355,17 +4355,15 @@ function notRender() {
         '<span class="not-chev">▶</span>' +
         '<span class="not-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
         '<span class="not-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
+        '<button class="btn btn-primary" onclick="event.stopPropagation();notCopiar(\'' + n.id + '\')">Copiar</button>' +
         '<button class="btn btn-outline" onclick="event.stopPropagation();notEditar(\'' + n.id + '\')">Editar</button>' +
         '<button class="btn btn-outline peligro" onclick="event.stopPropagation();notBorrar(\'' + n.id + '\')">Borrar</button>' +
       '</div>';
 
     if (abierta) {
       const t = notTexto(n);
-      h += '<div class="not-cuerpo">' +
-        '<div class="not-txt' + (t.crudo ? ' crudo' : '') + '">' +
-          (t.txt ? cotEsc(t.txt) : 'Nota vacía') + '</div>' +
-        '<button class="btn btn-primary" onclick="notCopiar(\'' + n.id + '\')">Copiar</button>' +
-      '</div>';
+      h += '<div class="not-cuerpo"><div class="not-txt' + (t.crudo ? ' crudo' : '') + '">' +
+        (t.txt ? cotEsc(t.txt) : 'Nota vacía') + '</div></div>';
     }
     return h + '</div>';
   }).join('');
