@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v6.4 | 2026-08-20 ARG - Clientes: contactos por persona, ficha completa, paises con buscador, boton Copiar para WhatsApp y borrado desde el listado -->
+<!-- AMELIFE EMS Technologies - Web App v6.5 | 2026-08-21 ARG - Clientes: contactos por persona, ficha completa, paises con buscador, boton Copiar para WhatsApp y borrado desde el listado -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -616,7 +616,18 @@
   /* Tabla */
   .cliv-tw { border:1px solid var(--border2); border-radius:var(--radius-lg); background:var(--card); overflow-x:auto; }
   .cliv-tabla { min-width:940px; }
-  .cliv-tabla td { padding:9px 14px; vertical-align:top; }
+  .cliv-tabla td { padding:13px 14px; vertical-align:top; }
+
+  /* Las filas tienen alturas muy distintas —un cliente con dirección larga
+     mide seis veces lo que uno vacío—, así que una línea fina no alcanza
+     para saber dónde termina cada uno. El fondo alternado sí. */
+  .cliv-tabla tbody tr { border-bottom:1px solid var(--border); }
+  .cliv-tabla tbody tr:nth-child(even) { background:var(--card2); }
+  .cliv-tabla tbody tr:last-child { border-bottom:0; }
+  /* El nombre del cliente arranca contra una guía, para anclar la vista
+     al recorrer la columna de arriba abajo. */
+  .cliv-tabla tbody td:first-child { box-shadow: inset 3px 0 0 var(--border2); }
+  .cliv-tabla tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--green); }
   .cliv-nom { font-size:14px; font-weight:700; line-height:1.3; }
   .cliv-sub {
     display:block; margin-top:2px; font-family:var(--cond); font-size:12px;
@@ -783,14 +794,18 @@
 
   /* Celeste tenue: revisada y sin nada pendiente. */
   .client-card.cliv-fic.completa { background:#EDF5FB; border-color:#A8CBE4; }
-  .cliv-tabla tr.completa { background:#EDF5FB; }
-  .cliv-tabla tr.completa:hover { background:#E3EFF8; }
+  .cliv-tabla tbody tr:hover, .cliv-tabla tbody tr:nth-child(even):hover { background:var(--green-glow); }
+  .cliv-tabla tbody tr.completa,
+  .cliv-tabla tbody tr:nth-child(even).completa { background:#EDF5FB; }
+  .cliv-tabla tbody tr.completa:hover { background:#E3EFF8; }
   [data-theme="dark"] .client-card.cliv-fic.completa {
     background:rgba(87,175,210,0.085); border-color:rgba(87,175,210,0.32);
   }
-  [data-theme="dark"] .cliv-tabla tr.completa { background:rgba(87,175,210,0.075); }
-  [data-theme="dark"] .cliv-tabla tr.completa:hover { background:rgba(87,175,210,0.12); }
+  [data-theme="dark"] .cliv-tabla tbody tr.completa,
+  [data-theme="dark"] .cliv-tabla tbody tr:nth-child(even).completa { background:rgba(87,175,210,0.075); }
+  [data-theme="dark"] .cliv-tabla tbody tr.completa:hover { background:rgba(87,175,210,0.12); }
   .cliv-td-per { min-width:230px; }
+  .cliv-td-dir { min-width:250px; max-width:330px; }
 
   /* ===================== BANCOS ===================== */
   .bancos-lock { text-align:center; padding:80px 20px; }
@@ -4148,7 +4163,7 @@ function clivTabla(list) {
         (sub ? `<span class="cliv-sub">${sub}</span>` : '') + `</td>` +
       `<td>${clivCelda(c.id, 'ruc', 'sin RUC', true)}</td>` +
       `<td class="cliv-td-per">${clivPersonas(c.id)}</td>` +
-      `<td style="max-width:250px">${clivCelda(c.id, 'dir_fiscal', 'sin dirección', false)}</td>` +
+      `<td class="cliv-td-dir">${clivCelda(c.id, 'dir_fiscal', 'sin dirección', false)}</td>` +
       `<td class="cliv-td-chk">${clivCheck(c.id, completo)}</td>` +
       `<td class="cliv-td-acc">${clivBotonCopiar(c.id)}${clivBotonBorrar(c.id)}` +
         `<button class="cliv-mas" title="Abrir ficha completa"
