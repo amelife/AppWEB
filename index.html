@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.5 | 2026-08-24 ARG - Facturas AME (cobranza), orden ADS+fecha, semaforo de enviadas, trackings en dos zonas, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.6 | 2026-08-24 ARG - Facturas AME con cliente de la lista y orden por fecha de pago, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -840,6 +840,13 @@
   [data-theme="dark"] .fam-nota.mal   { color:#E27B75; }
 
   .fam-pdf { font-size:11.5px; color:var(--green); text-decoration:underline; }
+  .fam-th-orden { cursor:pointer; user-select:none; white-space:nowrap; }
+  .fam-th-orden:hover { color:var(--text); }
+  #famFlecha { color:var(--green); font-size:12px; }
+
+  .fam-cli-est { margin-top:5px; font-size:12px; min-height:16px; }
+  .fam-cli-est.ok   { color:var(--green); }
+  .fam-cli-est.nuevo { color:var(--muted); }
 
   .fam-aviso {
     margin-bottom:16px; padding:11px 14px; border-radius:var(--radius);
@@ -847,23 +854,6 @@
     font-size:13px; color:var(--muted); line-height:1.55;
   }
   .fam-aviso b { color:var(--text); }
-
-  .fam-item {
-    display:grid; grid-template-columns:1fr 74px 96px 96px 34px;
-    gap:7px; align-items:center; margin-bottom:6px;
-  }
-  .fam-item input {
-    width:100%; background:var(--field,var(--bg)); border:1px solid var(--border2);
-    border-radius:var(--radius); padding:8px 10px; color:var(--text);
-    font:inherit; font-size:13px; outline:none;
-  }
-  .fam-item input:focus { border-color:var(--green); }
-  .fam-item-x {
-    appearance:none; background:transparent; border:0; cursor:pointer;
-    color:var(--muted); font-size:14px; padding:6px; border-radius:var(--radius);
-  }
-  .fam-item-x:hover { color:#C4534D; background:rgba(196,83,77,0.14); }
-  @media(max-width:700px){ .fam-item { grid-template-columns:1fr 1fr; } }
 
   /* ── Zonas de trackings ── */
   .trk-zonas { display:flex; gap:4px; margin:0 0 14px; border-bottom:1px solid var(--border2); }
@@ -1702,7 +1692,7 @@
       <div class="panel" id="panel-facturasame">
         <div class="toolbar">
           <div class="search-box">
-            <input type="text" id="famBuscar" placeholder="Buscar por número, cliente o ítem..." oninput="famFiltrar()">
+            <input type="text" id="famBuscar" placeholder="Buscar por número, cliente o contacto..." oninput="famFiltrar()">
           </div>
           <select class="filter-select" id="famFiltroEstado" onchange="famFiltrar()">
             <option value="">Todas</option>
@@ -1721,10 +1711,14 @@
         <div class="table-container">
           <table class="data-table">
             <thead><tr>
-              <th>Factura</th><th>Cliente</th><th>Ítems</th>
-              <th class="num">Total</th><th>Fecha de pago</th><th>Estado</th><th></th>
+              <th>Factura</th><th>Cliente</th>
+              <th class="num">Total</th>
+              <th class="fam-th-orden" onclick="famOrdenar()" title="Ordenar por fecha de pago">
+                Fecha de pago <span id="famFlecha">↑</span>
+              </th>
+              <th>Estado</th><th></th>
             </tr></thead>
-            <tbody id="famBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr></tbody>
+            <tbody id="famBody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr></tbody>
           </table>
           <div class="table-footer"><span id="famCount">—</span></div>
         </div>
@@ -2566,17 +2560,18 @@
 
     <div class="cfg-seccion">Cliente</div>
     <div class="modal-grid" style="grid-template-columns:1.4fr 1fr">
-      <div class="field"><label>Cliente</label><input type="text" id="famCliente" placeholder="Honduras Cardiosegura"></div>
+      <div class="field"><label>Cliente</label>
+        <input type="text" id="famCliente" list="famClientesLista" autocomplete="off"
+               placeholder="Empezá a escribir y elegí de la lista" oninput="famClienteElegido()">
+        <datalist id="famClientesLista"></datalist>
+        <div class="fam-cli-est" id="famCliEstado"></div>
+      </div>
       <div class="field"><label>Contacto</label><input type="text" id="famContacto" placeholder="Juan Carlos Córdova"></div>
     </div>
     <div class="modal-grid" style="grid-template-columns:1.4fr 1fr">
       <div class="field"><label>Correo</label><input type="email" id="famEmail" placeholder="cliente@empresa.com"></div>
       <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="famTelefono" placeholder="+504 9999 9999"></div>
     </div>
-
-    <div class="cfg-seccion">Ítems</div>
-    <div id="famItems"></div>
-    <button class="btn btn-outline" onclick="famAgregarItem()" style="margin-top:8px;padding:7px 14px;font-size:12px">+ Agregar ítem</button>
 
     <div class="modal-grid" style="grid-template-columns:1fr 1fr;margin-top:16px">
       <div class="field"><label>Total</label><input type="number" step="0.01" id="famTotal" placeholder="0.00"></div>
@@ -4582,7 +4577,7 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // editable. Lo que salió del PDF es una ayuda, no una verdad: el que
 // confirma antes de guardar es el usuario.
 
-var FAM_STATE = { lista: [], editando: null, recordando: null, cargado: false };
+var FAM_STATE = { lista: [], editando: null, recordando: null, cargado: false, asc: true };
 
 function famFmt(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -4618,24 +4613,101 @@ function famFecha(v) {
   return d.getDate() + ' ' + FAM_MES[d.getMonth()] + ' ' + d.getFullYear();
 }
 
-function famResumenItems(f) {
-  const it = f.items || [];
-  if (!it.length) return '<span style="color:var(--muted)">sin ítems</span>';
-  const vis = it.slice(0, 2).map(i =>
-    '<div><b>' + (Number(i.qty) || 0) + '</b> × ' + cotEsc(String(i.desc || '').slice(0, 52)) + '</div>').join('');
-  const mas = it.length > 2 ? '<div style="color:var(--muted)">y ' + (it.length - 2) + ' más</div>' : '';
-  return vis + mas;
+// ── Enganche con la lista de Clientes ─────────────────────
+// El nombre que trae la factura casi nunca coincide con el que está
+// cargado —"Honduras Cardiosegura" contra "Honduras Cardiosegura S.A."—.
+// Se busca el cliente de verdad y se guarda su id, así la factura queda
+// atada a la ficha y no a un texto suelto.
+
+/** Trae la lista completa de clientes una sola vez y llena el desplegable. */
+function famClientesCargar(cb) {
+  const poner = () => {
+    const dl = document.getElementById('famClientesLista');
+    if (dl) {
+      dl.innerHTML = (CLIV_TODOS || []).map(c =>
+        '<option value="' + cotEsc(c.nombre) + '"></option>').join('');
+    }
+    if (cb) cb();
+  };
+  if (typeof clivAsegurarTodos === 'function') clivAsegurarTodos(poner);
+  else poner();
+}
+
+function famNormNombre(s) {
+  return (typeof clivNorm === 'function' ? clivNorm(s) : String(s || '').toLowerCase().trim())
+    .replace(/[.,]/g, ' ')
+    .replace(/(^|\s)(s\s?a\s?c|s\s?r\s?l|s\s?a\s?s|spa|s\s?a|ltda|cia|corp|inc|llc)($|\s)/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function famDominio(mail) {
+  const m = String(mail || '').toLowerCase().match(/@([^@\s>]+)$/);
+  if (!m) return '';
+  const d = m[1];
+  const gen = ['gmail.com','hotmail.com','outlook.com','yahoo.com','yahoo.es','live.com','icloud.com'];
+  return gen.indexOf(d) > -1 ? '' : d;
+}
+
+/**
+ * Busca a qué cliente corresponde una factura. Primero por el dominio
+ * del correo, que es la señal más fuerte; después por el nombre.
+ * Devuelve el cliente o null: nunca inventa uno.
+ */
+function famBuscarCliente(nombre, mail) {
+  const L = CLIV_TODOS || [];
+  if (!L.length) return null;
+
+  const dom = famDominio(mail);
+  if (dom) {
+    for (const c of L) {
+      if (String(c.email || '').toLowerCase().indexOf('@' + dom) > -1) return c;
+    }
+  }
+
+  const n = famNormNombre(nombre);
+  if (n.length >= 4) {
+    for (const c of L) if (famNormNombre(c.nombre) === n) return c;
+    for (const c of L) {
+      const cn = famNormNombre(c.nombre);
+      if (cn.length >= 4 && (cn.indexOf(n) > -1 || n.indexOf(cn) > -1)) return c;
+    }
+  }
+  return null;
+}
+
+/** Marca si lo escrito coincide con un cliente cargado o es uno nuevo. */
+function famClienteElegido() {
+  const v = document.getElementById('famCliente').value.trim();
+  const e = document.getElementById('famCliEstado');
+  if (!e) return;
+  if (!v) { e.textContent = ''; e.className = 'fam-cli-est'; FAM_STATE.cliente_id = ''; return; }
+
+  const c = (CLIV_TODOS || []).find(x => x.nombre === v) || famBuscarCliente(v, '');
+  if (c) {
+    FAM_STATE.cliente_id = c.id;
+    e.className = 'fam-cli-est ok';
+    e.textContent = '✓ ' + c.nombre + (c.pais ? ' · ' + c.pais : '');
+    // Si la ficha tiene correo o teléfono y el campo está vacío, se completa.
+    const mail = document.getElementById('famEmail');
+    const tel  = document.getElementById('famTelefono');
+    if (mail && !mail.value.trim() && c.email) mail.value = String(c.email).split(/[,;]/)[0].trim();
+    if (tel && !tel.value.trim() && c.tel)     tel.value  = String(c.tel).split(/[\/,;]/)[0].trim();
+  } else {
+    FAM_STATE.cliente_id = '';
+    e.className = 'fam-cli-est nuevo';
+    e.textContent = 'No está en Clientes · se guarda igual, con el nombre escrito';
+  }
 }
 
 // ── Carga y filtros ───────────────────────────────────────
 function famCargar(forzar) {
   if (FAM_STATE.cargado && !forzar) { famFiltrar(); return; }
   const tb = document.getElementById('famBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr>';
+  if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr>';
   api('getFacturasAME').then(r => {
     if (!r || !r.ok) {
       showToast((r && r.error) || 'No pude cargar las facturas', 'error');
-      if (tb) tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">No se pudieron cargar</td></tr>';
+      if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No se pudieron cargar</td></tr>';
       return;
     }
     FAM_STATE.lista = r.data || [];
@@ -4644,15 +4716,37 @@ function famCargar(forzar) {
   });
 }
 
+/**
+ * Orden por fecha de pago. Arranca de la más vieja a la más nueva, que
+ * en una pantalla de cobranza es lo útil: arriba lo que está vencido.
+ * Las que no tienen fecha van siempre al final, en los dos sentidos.
+ */
+function famOrdenar() {
+  FAM_STATE.asc = !FAM_STATE.asc;
+  const f = document.getElementById('famFlecha');
+  if (f) f.textContent = FAM_STATE.asc ? '↑' : '↓';
+  famFiltrar();
+}
+
+function famPorFecha(lista) {
+  const dir = FAM_STATE.asc ? 1 : -1;
+  return lista.slice().sort((a, b) => {
+    const x = famFechaObj(a.vence), y = famFechaObj(b.vence);
+    if (!x && !y) return 0;
+    if (!x) return 1;
+    if (!y) return -1;
+    return (x - y) * dir;
+  });
+}
+
 function famFiltrar() {
   const q  = (document.getElementById('famBuscar').value || '').toLowerCase().trim();
   const fe = document.getElementById('famFiltroEstado').value;
-  famRender(FAM_STATE.lista.filter(f => {
+  famRender(famPorFecha(FAM_STATE.lista).filter(f => {
     if (fe === 'vencidas' && !famVencida(f)) return false;
     if (fe && fe !== 'vencidas' && f.estado !== fe) return false;
     if (!q) return true;
-    const items = (f.items || []).map(i => i.desc).join(' ');
-    return (f.numero + ' ' + f.cliente + ' ' + (f.contacto || '') + ' ' + items).toLowerCase().indexOf(q) > -1;
+    return (f.numero + ' ' + f.cliente + ' ' + (f.contacto || '')).toLowerCase().indexOf(q) > -1;
   }));
 }
 
@@ -4661,7 +4755,7 @@ function famRender(lista) {
   if (!tb) return;
 
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">' +
+    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">' +
       (FAM_STATE.lista.length ? 'Ninguna coincide' : 'Todavía no hay facturas. Subí un PDF para empezar.') +
       '</td></tr>';
     document.getElementById('famCount').textContent = '0 facturas';
@@ -4693,7 +4787,6 @@ function famRender(lista) {
       '</td>' +
       '<td style="min-width:150px"><b>' + cotEsc(f.cliente || '—') + '</b>' +
         (f.contacto ? '<div style="font-size:12px;color:var(--muted)">' + cotEsc(f.contacto) + '</div>' : '') + '</td>' +
-      '<td style="font-size:12px;white-space:normal;min-width:220px">' + famResumenItems(f) + '</td>' +
       '<td class="num"><b>' + cotEsc(f.moneda || 'USD') + ' ' + famFmt(f.total) + '</b></td>' +
       '<td style="font-size:12.5px;white-space:nowrap">' + cuando + '</td>' +
       '<td><span class="badge ' + badge + '">' + cotEsc(etiqueta) + '</span></td>' +
@@ -4772,6 +4865,8 @@ function famAbrirModal(d, desdePDF) {
     av.style.display = 'none';
   }
 
+  FAM_STATE.cliente_id = d.cliente_id || '';
+
   const p = (id, v) => document.getElementById(id).value = (v === undefined || v === null) ? '' : v;
   p('famNumero', d.numero);
   p('famEmision', String(d.fecha_emision || '').slice(0, 10));
@@ -4783,50 +4878,19 @@ function famAbrirModal(d, desdePDF) {
   p('famTotal', d.total || '');
   p('famNotas', d.notas);
 
-  FAM_STATE.items = (d.items || []).map(i => ({
-    desc: i.desc || '', qty: Number(i.qty) || 0,
-    precio: Number(i.precio) || 0, total: Number(i.total) || 0
-  }));
   FAM_STATE.pdf_url = d.pdf_url || '';
-  famRenderItems();
   openModal('modalFacturaAME');
-}
 
-function famRenderItems() {
-  const c = document.getElementById('famItems');
-  if (!c) return;
-  if (!FAM_STATE.items.length) {
-    c.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:6px 0">Sin ítems. Podés agregarlos abajo.</div>';
-    return;
-  }
-  c.innerHTML = FAM_STATE.items.map((i, x) =>
-    '<div class="fam-item">' +
-      '<input type="text" value="' + cotEsc(i.desc) + '" placeholder="Descripción" oninput="famItemSet(' + x + ',\'desc\',this.value)">' +
-      '<input type="number" step="1" value="' + i.qty + '" placeholder="Cant." oninput="famItemSet(' + x + ',\'qty\',this.value)">' +
-      '<input type="number" step="0.01" value="' + i.precio + '" placeholder="Precio" oninput="famItemSet(' + x + ',\'precio\',this.value)">' +
-      '<input type="number" step="0.01" value="' + i.total + '" placeholder="Importe" oninput="famItemSet(' + x + ',\'total\',this.value)">' +
-      '<button class="fam-item-x" title="Quitar" onclick="famQuitarItem(' + x + ')">✕</button>' +
-    '</div>').join('');
-}
-
-function famItemSet(i, campo, v) {
-  if (!FAM_STATE.items[i]) return;
-  FAM_STATE.items[i][campo] = (campo === 'desc') ? v : (Number(v) || 0);
-  if (campo === 'qty' || campo === 'precio') {
-    const it = FAM_STATE.items[i];
-    it.total = Math.round(it.qty * it.precio * 100) / 100;
-    famRenderItems();
-  }
-}
-
-function famAgregarItem() {
-  FAM_STATE.items.push({ desc: '', qty: 1, precio: 0, total: 0 });
-  famRenderItems();
-}
-
-function famQuitarItem(i) {
-  FAM_STATE.items.splice(i, 1);
-  famRenderItems();
+  // La lista de clientes se trae una vez. Cuando llega, si esto vino de
+  // un PDF se busca a quién corresponde y se pone el nombre REAL, el que
+  // está cargado en Clientes, no el que dice la factura.
+  famClientesCargar(() => {
+    if (desdePDF && !FAM_STATE.cliente_id) {
+      const c = famBuscarCliente(d.cliente, d.email);
+      if (c) document.getElementById('famCliente').value = c.nombre;
+    }
+    famClienteElegido();
+  });
 }
 
 function famGuardar() {
@@ -4836,11 +4900,12 @@ function famGuardar() {
 
   const data = {
     id: FAM_STATE.editando, numero: numero,
-    cliente: v('famCliente'), contacto: v('famContacto'),
+    cliente: v('famCliente'), cliente_id: FAM_STATE.cliente_id || '',
+    contacto: v('famContacto'),
     email: v('famEmail'), telefono: v('famTelefono'),
     fecha_emision: v('famEmision'), vence: v('famVence'),
     moneda: 'USD', total: Number(v('famTotal')) || 0,
-    items: FAM_STATE.items, notas: v('famNotas'),
+    notas: v('famNotas'),
     pdf_url: FAM_STATE.pdf_url || ''
   };
   if (!FAM_STATE.editando) data.estado = 'Pendiente';
