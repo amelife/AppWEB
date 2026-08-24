@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.3 | 2026-08-21 ARG - Notas: Copiar, Editar y Borrar en el renglon, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.4 | 2026-08-24 ARG - Orden ADS+fecha, semaforo de semanas enviada, trackings AMELIFE y Clientes, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -806,6 +806,38 @@
   [data-theme="dark"] .cliv-tabla tbody tr.completa:hover { background:rgba(87,175,210,0.12); }
   .cliv-td-per { min-width:230px; }
   .cliv-td-dir { min-width:250px; max-width:330px; }
+
+  /* ── Zonas de trackings ── */
+  .trk-zonas { display:flex; gap:4px; margin:0 0 14px; border-bottom:1px solid var(--border2); }
+  .trk-zona {
+    appearance:none; background:transparent; cursor:pointer;
+    border:1px solid transparent; border-bottom:0; border-radius:var(--radius) var(--radius) 0 0;
+    color:var(--muted); padding:11px 20px; margin-bottom:-1px;
+    font-family:var(--cond); font-size:14px; font-weight:700;
+    letter-spacing:1.2px; text-transform:uppercase;
+    transition:color var(--transition), background var(--transition);
+  }
+  .trk-zona:hover { color:var(--text); background:var(--card2); }
+  .trk-zona.on {
+    color:var(--text); background:var(--card);
+    border-color:var(--border2); border-bottom:1px solid var(--card);
+  }
+  .trk-zona-n {
+    display:inline-block; margin-left:7px; padding:1px 8px; border-radius:99px;
+    background:var(--card2); color:var(--muted); font-size:12px; letter-spacing:.6px;
+  }
+  .trk-zona.on .trk-zona-n { background:var(--green); color:#0A140A; }
+
+  /* ── Semáforo de las órdenes enviadas ── */
+  .oc-reloj {
+    margin-top:4px; font-family:var(--cond); font-size:11.5px; font-weight:700;
+    letter-spacing:.8px; text-transform:uppercase; white-space:nowrap;
+  }
+  .oc-reloj.ok    { color:var(--green); }
+  .oc-reloj.aviso { color:#B8860B; }
+  .oc-reloj.mal   { color:#C4534D; }
+  [data-theme="dark"] .oc-reloj.aviso { color:#D8A544; }
+  [data-theme="dark"] .oc-reloj.mal   { color:#E27B75; }
 
   /* ── Destinatarios del email ── */
   #cotEmailChips { display:flex; flex-direction:column; gap:6px; }
@@ -1900,6 +1932,17 @@
           </select>
           <button class="btn btn-outline" onclick="trkCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-primary" onclick="trkAbrirNuevo()">+ Nuevo tracking</button>
+        </div>
+
+        <!-- Dos zonas en la misma pestaña: los embarques propios y los que
+             se siguen para un cliente. La elección queda en el navegador. -->
+        <div class="trk-zonas" id="trkZonas">
+          <button type="button" class="trk-zona" data-z="AMELIFE" onclick="trkZona('AMELIFE')">
+            Trackings AMELIFE <span class="trk-zona-n" id="trkNumAmelife"></span>
+          </button>
+          <button type="button" class="trk-zona" data-z="Cliente" onclick="trkZona('Cliente')">
+            Trackings Clientes <span class="trk-zona-n" id="trkNumCliente"></span>
+          </button>
         </div>
         <div class="table-container">
           <table class="data-table">
@@ -3217,6 +3260,64 @@ function ocFiltrar() {
   ocRender(filtradas);
 }
 
+/**
+ * Número que se propone al abrir una orden nueva: ADS y la fecha de hoy
+ * en mes-día-año, como se numeran las órdenes a ZOLL. Es sólo una
+ * sugerencia: el campo queda editable.
+ */
+function ocNumeroSugerido() {
+  const d  = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return 'ADS' + mm + dd + d.getFullYear();
+}
+
+// "2026-08-21 14:39" se arma por partes y no con new Date(texto), que lo
+// leería como UTC y correría el día en Argentina.
+function ocFechaObj(v) {
+  const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Semanas enteras entre dos fechas. Sin la segunda, cuenta hasta hoy. */
+function ocSemanas(desde, hasta) {
+  const a = ocFechaObj(desde);
+  if (!a) return null;
+  let b;
+  if (hasta) { b = ocFechaObj(hasta); if (!b) return null; }
+  else { b = new Date(); b.setHours(0, 0, 0, 0); }
+  return Math.floor((b - a) / (7 * 86400000));
+}
+
+function ocSemanasTxt(n) {
+  return n <= 0 ? 'esta semana' : n === 1 ? '1 semana' : n + ' semanas';
+}
+
+/**
+ * Cuánto hace que se envió la orden, con semáforo. Hasta la semana 3 va
+ * en verde, 4 y 5 en amarillo, de la 6 en adelante en rojo. Una vez
+ * recibida el reloj se detiene: queda cuánto tardó, en verde.
+ */
+function ocReloj(o) {
+  const enviada = o.enviado_el || (o.estado === 'Sent' ? o.fecha : '');
+  if (!enviada) return '';
+
+  if (o.estado === 'Received') {
+    const n = ocSemanas(enviada, o.recibido_el);
+    if (n === null) return '';
+    return '<div class="oc-reloj ok">recibida en ' + ocSemanasTxt(n) + '</div>';
+  }
+  if (o.estado !== 'Sent') return '';
+
+  const n = ocSemanas(enviada);
+  if (n === null) return '';
+  const clase = n >= 6 ? 'mal' : n >= 4 ? 'aviso' : 'ok';
+  const txt   = n <= 0 ? 'enviada esta semana' : 'hace ' + ocSemanasTxt(n);
+  return '<div class="oc-reloj ' + clase + '">' + txt + '</div>';
+}
+
 function ocRender(lista) {
   const tb = document.getElementById('ocBody');
   if (!tb) return;
@@ -3234,7 +3335,8 @@ function ocRender(lista) {
       '<td class="num">' + ocFmt(o.total) + '</td>' +
       '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) +
         cotMarcaEnvio(o) + '</td>' +
-      '<td><span class="badge ' + (OC_BADGE[o.estado] || 'es-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span></td>' +
+      '<td><span class="badge ' + (OC_BADGE[o.estado] || 'es-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span>' +
+        ocReloj(o) + '</td>' +
       '<td><div class="acciones">' +
         '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
         '<button class="tbl-txt" onclick="ocAbrirEmail(\'' + o.id + '\')">Enviar</button>' +
@@ -3257,7 +3359,7 @@ function ocAbrirNueva() {
   OC_STATE.editandoId = null;
   OC_STATE.items = [];
   document.getElementById('ocModalTitulo').textContent = 'Nueva orden ZOLL';
-  document.getElementById('ocNumero').value = '';
+  document.getElementById('ocNumero').value = ocNumeroSugerido();
   document.getElementById('ocObs').value = '';
   document.getElementById('ocFecha').value = new Date().toISOString().slice(0, 10);
   document.getElementById('ocBuscarPN').value = '';
@@ -5439,7 +5541,13 @@ setInterval(function() { if (temaActual === 'auto') aplicarTema('auto'); }, 6000
     </div>
 
     <div class="cfg-seccion">Identificación</div>
-    <div class="modal-grid" style="grid-template-columns:1fr 1fr 1.2fr">
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr 1fr 1.2fr">
+      <div class="field"><label>Zona</label>
+        <select id="trkAmbito">
+          <option value="AMELIFE">Trackings AMELIFE</option>
+          <option value="Cliente">Trackings Clientes</option>
+        </select>
+      </div>
       <div class="field"><label>Tipo</label>
         <select id="trkTipo" onchange="trkCamposPorTipo()"></select>
         <input type="text" id="trkTipoOtro" placeholder="Escribí el tipo" style="display:none;margin-top:6px">
@@ -5603,7 +5711,7 @@ var TRK_CARRIERS_DEF = ['FedEx', 'DHL', 'UPS', 'USPS', 'Amazon'];
 var TRK_OTRO = 'Otro (escribir)';
 
 var TRK_STATE = {
-  lista: [], editando: null, adjuntando: null, avisando: null,
+  lista: [], editando: null, adjuntando: null, avisando: null, zona: 'AMELIFE',
   cfg: { tipos: TRK_TIPOS_DEF, estados: TRK_ESTADOS_DEF, carriers: TRK_CARRIERS_DEF }
 };
 
@@ -5634,6 +5742,7 @@ async function trkCargar(forzar) {
     }
     TRK_STATE.lista = data || [];
     TRACKINGS = TRK_STATE.lista;              // el warehouse lo sigue usando
+    trkZonaInit();
     trkFiltrar();
     trkLlenarFiltroWH();
   });
@@ -5689,11 +5798,42 @@ function trkLlenarFiltroWH() {
       (t.carrier ? ' · ' + cotEsc(t.carrier) : '') + '</option>').join('');
 }
 
+// ── Zonas: AMELIFE y Clientes ─────────────────────────────
+// La zona elegida queda guardada: uno trabaja de a una por vez.
+function trkZona(z) {
+  TRK_STATE.zona = (z === 'Cliente') ? 'Cliente' : 'AMELIFE';
+  try { localStorage.setItem('AME_TRK_ZONA', TRK_STATE.zona); } catch (e) {}
+  document.querySelectorAll('#trkZonas .trk-zona').forEach(b => {
+    b.classList.toggle('on', b.dataset.z === TRK_STATE.zona);
+  });
+  trkFiltrar();
+}
+
+function trkZonaInit() {
+  let z = 'AMELIFE';
+  try { z = localStorage.getItem('AME_TRK_ZONA') || 'AMELIFE'; } catch (e) {}
+  trkZona(z);
+}
+
+/** Cuántos hay de cada lado. Se cuenta sobre todo, no sobre lo filtrado. */
+function trkContarZonas() {
+  const L = TRK_STATE.lista || [];
+  const a = L.filter(t => (t.ambito || 'AMELIFE') !== 'Cliente').length;
+  const c = L.length - a;
+  const ea = document.getElementById('trkNumAmelife');
+  const ec = document.getElementById('trkNumCliente');
+  if (ea) ea.textContent = a;
+  if (ec) ec.textContent = c;
+}
+
 function trkFiltrar() {
   const q  = (document.getElementById('trkSearch').value || '').toLowerCase().trim();
   const es = document.getElementById('trkFilterEstado').value;
   const ti = document.getElementById('trkFilterTipo').value;
+  const zona = TRK_STATE.zona || 'AMELIFE';
+  trkContarZonas();
   trkRender(TRK_STATE.lista.filter(t => {
+    if ((t.ambito || 'AMELIFE') !== zona) return false;
     if (es && t.estado !== es) return false;
     if (ti && t.tipo !== ti) return false;
     if (!q) return true;
@@ -5842,6 +5982,7 @@ function trkAbrirNuevo() {
   document.getElementById('trkCarrierOtro').style.display = 'none';
   ['trkBultos','trkPeso','trkValor','trkFlete'].forEach(id => document.getElementById(id).value = 0);
   trkLlenarSelects();
+  document.getElementById('trkAmbito').value  = TRK_STATE.zona || 'AMELIFE';
   document.getElementById('trkTipo').value    = TRK_STATE.cfg.tipos[0];
   document.getElementById('trkEstado').value  = TRK_STATE.cfg.estados[0];
   document.getElementById('trkCarrier').value = TRK_STATE.cfg.carriers[0];
@@ -5894,6 +6035,7 @@ async function trkGuardar() {
   const v = id => document.getElementById(id).value;
   const data = {
     id: TRK_STATE.editando, numero,
+    ambito: v('trkAmbito'),
     tipo: trkValorCon('trkTipo', 'trkTipoOtro'),
     carrier: trkValorCon('trkCarrier', 'trkCarrierOtro'),
     estado: v('trkEstado'),
@@ -5909,6 +6051,8 @@ async function trkGuardar() {
   btn.disabled = true;
   const r = await api('saveTrackingFull', { data });
   btn.disabled = false;
+  // Si lo cargó en la otra zona, se cambia solo: si no, parecería que se perdió.
+  if (r && r.ok && data.ambito && data.ambito !== TRK_STATE.zona) trkZona(data.ambito);
   if (!r.ok) { showToast(r.error || 'No se pudo guardar', 'error'); return; }
 
   closeModal('modalTracking');
@@ -5932,6 +6076,7 @@ async function trkEditar(id) {
   trkPonerCon('trkTipo', 'trkTipoOtro', t.tipo || 'Courier');
   trkPonerCon('trkCarrier', 'trkCarrierOtro', t.carrier || '');
   document.getElementById('trkEstado').value = t.estado;
+  document.getElementById('trkAmbito').value = (t.ambito === 'Cliente') ? 'Cliente' : 'AMELIFE';
 
   trkCamposPorTipo();
   trkRenderOrdenes(t.orden_ids || []);
