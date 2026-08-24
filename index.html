@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.6 | 2026-08-24 ARG - Facturas AME con cliente de la lista y orden por fecha de pago, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.7 | 2026-08-24 ARG - Facturas AME: el contacto que cargues vuelve a la ficha del cliente, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -4699,6 +4699,63 @@ function famClienteElegido() {
   }
 }
 
+/**
+ * Si al cargar la factura completaste un correo o un teléfono que la
+ * ficha del cliente no tenía, se lo agrega a Clientes. Sólo agrega:
+ * nunca pisa ni borra lo que ya estaba, y si el dato ya figura —aunque
+ * esté escrito distinto— no hace nada.
+ *
+ * Se le pone el nombre del contacto de la factura, así el dato queda
+ * atado a una persona y no suelto.
+ */
+function famSincronizarCliente(data) {
+  if (!data.cliente_id) return Promise.resolve();
+  const c = (CLIV_TODOS || []).find(x => x.id === data.cliente_id);
+  if (!c) return Promise.resolve();
+
+  const quien = String(data.contacto || '').trim();
+  const patch = {}, sumado = [];
+
+  // Para comparar: los correos en minúscula, los teléfonos sólo dígitos.
+  const clave = v => {
+    const s = String(v || '').toLowerCase().trim();
+    return s.indexOf('@') > -1 ? s : s.replace(/[^0-9+]/g, '');
+  };
+
+  const mail = String(data.email || '').trim();
+  if (mail) {
+    const ya = clivPartirPares(c.email);
+    if (!ya.some(p => clave(p.v) === clave(mail))) {
+      ya.push({ q: quien, v: mail });
+      patch.email = ya.map(p => p.q ? p.q + ' <' + p.v + '>' : p.v).join(', ');
+      sumado.push('el correo');
+    }
+  }
+
+  const tel = String(data.telefono || '').trim();
+  if (tel) {
+    const ya = clivPartirPares(c.tel);
+    if (!ya.some(p => clave(p.v) === clave(tel))) {
+      ya.push({ q: quien, v: tel });
+      patch.tel = ya.map(p => p.q ? p.q + ' <' + p.v + '>' : p.v).join(' / ');
+      sumado.push('el teléfono');
+    }
+  }
+
+  if (!sumado.length) return Promise.resolve();
+
+  return api('updateClientesBulk', { items: [{ id: c.id, data: patch }] }).then(r => {
+    if (!r || !r.ok) { showToast('La factura se guardó, pero no pude actualizar la ficha del cliente', 'error'); return; }
+    // Se refleja en memoria para no tener que recargar Clientes.
+    [c].concat(
+      (CLIENTES || []).filter(x => x.id === c.id),
+      (CLIV_LISTA || []).filter(x => x.id === c.id)
+    ).forEach(o => { if (o) Object.assign(o, patch); });
+    if (typeof CLIV_INIT !== 'undefined' && CLIV_INIT) renderClientes(CLIV_LISTA);
+    showToast(sumado.join(' y ') + ' se agregó a la ficha de ' + c.nombre, 'success');
+  });
+}
+
 // ── Carga y filtros ───────────────────────────────────────
 function famCargar(forzar) {
   if (FAM_STATE.cargado && !forzar) { famFiltrar(); return; }
@@ -4918,6 +4975,8 @@ function famGuardar() {
     closeModal('modalFacturaAME');
     showToast('Factura guardada', 'success');
     famCargar(true);
+    // Lo que completaste acá y le faltaba a la ficha, se lo sumamos.
+    famSincronizarCliente(data);
   });
 }
 
