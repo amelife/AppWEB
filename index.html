@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.8 | 2026-08-25 ARG - Nombre de empresa siempre en mayusculas, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.9 | 2026-08-25 ARG - Facturas AME entra en la precarga de arranque, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -4120,10 +4120,20 @@ function tnMarcarActivo() {
  * Se piden en silencio y sólo los que tu rol puede ver.
  */
 async function precargarModulos() {
+  // Facturas AME no usa la caché común: guarda su lista en FAM_STATE.
+  // Por eso lleva un `luego`, que corre cuando llega la respuesta.
   const modulos = [
     { panel: 'cotizaciones', clave: 'cotizaciones', accion: 'getCotizaciones' },
     { panel: 'ordenes',      clave: 'ordenes',      accion: 'getOrdenes' },
-    { panel: 'trackings',    clave: 'trackings',    accion: 'getTrackingsFull' }
+    { panel: 'trackings',    clave: 'trackings',    accion: 'getTrackingsFull' },
+    { panel: 'facturasame',  clave: 'facturasame',  accion: 'getFacturasAME',
+      luego: d => {
+        if (typeof FAM_STATE === 'undefined') return;
+        FAM_STATE.lista   = d || [];
+        FAM_STATE.cargado = true;
+        // Si el panel ya está a la vista, se dibuja; si no, queda listo.
+        if (document.getElementById('panel-facturasame').classList.contains('active')) famFiltrar();
+      } }
   ].filter(m => panelPermitido(m.panel));
 
   if (!modulos.length) return;
@@ -4133,7 +4143,10 @@ async function precargarModulos() {
 
   let listos = 0;
   rs.forEach((r, i) => {
-    if (r && r.ok) { cacheGuardar(modulos[i].clave, r.data); listos++; }
+    if (!r || !r.ok) return;
+    cacheGuardar(modulos[i].clave, r.data);
+    if (modulos[i].luego) { try { modulos[i].luego(r.data); } catch (e) {} }
+    listos++;
   });
   actTerminar(tarea, listos > 0);
 }
