@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v7.7 | 2026-08-24 ARG - Facturas AME: el contacto que cargues vuelve a la ficha del cliente, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v7.8 | 2026-08-25 ARG - Nombre de empresa siempre en mayusculas, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -806,6 +806,9 @@
   [data-theme="dark"] .cliv-tabla tbody tr.completa:hover { background:rgba(87,175,210,0.12); }
   .cliv-td-per { min-width:230px; }
   .cliv-td-dir { min-width:250px; max-width:330px; }
+
+  /* El nombre de la empresa va siempre en mayúsculas. */
+  .en-mayus { text-transform:uppercase; }
 
   /* ============ FACTURAS AME ============ */
   .fam-resumen { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
@@ -2275,8 +2278,8 @@
       <button class="modal-close" onclick="closeModal('modalCliente')">✕</button>
     </div>
     <div class="modal-grid">
-      <div class="field"><label>Nombre</label><input type="text" id="cliNombre" placeholder="Nombre completo" /></div>
-      <div class="field"><label>Empresa / Institución</label><input type="text" id="cliEmpresa" placeholder="Nombre de la organización" /></div>
+      <div class="field"><label>Nombre</label><input type="text" id="cliNombre" class="en-mayus" placeholder="NOMBRE DE LA EMPRESA" oninput="aMayus(this)" /></div>
+      <div class="field"><label>Empresa / Institución</label><input type="text" id="cliEmpresa" class="en-mayus" placeholder="NOMBRE DE LA ORGANIZACIÓN" oninput="aMayus(this)" /></div>
       <div class="field"><label>Email</label><input type="email" id="cliEmail" placeholder="email@cliente.com" /></div>
       <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="cliTel" placeholder="+1 305 XXX XXXX" /></div>
       <!-- Campo con lista: escribís dos letras y filtra, pero también
@@ -2562,7 +2565,8 @@
     <div class="modal-grid" style="grid-template-columns:1.4fr 1fr">
       <div class="field"><label>Cliente</label>
         <input type="text" id="famCliente" list="famClientesLista" autocomplete="off"
-               placeholder="Empezá a escribir y elegí de la lista" oninput="famClienteElegido()">
+               class="en-mayus" placeholder="EMPEZÁ A ESCRIBIR Y ELEGÍ DE LA LISTA"
+               oninput="aMayus(this);famClienteElegido()">
         <datalist id="famClientesLista"></datalist>
         <div class="fam-cli-est" id="famCliEstado"></div>
       </div>
@@ -8745,6 +8749,22 @@ const COT_BADGE = {
   'Rechazada': 'badge-danger',
   'Cerrada':   'badge-warning'
 };
+
+/**
+ * El nombre de la empresa se escribe en mayúsculas mientras se tipea.
+ * Se guarda el punto del cursor: sin eso, al corregir en el medio de la
+ * palabra el cursor se iba al final en cada tecla.
+ *
+ * El backend lo normaliza igual, esto es para que se vea lo que va a
+ * quedar guardado.
+ */
+function aMayus(el) {
+  const pos = el.selectionStart;
+  const v = el.value.toUpperCase();
+  if (v === el.value) return;
+  el.value = v;
+  try { el.setSelectionRange(pos, pos); } catch (e) {}
+}
 
 function cotFmt(n) {
   const v = Number(n) || 0;
