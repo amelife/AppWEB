@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.0 | 2026-08-25 ARG - La precarga del arranque va en un solo pedido, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v8.1 | 2026-08-26 ARG - Precio por linea editable a mano en las cotizaciones, Price Book cacheado, markup al copiar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -806,6 +806,23 @@
   [data-theme="dark"] .cliv-tabla tbody tr.completa:hover { background:rgba(87,175,210,0.12); }
   .cliv-td-per { min-width:230px; }
   .cliv-td-dir { min-width:250px; max-width:330px; }
+
+  /* ── Precio por línea en el constructor de cotizaciones ── */
+  .cot-precio { display:flex; align-items:center; gap:3px; width:126px; justify-content:flex-end; }
+  .cot-precio input {
+    width:96px; padding:4px 6px; text-align:right;
+    background:var(--card); border:1px solid var(--border2); border-radius:6px;
+    color:var(--text); font-family:'JetBrains Mono',monospace; font-size:12.5px; outline:none;
+  }
+  .cot-precio input:focus { border-color:var(--green); }
+  /* Una línea con precio a mano se marca: al mirar la cotización tiene
+     que saltar cuál se negoció y cuál salió del markup. */
+  .cot-precio.aMano input { border-color:var(--green); color:var(--green); font-weight:700; }
+  .cot-precio-auto {
+    appearance:none; background:none; border:0; cursor:pointer;
+    color:var(--muted); font-size:13px; line-height:1; padding:2px 3px; border-radius:4px;
+  }
+  .cot-precio-auto:hover { color:var(--green); background:var(--green-glow); }
 
   /* El nombre de la empresa va siempre en mayúsculas. */
   .en-mayus { text-transform:uppercase; }
@@ -9255,6 +9272,26 @@ function cotSetQty(idx, valor) {
   cotRenderItems();
 }
 
+/**
+ * Precio puesto a mano para una línea. Vacío = vuelve a seguir el markup.
+ * El 0 vale: una bonificación es un precio, no una celda sin llenar.
+ */
+function cotSetPrecio(idx, valor) {
+  const it = COT_STATE.items[idx];
+  if (!it) return;
+  const v = String(valor).trim();
+  if (v === '' || !isFinite(Number(v))) delete it.precio_final;
+  else it.precio_final = Math.round(Number(v) * 100) / 100;
+  cotRenderItems();
+}
+
+/** Vuelve la línea al cálculo por markup. */
+function cotAutoPrecio(idx) {
+  if (!COT_STATE.items[idx]) return;
+  delete COT_STATE.items[idx].precio_final;
+  cotRenderItems();
+}
+
 function cotQuitarItem(idx) {
   COT_STATE.items.splice(idx, 1);
   cotRenderItems();
@@ -9302,13 +9339,19 @@ function cotRenderItems() {
 
   cotOrdenarItems();
 
-  let subtotal = 0;
+  let subtotal = 0, granTotal = 0;
   const total  = COT_STATE.items.length;
 
   const html = COT_STATE.items.map((item, i) => {
     const linea = (Number(item.precio_lista) || 0) * item.qty;
     subtotal += linea;
-    const lineaFinal = linea * (1 + mk / 100);
+
+    // Si tiene precio a mano, ese manda y el markup no se le aplica.
+    const aMano = item.precio_final !== undefined;
+    const lineaFinal = aMano
+      ? Number(item.precio_final)
+      : Math.round(linea * (1 + mk / 100) * 100) / 100;
+    granTotal += lineaFinal;
 
     const rango  = cotRangoItem(item);
     const fijo   = rango > 0;
@@ -9329,14 +9372,23 @@ function cotRenderItems() {
         ${fijo ? `<span class="badge badge-muted" style="font-size:9px;margin-left:6px" title="Este cargo va siempre al final">fijo al final</span>` : ''}</span>
       <input type="number" value="${item.qty}" min="1" onchange="cotSetQty(${i}, this.value)"
         style="width:56px;padding:4px;background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center">
-      <span style="width:100px;text-align:right;font-family:'JetBrains Mono',monospace">${cotFmt(lineaFinal)}</span>
+      <span class="cot-precio${aMano ? ' aMano' : ''}">
+        <input type="number" step="0.01" min="0" value="${lineaFinal.toFixed(2)}"
+          title="${aMano ? 'Precio puesto a mano · no le entra el markup' : 'Precio calculado con el markup · escribí otro para fijarlo'}"
+          onchange="cotSetPrecio(${i}, this.value)">
+        ${aMano
+          ? `<button class="cot-precio-auto" title="Volver al precio con markup" onclick="cotAutoPrecio(${i})">&#8635;</button>`
+          : ''}
+      </span>
       <button class="tbl-txt peligro" title="Quitar" onclick="cotQuitarItem(${i})">Quitar</button>
     </div>`;
   }).join('');
 
   box.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
   document.getElementById('cotSubtotal').textContent = cotFmt(subtotal);
-  document.getElementById('cotTotal').textContent    = cotFmt(subtotal * (1 + mk / 100));
+  // El total es la suma de las líneas: con precios a mano, "subtotal por
+  // markup" ya no da lo mismo.
+  document.getElementById('cotTotal').textContent    = cotFmt(granTotal);
 }
 
 async function cotGuardar() {
@@ -9366,9 +9418,13 @@ async function cotGuardar() {
       markup:      markup,
       notas:       document.getElementById('cotNotas').value.trim(),
       incoterm:    document.getElementById('cotIncoterm').value.trim(),
-      items:       COT_STATE.items.map(i => ({
-        pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista
-      }))
+      items:       COT_STATE.items.map(i => {
+        const o = { pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista };
+        // Sólo viaja si lo pusiste a mano. Sin esto, el backend no puede
+        // distinguir un precio negociado de uno calculado.
+        if (i.precio_final !== undefined) o.precio_final = i.precio_final;
+        return o;
+      })
     }
   });
 
@@ -9578,6 +9634,36 @@ async function cotDescargarPDF(id) {
   showToast('En el diálogo elegí «Guardar como PDF»', 'info');
 }
 
+/**
+ * Arma un ítem del constructor a partir de una fila guardada.
+ *
+ * En la hoja no queda anotado si el precio se puso a mano: sólo está el
+ * número final. Se deduce comparándolo con lo que habría dado el markup;
+ * si difiere en más de un centavo, era a mano.
+ *
+ * El centavo de tolerancia es por el redondeo: 341 × 2 × 1,15 da 784,30
+ * exacto, pero otras combinaciones caen en 784,2999999.
+ */
+function cotItemDesdeHoja(i, markup) {
+  const it = {
+    pn:   i.pn,
+    desc: i.desc,
+    qty:  Number(i.qty) || 1,
+    precio_lista: Number(i.precio_lista) || 0
+  };
+
+  // Celda vacía no es precio cero: Number('') da 0 y una fila sin
+  // precio se habría leído como una línea bonificada.
+  const crudo = i.precio_final;
+  if (crudo === '' || crudo === null || crudo === undefined) return it;
+  const guardado = Number(crudo);
+  if (!isFinite(guardado)) return it;
+
+  const calculado = it.precio_lista * it.qty * (1 + markup / 100);
+  if (Math.abs(guardado - calculado) > 0.011) it.precio_final = Math.round(guardado * 100) / 100;
+  return it;
+}
+
 async function cotEditar(id) {
   const r = await api('getCotizacion', { id });
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
@@ -9586,12 +9672,7 @@ async function cotEditar(id) {
   await cotAbrirNueva();
 
   COT_STATE.editandoId = id;
-  COT_STATE.items = (c.items || []).map(i => ({
-    pn:   i.pn,
-    desc: i.desc,
-    qty:  Number(i.qty) || 1,
-    precio_lista: Number(i.precio_lista) || 0
-  }));
+  COT_STATE.items = (c.items || []).map(i => cotItemDesdeHoja(i, Number(c.markup) || 0));
 
   document.getElementById('cotMarkup').value = Number(c.markup) || 0;
   document.getElementById('cotNotas').value    = c.notas || '';
@@ -9617,11 +9698,9 @@ async function cotDuplicar(id) {
   await cotAbrirNueva();
   COT_STATE.editandoId = null;
 
-  COT_STATE.items = (c.items || []).map(i => ({
-    pn: i.pn, desc: i.desc,
-    qty: Number(i.qty) || 1,
-    precio_lista: Number(i.precio_lista) || 0
-  }));
+  // Copiar una cotización trae también los precios negociados: es
+  // justamente lo que se quiere repetir.
+  COT_STATE.items = (c.items || []).map(i => cotItemDesdeHoja(i, Number(c.markup) || 0));
 
   document.getElementById('cotMarkup').value   = Number(c.markup) || 0;
   document.getElementById('cotNotas').value    = c.notas || '';
