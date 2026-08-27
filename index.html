@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.6 | 2026-08-27 ARG - Ordenes de compra con arribos parciales y lista completa de items; Facturas AME con pagos parciales, agrupacion por cliente y carga de varios PDF -->
+<!-- AMELIFE EMS Technologies - Web App v8.7 | 2026-08-27 ARG - Estado de cuenta por cliente con PDF adjuntos y texto editable; copiar para WhatsApp o para correo en Precios ZOLL e Inventario -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -877,7 +877,30 @@
   .fam-grupo-c { font-size:12px; color:var(--muted); margin-left:10px; }
   .fam-grupo-v {
     float:right; font-family:'JetBrains Mono',monospace; font-weight:700;
-    font-size:13px; color:var(--green);
+    font-size:13px; color:var(--green); margin-left:14px;
+  }
+  .fam-grupo-b {
+    float:right; cursor:pointer; font-family:'Outfit',sans-serif; font-size:12px;
+    border:1px solid var(--border2); border-radius:var(--radius);
+    background:var(--card); color:var(--text); padding:4px 12px;
+  }
+  .fam-grupo-b:hover { border-color:var(--green); color:var(--green); }
+
+  /* Las facturas que entran al estado de cuenta. */
+  .fam-res-lista { display:flex; flex-direction:column; gap:6px; margin-bottom:6px; }
+  .fam-res-f {
+    display:flex; align-items:center; gap:11px; font-size:13px;
+    padding:8px 11px; border:1px solid var(--border2); border-radius:var(--radius);
+    background:var(--card2);
+  }
+  .fam-res-f input { width:16px; height:16px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
+  .fam-res-f .n { font-family:'JetBrains Mono',monospace; font-weight:700; min-width:88px; }
+  .fam-res-f .v { flex:1; color:var(--muted); font-size:12px; }
+  .fam-res-f .s { font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .fam-res-f.sinpdf { border-left:3px solid #D9A441; }
+  .fam-res-tot {
+    display:flex; justify-content:space-between; font-size:13px; font-weight:700;
+    padding:8px 11px; border-top:1px solid var(--border2); margin-bottom:14px;
   }
   /* Las filas del grupo van corridas: se ve de quién cuelgan. */
   .fam-td-hijo { padding-left:26px !important; border-left:3px solid var(--green-glow); }
@@ -2761,6 +2784,51 @@
   </div>
 </div>
 
+<!-- Modal: Estado de cuenta de un cliente -->
+<div class="modal-overlay" id="modalFamResumen" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:680px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title" id="famResTitulo">Estado de cuenta</div>
+      <button class="modal-close" onclick="closeModal('modalFamResumen')">✕</button>
+    </div>
+
+    <div class="cfg-seccion">Facturas que entran</div>
+    <div class="fam-res-lista" id="famResLista"></div>
+    <div class="fam-res-tot"><span>Total adeudado</span><span id="famResTotal">US$ 0.00</span></div>
+
+    <div class="field">
+      <label>Para</label>
+      <input type="email" id="famResPara" placeholder="cliente@empresa.com">
+    </div>
+    <div class="field">
+      <label>Asunto</label>
+      <input type="text" id="famResAsunto">
+    </div>
+    <div class="field">
+      <label>Mensaje</label>
+      <textarea id="famResCuerpo" rows="12" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;outline:none;resize:vertical"></textarea>
+    </div>
+    <p class="cfg-ayuda">
+      <b>{{detalle}}</b> es la tabla con cada factura, su fecha y su saldo — dejala donde quieras que aparezca.
+      También podés usar {{contacto}}, {{cliente}}, {{cantidad}} y {{total}}.
+      Una línea en blanco separa párrafos y *entre asteriscos* sale en negrita.
+    </p>
+
+    <div class="cfg-fila" style="margin-bottom:4px">
+      <input type="checkbox" id="famResAdj" checked>
+      <label for="famResAdj">Adjuntar los PDF de las facturas</label>
+    </div>
+    <p class="cfg-ayuda" id="famResAvisoPDF"></p>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="famResEditarPlantilla()">Editar la plantilla</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalFamResumen')">Cancelar</button>
+      <button class="btn btn-primary" id="famResBtn" onclick="famEnviarResumen()">Enviar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Registrar un pago -->
 <div class="modal-overlay" id="modalFamPago" data-no-cerrar-fuera>
   <div class="modal" style="max-width:480px">
@@ -3094,7 +3162,8 @@ function renderInventario(data) {
       <td class="pn" style="font-size:11px">${item.tracking||'—'}</td>
       <td><span class="badge ${statusMap[item.estado]||'badge-muted'}">${statusLabel[item.estado]||item.estado}</span></td>
       <td>
-        <button class="tbl-txt" onclick="invCopiar('${item.id}')" title="Copiar el ítem listo para pegar">Copiar</button>
+        <button class="tbl-txt" onclick="invCopiar('${item.id}')" title="Con los asteriscos de WhatsApp">WhatsApp</button>
+        <button class="tbl-txt" onclick="invCopiarMail('${item.id}')" title="Con negrita de verdad, para el correo">Correo</button>
         <button class="tbl-txt" onclick="openEditItem('${item.id}')" title="Editar">Editar</button>
         <button class="tbl-txt peligro" onclick="confirmDeleteItem('${item.id}','${item.pn}')" title="Eliminar">Borrar</button>
       </td>
@@ -3117,10 +3186,8 @@ function renderInventario(data) {
 // copia el ítem con el renglón de USD vacío.
 // Los campos que están en blanco no se escriben: un "WH: —" no le
 // sirve a nadie del otro lado.
-function invCopiar(id) {
-  const it = INVENTARIO.find(x => String(x.id) === String(id));
-  if (!it) { showToast('No encontré ese ítem', 'error'); return; }
-
+/** El texto del ítem de inventario. Uno solo para los dos botones. */
+function invTextoItem(it) {
   const cant = Number(it.stock);
   const dep  = String(it.deposito || '').trim();
 
@@ -3132,11 +3199,7 @@ function invCopiar(id) {
     wh:        it.wh || '',
     ubicacion: it.notas || it.lugar || ''
   });
-
-  if (desdePlantilla) {
-    copiarAlPortapapeles(desdePlantilla, 'Ítem copiado · pegalo en WhatsApp');
-    return;
-  }
+  if (desdePlantilla) return desdePlantilla;
 
   // Respaldo si la plantilla todavía no llegó del servidor.
   const L = [];
@@ -3147,8 +3210,24 @@ function invCopiar(id) {
   if (it.wh) L.push('*WH:* ' + it.wh);
   const lugar = it.notas || it.lugar || '';
   if (lugar) L.push('*Lugar:* ' + lugar);
+  return L.join('\n');
+}
 
-  copiarAlPortapapeles(L.join('\n'), 'Ítem copiado · pegalo en WhatsApp');
+function invCopiar(id) {
+  const it = INVENTARIO.find(x => String(x.id) === String(id));
+  if (!it) { showToast('No encontré ese ítem', 'error'); return; }
+  copiarAlPortapapeles(invTextoItem(it), 'Ítem copiado · pegalo en WhatsApp');
+}
+
+/**
+ * El mismo ítem para el correo: la negrita va como HTML, no con
+ * asteriscos, que en Gmail quedan a la vista.
+ */
+function invCopiarMail(id) {
+  const it = INVENTARIO.find(x => String(x.id) === String(id));
+  if (!it) { showToast('No encontré ese ítem', 'error'); return; }
+  const txt = invTextoItem(it);
+  copiarRico(notAHtml(txt), notSinMarcas(txt), 'Ítem copiado · pegalo en el correo');
 }
 
 // Copiar al portapapeles, con la alternativa vieja para cuando
@@ -5061,7 +5140,8 @@ function renderPriceBook() {
         <td>${r.desc}</td>
         <td><b>$${Number(r.price).toLocaleString()}</b></td>
         <td>
-          <button class="tbl-txt" title="Copiar el ítem listo para pegar" onclick="pbCopiar('${r.pn}','${k}')">Copiar ítem</button>
+          <button class="tbl-txt" title="Con los asteriscos de WhatsApp" onclick="pbCopiar('${r.pn}','${k}')">WhatsApp</button>
+          <button class="tbl-txt" title="Con negrita de verdad, para el correo" onclick="pbCopiarMail('${r.pn}','${k}')">Correo</button>
         </td>
       </tr>`).join('');
     contents.innerHTML += `
@@ -5142,7 +5222,40 @@ function pbCopiar(pn, categoria) {
   if (!it) { showToast('No encontré ese ítem', 'error'); return; }
 
   var precio = pbPrecioConMarkup(it.price);
+  var txt = pbTextoItem(it, precio);
 
+  copiarAlPortapapeles(txt, precio === null
+    ? 'Ítem copiado · pegalo y ponele el precio'
+    : 'Ítem copiado · USD ' + precio.toLocaleString('en-US') + ' con ' + PB_MARKUP + '% de markup');
+}
+
+/**
+ * El mismo ítem, pero para pegar en un correo.
+ *
+ * WhatsApp lee *asteriscos*; el correo no. Pegado en Gmail, el texto
+ * de WhatsApp queda con los asteriscos a la vista. Acá se copia HTML,
+ * así la negrita llega de verdad.
+ */
+function pbCopiarMail(pn, categoria) {
+  var it = null;
+  if (categoria) {
+    it = PRICEBOOK_DATA.find(function(x) {
+      return String(x.pn) === String(pn) && String(x.categoria) === String(categoria);
+    });
+  }
+  if (!it) it = PRICEBOOK_DATA.find(function(x) { return String(x.pn) === String(pn); });
+  if (!it) { showToast('No encontré ese ítem', 'error'); return; }
+
+  var precio = pbPrecioConMarkup(it.price);
+  var txt = pbTextoItem(it, precio);
+
+  copiarRico(notAHtml(txt), notSinMarcas(txt), precio === null
+    ? 'Ítem copiado · pegalo y ponele el precio'
+    : 'Ítem copiado · USD ' + precio.toLocaleString('en-US') + ' con ' + PB_MARKUP + '% de markup');
+}
+
+/** El texto del ítem, uno solo para los dos botones. */
+function pbTextoItem(it, precio) {
   // El renglón del USD tiene que quedar aunque no haya markup elegido:
   // por eso va un espacio y no una cadena vacía, que lo haría desaparecer.
   var txt = msgWa('WA_PB', {
@@ -5150,15 +5263,11 @@ function pbCopiar(pn, categoria) {
     desc:   it.desc || '',
     precio: precio === null ? ' ' : precio.toLocaleString('en-US')
   });
-
   if (!txt) {
     txt = '*PN ' + (it.pn || 'S/N') + '*\n' + (it.desc || '') + '\n' +
           'USD ' + (precio === null ? '' : precio.toLocaleString('en-US'));
   }
-
-  copiarAlPortapapeles(txt, precio === null
-    ? 'Ítem copiado · pegalo y ponele el precio'
-    : 'Ítem copiado · USD ' + precio.toLocaleString('en-US') + ' con ' + PB_MARKUP + '% de markup');
+  return txt;
 }
 
 function switchPBTab(id, el) {
@@ -5220,8 +5329,10 @@ function filterPB() {
           '<td><span class="badge es-muted">' + cotEsc(r.categoria) + '</span></td>' +
           '<td class="num"><b>$' + Number(r.price).toLocaleString() + '</b></td>' +
           '<td style="text-align:right;white-space:nowrap">' +
-            '<button class="tbl-txt" title="Copiar el ítem listo para pegar"' +
-              ' onclick="pbCopiar(\'' + cotEsc(r.pn) + '\',\'' + cotEsc(r.categoria) + '\')">Copiar ítem</button>' +
+            '<button class="tbl-txt" title="Con los asteriscos de WhatsApp"' +
+              ' onclick="pbCopiar(\'' + cotEsc(r.pn) + '\',\'' + cotEsc(r.categoria) + '\')">WhatsApp</button>' +
+            '<button class="tbl-txt" title="Con negrita de verdad, para el correo"' +
+              ' onclick="pbCopiarMail(\'' + cotEsc(r.pn) + '\',\'' + cotEsc(r.categoria) + '\')">Correo</button>' +
           '</td>' +
         '</tr>').join('') +
     '</tbody></table>' +
@@ -5331,7 +5442,7 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // confirma antes de guardar es el usuario.
 
 var FAM_STATE = { lista: [], editando: null, recordando: null, pagando: null,
-                  verPagos: null, cargado: false, asc: true };
+                  resumen: null, verPagos: null, cargado: false, asc: true };
 
 function famFmt(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -5710,6 +5821,8 @@ function famRender(lista) {
         '<span class="fam-grupo-c">' + b.facturas.length + ' facturas' +
           (atrasadas ? ' · ' + atrasadas + (atrasadas === 1 ? ' vencida' : ' vencidas') : '') + '</span>' +
         '<span class="fam-grupo-v">debe US$ ' + famFmt(debe) + '</span>' +
+        '<button class="fam-grupo-b" onclick="famAbrirResumen(\'' + cotEsc(b.cliente).replace(/'/g, "\\'") + '\')">' +
+          'Mandar estado de cuenta</button>' +
       '</td></tr>' +
       b.facturas.map(x => famFilaHTML(x, true)).join('');
   }).join('');
@@ -5959,6 +6072,119 @@ function famGuardar() {
     if (FAM_COLA.total > 1) { FAM_COLA.hechas++; famColaSiguiente(); }
     else showToast('Factura guardada', 'success');
   });
+}
+
+/**
+ * Estado de cuenta: un solo correo con todas las facturas que debe un
+ * cliente, cada una con su fecha y su saldo, y los PDF adjuntos.
+ *
+ * Mandarle cinco recordatorios sueltos es peor que mandarle uno con el
+ * total: el que lo recibe tiene que juntar los números a mano.
+ */
+async function famAbrirResumen(cliente) {
+  const clave = String(cliente || '').trim().toUpperCase();
+  const suyas = FAM_STATE.lista.filter(f =>
+    famAbierta(f) && (f.cliente || '').trim().toUpperCase() === clave);
+
+  if (!suyas.length) { showToast('Ese cliente no tiene facturas abiertas', 'error'); return; }
+
+  // De la más vieja a la más nueva: es el orden en que hay que cobrar.
+  suyas.sort((a, b) => String(a.vence || '9999').localeCompare(String(b.vence || '9999')));
+  FAM_STATE.resumen = { cliente: cliente, facturas: suyas };
+
+  document.getElementById('famResTitulo').textContent = 'Estado de cuenta · ' + cliente;
+  document.getElementById('famResPara').value =
+    suyas.map(f => f.email).filter(Boolean)[0] || '';
+
+  famResRender();
+
+  // La plantilla se pide al servidor: es la misma que se edita en
+  // Configuración, así lo que se cambió allá vale también acá.
+  const r = await api('borradorResumenAME', { ids: suyas.map(f => f.id) });
+  if (r && r.ok) {
+    document.getElementById('famResAsunto').value = r.data.asunto || '';
+    document.getElementById('famResCuerpo').value = r.data.cuerpo || '';
+  }
+  openModal('modalFamResumen');
+}
+
+function famResRender() {
+  const R = FAM_STATE.resumen;
+  if (!R) return;
+
+  document.getElementById('famResLista').innerHTML = R.facturas.map((f, i) =>
+    '<div class="fam-res-f' + (f.pdf_url ? '' : ' sinpdf') + '">' +
+      '<input type="checkbox" id="famres' + i + '" checked onchange="famResTotal()">' +
+      '<span class="n">' + cotEsc(f.numero) + '</span>' +
+      '<span class="v">' + cotEsc(famFecha(f.vence)) +
+        (famVencida(f) ? ' · <b style="color:var(--danger)">vencida</b>' : '') +
+        (f.pdf_url ? '' : ' · sin PDF') + '</span>' +
+      '<span class="s">' + famFmt(famSaldo(f)) + '</span>' +
+    '</div>').join('');
+
+  famResTotal();
+}
+
+/** Los ids tildados. Es lo que se manda y lo que se suma. */
+function famResElegidas() {
+  const R = FAM_STATE.resumen;
+  if (!R) return [];
+  return R.facturas.filter((f, i) => {
+    const c = document.getElementById('famres' + i);
+    return c && c.checked;
+  });
+}
+
+function famResTotal() {
+  const elegidas = famResElegidas();
+  const total = elegidas.reduce((a, f) => a + famSaldo(f), 0);
+  document.getElementById('famResTotal').textContent = 'US$ ' + famFmt(total);
+
+  const sinPDF = elegidas.filter(f => !f.pdf_url).length;
+  document.getElementById('famResAvisoPDF').innerHTML = sinPDF
+    ? '<b>' + sinPDF + (sinPDF === 1 ? ' factura no tiene PDF' : ' facturas no tienen PDF') +
+      '</b> cargado: van a figurar en la tabla igual, pero sin adjunto.'
+    : '';
+}
+
+/** Atajo a Configuración, para cambiar el texto de una vez y para siempre. */
+function famResEditarPlantilla() {
+  closeModal('modalFamResumen');
+  abrirConfig().then(() => msgCargar().then(() => msgEditar('FAM_RESUMEN')));
+}
+
+async function famEnviarResumen() {
+  const elegidas = famResElegidas();
+  if (!elegidas.length) { showToast('Tildá al menos una factura', 'error'); return; }
+
+  const para = document.getElementById('famResPara').value.trim();
+  if (!para) { showToast('Poné a quién mandárselo', 'error'); return; }
+
+  const cuerpo = document.getElementById('famResCuerpo').value;
+  if (!cuerpo.trim()) { showToast('El mensaje no puede quedar vacío', 'error'); return; }
+
+  const btn = document.getElementById('famResBtn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const r = await api('resumenDeudaAME', {
+    ids:      elegidas.map(f => f.id),
+    para:     para,
+    asunto:   document.getElementById('famResAsunto').value.trim(),
+    cuerpo:   cuerpo,
+    adjuntar: document.getElementById('famResAdj').checked
+  });
+
+  btn.disabled = false; btn.textContent = 'Enviar';
+  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
+
+  closeModal('modalFamResumen');
+  let msg = 'Estado de cuenta enviado a ' + r.data.enviado_a +
+            ' · ' + r.data.facturas + ' facturas';
+  if (r.data.adjuntos) msg += ' · ' + r.data.adjuntos + ' PDF adjuntos';
+  showToast(msg, 'success');
+  if (r.data.sin_pdf && r.data.sin_pdf.length) {
+    showToast('Sin PDF: ' + r.data.sin_pdf.join(', '), 'info');
+  }
 }
 
 /**
