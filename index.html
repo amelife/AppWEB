@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.5 | 2026-08-27 ARG - Facturas AME con pagos parciales, saldo, agrupacion por cliente y tramos de cobranza; orden de compra con PN editable e items fuera de lista -->
+<!-- AMELIFE EMS Technologies - Web App v8.6 | 2026-08-27 ARG - Ordenes de compra con arribos parciales y lista completa de items; Facturas AME con pagos parciales, agrupacion por cliente y carga de varios PDF -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -961,6 +961,19 @@
   [data-theme="dark"] .oc-reloj.aviso { color:#D8A544; }
   [data-theme="dark"] .oc-reloj.mal   { color:#E27B75; }
 
+  /* Lista completa de ítems de una orden. Con muchas líneas scrollea
+     sola en vez de estirar la fila a media pantalla. */
+  .oc-items { max-height:150px; overflow-y:auto; }
+  .oc-item { line-height:1.4; }
+  .oc-parcial, .oc-completa {
+    margin-left:8px; font-family:var(--cond); font-size:10.5px; font-weight:700;
+    letter-spacing:.7px; text-transform:uppercase; white-space:nowrap;
+    border-radius:3px; padding:1px 6px;
+  }
+  .oc-parcial  { color:#B8860B; border:1px solid #B8860B; }
+  .oc-completa { color:var(--green); border:1px solid var(--green); }
+  [data-theme="dark"] .oc-parcial { color:#D8A544; border-color:#D8A544; }
+
   /* ── Destinatarios del email ── */
   #cotEmailChips { display:flex; flex-direction:column; gap:6px; }
   .cot-dest {
@@ -1815,8 +1828,8 @@
           </select>
           <button class="btn btn-outline" onclick="famCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-outline" onclick="famNueva()">+ Cargar a mano</button>
-          <button class="btn btn-primary" onclick="document.getElementById('famPDF').click()">+ Subir factura PDF</button>
-          <input type="file" id="famPDF" accept=".pdf" style="display:none" onchange="famSubirPDF(event)">
+          <button class="btn btn-primary" onclick="document.getElementById('famPDF').click()">+ Subir facturas PDF</button>
+          <input type="file" id="famPDF" accept=".pdf" multiple style="display:none" onchange="famSubirPDF(event)">
         </div>
 
         <div class="fam-resumen" id="famResumen"></div>
@@ -2607,9 +2620,12 @@
       <div class="modal-title" id="ocRecTitulo">Recibir orden</div>
       <button class="modal-close" onclick="closeModal('modalRecibir')">✕</button>
     </div>
-    <p class="cfg-ayuda">Poné el WH que le asignaron a cada ítem. Al confirmar, las cantidades entran al inventario y la orden pasa a <b>Received</b>. Es una sola vez: después no se puede deshacer desde acá.</p>
+    <p class="cfg-ayuda">Poné cuánto llegó de cada ítem y el WH que le asignaron. Sólo eso entra al inventario. Si falta algo, la orden queda <b>Recibida en parte</b> y podés volver a recibir cuando llegue el resto.</p>
     <div id="ocRecItems"></div>
+    <div id="ocRecAviso" class="cfg-ayuda" style="margin-top:12px"></div>
     <div class="modal-footer">
+      <button class="btn btn-outline" onclick="ocRecTodo()">Llegó todo</button>
+      <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="closeModal('modalRecibir')">Cancelar</button>
       <button class="btn btn-primary" id="ocBtnRecibir" onclick="ocConfirmarRecibir()"><i class="i3d i3d-ok"></i> Confirmar recepción</button>
     </div>
@@ -2705,7 +2721,7 @@
   <div class="modal" style="max-width:820px;max-height:92vh;overflow-y:auto">
     <div class="modal-header">
       <div class="modal-title" id="famModalTitulo">Nueva factura</div>
-      <button class="modal-close" onclick="closeModal('modalFacturaAME')">✕</button>
+      <button class="modal-close" onclick="famCerrarModal()">✕</button>
     </div>
 
     <div id="famAviso" style="display:none"></div>
@@ -2739,7 +2755,7 @@
     </div>
 
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeModal('modalFacturaAME')">Cancelar</button>
+      <button class="btn btn-outline" onclick="famCerrarModal()">Cancelar</button>
       <button class="btn btn-primary" id="famBtnGuardar" onclick="famGuardar()">Guardar factura</button>
     </div>
   </div>
@@ -3552,7 +3568,8 @@ async function conCache(clave, accion, params, pintar) {
 var OC_STATE = { lista: [], items: [], editandoId: null, resultados: [], recibiendo: null };
 var OC_REPS  = ['Ponce Alejandra', 'Huertos Marisol'];
 
-var OC_BADGE = { Draft:'es-muted', Sent:'es-info', Confirmed:'es-warning', Received:'es-green' };
+var OC_BADGE = { Draft:'es-muted', Sent:'es-info', Confirmed:'es-warning',
+                 Partial:'es-warning', Received:'es-green' };
 
 /** Mismo color para el mismo significado en toda la app. */
 function cotEstadoClase(e) {
@@ -3563,33 +3580,49 @@ function cotEstadoClase(e) {
 
 // El valor guardado va en inglés porque es el que viaja al documento
 // y al proveedor. En pantalla se muestra en castellano.
-var OC_ESTADO_ES = { Draft:'Borrador', Sent:'Enviada', Confirmed:'Confirmada', Received:'Recibida' };
+var OC_ESTADO_ES = { Draft:'Borrador', Sent:'Enviada', Confirmed:'Confirmada',
+                     Partial:'Recibida en parte', Received:'Recibida' };
 function ocEstadoTxt(e) { return OC_ESTADO_ES[e] || e || '—'; }
 
 /**
- * Qué trae la orden, sin tener que abrirla. Se muestran las primeras
- * líneas con su cantidad y el resto se resume, para que la fila no
- * crezca sin control cuando la orden tiene veinte ítems.
+ * Qué trae la orden, sin tener que abrirla.
+ *
+ * Se listan TODAS las líneas: cortarlas en tres obligaba a abrir la
+ * orden para saber qué más venía, que es justo lo que esta columna
+ * tendría que evitar. Con muchas líneas la celda scrollea sola en vez
+ * de estirar la fila.
+ *
+ * Cuando algo ya llegó, la línea lo dice: «3 de 10 · faltan 7».
  */
 function ocResumenItems(o) {
   const d = o.detalle || [];
   if (!d.length) return '<span style="color:var(--muted)">' + (o.items || 0) + '</span>';
 
-  const visibles = d.slice(0, 3);
-  const resto    = d.length - visibles.length;
   const corta = t => {
     t = String(t || '').trim();
     return t.length > 42 ? t.slice(0, 41) + '…' : t;
   };
-  return visibles.map(i =>
-      '<div style="line-height:1.35">' +
-        '<b style="font-family:\'JetBrains Mono\',monospace">' + i.qty + '</b>' +
+
+  return '<div class="oc-items">' + d.map(i => {
+    const qty = Number(i.qty) || 0;
+    const rec = Number(i.recibido_qty) || 0;
+    const falta = Math.max(0, qty - rec);
+
+    let marca = '';
+    if (rec > 0 && falta > 0) {
+      marca = '<span class="oc-parcial">' + rec + ' de ' + qty + ' · faltan ' + falta + '</span>';
+    } else if (rec > 0) {
+      marca = '<span class="oc-completa">llegó</span>';
+    }
+
+    return '<div class="oc-item">' +
+        '<b style="font-family:\'JetBrains Mono\',monospace">' + qty + '</b>' +
         '<span style="color:var(--muted)"> × </span>' +
         '<span class="pn">' + cotEsc(i.pn) + '</span>' +
         (i.desc ? '<span style="color:var(--muted);font-size:13px"> · ' + cotEsc(corta(i.desc)) + '</span>' : '') +
-      '</div>').join('') +
-    (resto ? '<div style="color:var(--muted);font-size:13px">+' + resto +
-             (resto === 1 ? ' ítem más' : ' ítems más') + '</div>' : '');
+        marca +
+      '</div>';
+  }).join('') + '</div>';
 }
 
 function ocFmt(n) {
@@ -3672,7 +3705,8 @@ function ocReloj(o) {
     if (n === null) return '';
     return '<div class="oc-reloj ok">recibida en ' + ocSemanasTxt(n) + '</div>';
   }
-  if (o.estado !== 'Sent') return '';
+  // Un arribo parcial no detiene el reloj: falta mercadería.
+  if (o.estado !== 'Sent' && o.estado !== 'Partial') return '';
 
   const n = ocSemanas(enviada);
   if (n === null) return '';
@@ -3692,6 +3726,10 @@ function ocRender(lista) {
 
   tb.innerHTML = lista.map(o => {
     const recibida = o.estado === 'Received';
+    // Una orden parcial sigue abierta para recibir, pero ya movió stock:
+    // editarla o borrarla dejaría el inventario contando algo que no
+    // corresponde a ninguna orden.
+    const parcial = o.estado === 'Partial';
     return '<tr>' +
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
       '<td style="white-space:normal;min-width:330px">' + ocResumenItems(o) + '</td>' +
@@ -3704,10 +3742,11 @@ function ocRender(lista) {
         '<button class="tbl-txt" onclick="ocDescargarPDF(\'' + o.id + '\')">PDF</button>' +
         '<button class="tbl-txt" onclick="ocAbrirEmail(\'' + o.id + '\')">Enviar</button>' +
         '<button class="tbl-txt" onclick="ocDuplicar(\'' + o.id + '\')">Copiar</button>' +
-        (recibida ? '' :
-          '<button class="tbl-txt" onclick="ocEditar(\'' + o.id + '\')">Editar</button>' +
-          '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir</button>' +
-          '<button class="tbl-txt peligro" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')">Borrar</button>') +
+        (recibida ? '' : parcial
+          ? '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir el resto</button>'
+          : '<button class="tbl-txt" onclick="ocEditar(\'' + o.id + '\')">Editar</button>' +
+            '<button class="tbl-txt" onclick="ocAbrirRecibir(\'' + o.id + '\')">Recibir</button>' +
+            '<button class="tbl-txt peligro" onclick="ocEliminar(\'' + o.id + '\',\'' + cotEsc(o.numero) + '\')">Borrar</button>') +
       '</div></td>' +
     '</tr>';
   }).join('');
@@ -4051,29 +4090,97 @@ async function ocAbrirRecibir(id) {
 
   OC_STATE.recibiendo = o;
   document.getElementById('ocRecTitulo').textContent = 'Recibir orden ' + o.numero;
+
+  // Sólo las líneas que todavía deben algo. Las que ya llegaron
+  // enteras se muestran apagadas: sirven de contexto, no se tocan.
   document.getElementById('ocRecItems').innerHTML =
     '<table class="data-table"><thead><tr>' +
-      '<th>Part Number</th><th>Description</th><th style="width:64px">Qty</th><th style="width:150px">WH asignado</th>' +
+      '<th>Part Number</th><th>Description</th>' +
+      '<th style="width:60px;text-align:center">Pedido</th>' +
+      '<th style="width:60px;text-align:center">Llegó</th>' +
+      '<th style="width:92px;text-align:center">Llega ahora</th>' +
+      '<th style="width:140px">WH asignado</th>' +
     '</tr></thead><tbody>' +
-    (o.items || []).map(i =>
-      '<tr>' +
+    (o.items || []).map(i => {
+      const qty   = Number(i.qty) || 0;
+      const yaRec = Number(i.recibido_qty) || 0;
+      const falta = Math.max(0, qty - yaRec);
+      const cerrada = falta <= 0;
+
+      return '<tr' + (cerrada ? ' style="opacity:.5"' : '') + '>' +
         '<td><span class="pn">' + cotEsc(i.pn) + '</span></td>' +
         '<td style="font-size:12px">' + cotEsc(i.desc) + '</td>' +
-        '<td style="text-align:center;font-weight:700">' + i.qty + '</td>' +
-        '<td><input type="text" class="wh-input" data-linea="' + i.linea + '" value="' + cotEsc(i.wh || '') + '" placeholder="WR-..."></td>' +
-      '</tr>').join('') +
+        '<td style="text-align:center;font-weight:700">' + qty + '</td>' +
+        '<td style="text-align:center;color:var(--muted)">' + (yaRec || '—') + '</td>' +
+        '<td>' + (cerrada
+          ? '<div style="text-align:center;color:var(--green);font-size:12px">completa</div>'
+          : '<input type="number" class="wh-input" style="text-align:center"' +
+            ' data-linea="' + i.linea + '" data-falta="' + falta + '"' +
+            ' min="0" max="' + falta + '" value="' + falta + '" oninput="ocRecAviso()">') +
+        '</td>' +
+        '<td><input type="text" class="wh-input" data-wh="' + i.linea + '"' +
+          ' value="' + cotEsc(i.wh || '') + '" placeholder="WR-..."' +
+          (cerrada ? ' disabled' : '') + '></td>' +
+      '</tr>';
+    }).join('') +
     '</tbody></table>';
+
+  ocRecAviso();
   openModal('modalRecibir');
+}
+
+/** Carga en cada línea todo lo que falta. */
+function ocRecTodo() {
+  document.querySelectorAll('#ocRecItems input[data-linea]').forEach(inp => {
+    inp.value = inp.dataset.falta;
+  });
+  ocRecAviso();
+}
+
+/** Dice cómo va a quedar la orden ANTES de confirmar. */
+function ocRecAviso() {
+  const caja = document.getElementById('ocRecAviso');
+  if (!caja) return;
+
+  let llega = 0, falta = 0;
+  document.querySelectorAll('#ocRecItems input[data-linea]').forEach(inp => {
+    const max = Number(inp.dataset.falta) || 0;
+    let v = Number(inp.value) || 0;
+    if (v < 0) v = 0;
+    if (v > max) v = max;
+    llega += v;
+    falta += (max - v);
+  });
+
+  if (!llega) {
+    caja.innerHTML = '<b>No entra nada al inventario.</b> Poné cuánto llegó de cada ítem.';
+    return;
+  }
+  caja.innerHTML = falta
+    ? 'Entran <b>' + llega + '</b> unidades al inventario y quedan <b>' + falta +
+      '</b> pendientes: la orden va a quedar <b>Recibida en parte</b>.'
+    : 'Entran <b>' + llega + '</b> unidades y la orden queda <b>Recibida</b> completa.';
 }
 
 async function ocConfirmarRecibir() {
   const o = OC_STATE.recibiendo;
   if (!o) return;
 
-  const items = [].map.call(
-    document.querySelectorAll('#ocRecItems input[data-linea]'),
-    inp => ({ linea: Number(inp.dataset.linea), wh: inp.value.trim() })
-  );
+  const whPorLinea = {};
+  document.querySelectorAll('#ocRecItems input[data-wh]').forEach(inp => {
+    whPorLinea[inp.dataset.wh] = inp.value.trim();
+  });
+
+  const items = [];
+  document.querySelectorAll('#ocRecItems input[data-linea]').forEach(inp => {
+    const max = Number(inp.dataset.falta) || 0;
+    let qty = Number(inp.value) || 0;
+    if (qty < 0) qty = 0;
+    if (qty > max) qty = max;
+    items.push({ linea: Number(inp.dataset.linea), qty: qty, wh: whPorLinea[inp.dataset.linea] || '' });
+  });
+
+  if (!items.some(x => x.qty > 0)) { showToast('No pusiste ninguna cantidad', 'error'); return; }
 
   const btn = document.getElementById('ocBtnRecibir');
   btn.disabled = true;
@@ -4084,8 +4191,9 @@ async function ocConfirmarRecibir() {
   closeModal('modalRecibir');
 
   const d = r.data;
-  let msg = d.total + ' ítems al inventario';
-  if (d.creados) msg += ' · ' + d.creados + ' dados de alta';
+  let msg = d.total + ' unidades al inventario';
+  if (d.creados) msg += ' · ' + d.creados + ' dadas de alta';
+  if (d.parcial) msg += ' · la orden queda abierta';
   showToast(msg);
   if (d.sinPN && d.sinPN.length) {
     showToast('Líneas sin PN, no impactaron stock: ' + d.sinPN.join(', '), 'info');
@@ -5681,23 +5789,90 @@ function famResumen() {
 }
 
 // ── Subir el PDF ──────────────────────────────────────────
-function famSubirPDF(ev) {
-  const file = ev.target.files && ev.target.files[0];
-  ev.target.value = '';
-  if (!file) return;
-  if (file.size > 9 * 1024 * 1024) { showToast('El PDF es muy grande (máx. 9 MB)', 'error'); return; }
+/**
+ * Subir una o varias facturas en PDF.
+ *
+ * POR QUÉ DE A UNA Y NO TODAS JUNTAS
+ *   Lo que sale del PDF es una ayuda, no una verdad: el número, el
+ *   cliente y el total hay que confirmarlos antes de guardar. Así que
+ *   los archivos entran en una cola: se lee uno, se revisa, se guarda,
+ *   y recién ahí se lee el siguiente. Guardar diez de una sin mirar
+ *   sería meter diez errores a la planilla.
+ *
+ *   Cada PDF tarda unos segundos del lado del servidor, y Apps Script
+ *   ejecuta de a una función por usuario: mandarlos en paralelo los
+ *   pondría igual en fila, pero sin poder avisar por dónde va.
+ */
+var FAM_COLA = { pendientes: [], total: 0, hechas: 0, saltadas: 0 };
 
-  showToast('Leyendo la factura… esto tarda unos segundos', 'info');
+function famSubirPDF(ev) {
+  const files = [].slice.call(ev.target.files || []);
+  ev.target.value = '';
+  if (!files.length) return;
+
+  const grandes = files.filter(f => f.size > 9 * 1024 * 1024);
+  const buenos  = files.filter(f => f.size <= 9 * 1024 * 1024);
+
+  if (grandes.length) {
+    showToast(grandes.length === 1
+      ? 'Salteé ' + grandes[0].name + ': pesa más de 9 MB'
+      : 'Salteé ' + grandes.length + ' archivos de más de 9 MB', 'error');
+  }
+  if (!buenos.length) return;
+
+  FAM_COLA = { pendientes: buenos, total: buenos.length, hechas: 0, saltadas: 0 };
+  famColaSiguiente();
+}
+
+function famColaSiguiente() {
+  const file = FAM_COLA.pendientes.shift();
+
+  if (!file) {
+    if (FAM_COLA.total > 1) {
+      let msg = FAM_COLA.hechas + ' de ' + FAM_COLA.total + ' facturas cargadas';
+      if (FAM_COLA.saltadas) msg += ' · ' + FAM_COLA.saltadas + ' salteadas';
+      showToast(msg, 'success');
+    }
+    FAM_COLA.total = 0;
+    return;
+  }
+
+  const cual = FAM_COLA.total - FAM_COLA.pendientes.length;
+  showToast(FAM_COLA.total > 1
+    ? 'Leyendo ' + cual + ' de ' + FAM_COLA.total + ': ' + file.name
+    : 'Leyendo la factura… esto tarda unos segundos', 'info');
+
   const fr = new FileReader();
   fr.onload = () => {
     const b64 = String(fr.result).split(',')[1];
     api('importarFacturaAME', { base64: b64, fileName: file.name }).then(r => {
-      if (!r || !r.ok) { showToast((r && r.error) || 'No pude leer el PDF', 'error'); return; }
+      if (!r || !r.ok) {
+        showToast('No pude leer ' + file.name + ': ' + ((r && r.error) || 'error'), 'error');
+        FAM_COLA.saltadas++;
+        famColaSiguiente();          // una que falla no frena a las demás
+        return;
+      }
       famAbrirModal(r.data, true);
     });
   };
-  fr.onerror = () => showToast('No pude leer el archivo', 'error');
+  fr.onerror = () => {
+    showToast('No pude leer ' + file.name, 'error');
+    FAM_COLA.saltadas++;
+    famColaSiguiente();
+  };
   fr.readAsDataURL(file);
+}
+
+/**
+ * Cerrar el formulario sin guardar.
+ *
+ * Si viene de una tanda de PDF, la cola tiene que seguir: si no, salir
+ * de una factura mal leída dejaba las cinco siguientes sin procesar y
+ * sin ningún aviso.
+ */
+function famCerrarModal() {
+  closeModal('modalFacturaAME');
+  if (FAM_COLA.total > 1) { FAM_COLA.saltadas++; famColaSiguiente(); }
 }
 
 // ── Alta y edición ────────────────────────────────────────
@@ -5711,8 +5886,10 @@ function famEditar(id) {
 
 function famAbrirModal(d, desdePDF) {
   FAM_STATE.editando = d.id || null;
+  const enTanda = (FAM_COLA.total > 1)
+    ? ' · ' + (FAM_COLA.total - FAM_COLA.pendientes.length) + ' de ' + FAM_COLA.total : '';
   document.getElementById('famModalTitulo').textContent =
-    d.id ? ('Factura ' + (d.numero || '')) : desdePDF ? 'Revisá lo que salió del PDF' : 'Nueva factura';
+    (d.id ? ('Factura ' + (d.numero || '')) : desdePDF ? 'Revisá lo que salió del PDF' : 'Nueva factura') + enTanda;
 
   const av = document.getElementById('famAviso');
   if (desdePDF) {
@@ -5774,10 +5951,13 @@ function famGuardar() {
     btn.disabled = false;
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo guardar', 'error'); return; }
     closeModal('modalFacturaAME');
-    showToast('Factura guardada', 'success');
     famCargar(true);
     // Lo que completaste acá y le faltaba a la ficha, se lo sumamos.
     famSincronizarCliente(data);
+
+    // Si vino de una tanda de PDF, sigue con el próximo.
+    if (FAM_COLA.total > 1) { FAM_COLA.hechas++; famColaSiguiente(); }
+    else showToast('Factura guardada', 'success');
   });
 }
 
