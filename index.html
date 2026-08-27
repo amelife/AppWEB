@@ -854,6 +854,17 @@
   .fam-caja.mal .fam-caja-v { color:#C4534D; }
   .fam-caja-n { font-size:12px; color:var(--muted); }
   [data-theme="dark"] .fam-caja.mal .fam-caja-v { color:#E27B75; }
+  /* La caja del total pesa más: es el número que se mira primero. */
+  .fam-caja.total { border-left-width:4px; }
+  .fam-caja.total .fam-caja-v { font-size:23px; }
+  /* Los tramos son más chicos: se leen de corrido, como una fila. */
+  .fam-caja.tramo { min-width:124px; padding:9px 13px; border-left-color:var(--border2); }
+  .fam-caja.tramo .fam-caja-v { font-size:16px; }
+  .fam-caja.tramo.vacia { opacity:.5; }
+  .fam-caja.tramo.pronto { border-left-color:#D9A441; }
+  .fam-caja.tramo.pronto .fam-caja-v { color:#B07C1E; }
+  [data-theme="dark"] .fam-caja.tramo.pronto .fam-caja-v { color:#E5B55A; }
+  .fam-corte { width:1px; align-self:stretch; background:var(--border2); margin:2px 4px; }
 
   /* La fila vencida se marca de fondo: es lo que hay que mirar. */
   .fam-vencida { background:rgba(196,83,77,0.07); }
@@ -5430,21 +5441,68 @@ function famRender(lista) {
   famResumen();
 }
 
-/** Lo que hay que cobrar, y cuánto de eso está atrasado. */
+/**
+ * Cuándo entra la plata.
+ *
+ * Los tramos son EXCLUYENTES y no se pisan: una factura cae en uno
+ * solo, así que vencido + los seis tramos da exactamente el total por
+ * cobrar. Si fueran acumulados —«en 30 días» incluyendo «esta
+ * semana»— los números se solaparían y no cerrarían contra el total,
+ * que es justo lo que se quiere controlar.
+ *
+ * `hasta` es el último día que entra en el tramo, contando desde hoy.
+ * Cero días es hoy mismo, y va en la primera.
+ */
+const FAM_TRAMOS = [
+  { k: 'Esta semana',  hasta: 7,  pronto: true },
+  { k: '8 a 15 días',  hasta: 15 },
+  { k: '16 a 30 días', hasta: 30 },
+  { k: '31 a 45 días', hasta: 45 },
+  { k: '46 a 60 días', hasta: 60 },
+  { k: 'Más de 60',    hasta: Infinity, soloConDatos: true }
+];
+
 function famResumen() {
   const c = document.getElementById('famResumen');
   if (!c) return;
+  if (!FAM_STATE.lista.length) { c.innerHTML = ''; return; }
+
   const pend = FAM_STATE.lista.filter(f => f.estado === 'Pendiente');
   const venc = pend.filter(famVencida);
   const sum  = a => a.reduce((s, f) => s + (Number(f.total) || 0), 0);
-  if (!FAM_STATE.lista.length) { c.innerHTML = ''; return; }
+
+  // Reparto en tramos. Lo vencido ya se contó aparte y las que no
+  // tienen fecha de pago cargada no se pueden ubicar en el tiempo:
+  // van a su propia caja para que la suma siga cerrando.
+  const cubos = FAM_TRAMOS.map(() => []);
+  const sinFecha = [];
+
+  pend.forEach(f => {
+    if (famVencida(f)) return;
+    const d = famDias(f.vence);
+    if (d === null) { sinFecha.push(f); return; }
+    const i = FAM_TRAMOS.findIndex(t => d <= t.hasta);
+    cubos[i === -1 ? FAM_TRAMOS.length - 1 : i].push(f);
+  });
+
+  const caja = (clase, rotulo, facturas) =>
+    '<div class="fam-caja ' + clase + (facturas.length ? '' : ' vacia') + '">' +
+      '<span class="fam-caja-k">' + rotulo + '</span>' +
+      '<span class="fam-caja-v">US$ ' + famFmt(sum(facturas)) + '</span>' +
+      '<span class="fam-caja-n">' + facturas.length +
+        (facturas.length === 1 ? ' factura' : ' facturas') + '</span>' +
+    '</div>';
+
   c.innerHTML =
-    '<div class="fam-caja"><span class="fam-caja-k">Por cobrar</span>' +
-      '<span class="fam-caja-v">US$ ' + famFmt(sum(pend)) + '</span>' +
-      '<span class="fam-caja-n">' + pend.length + (pend.length === 1 ? ' factura' : ' facturas') + '</span></div>' +
-    '<div class="fam-caja' + (venc.length ? ' mal' : '') + '"><span class="fam-caja-k">Vencido</span>' +
-      '<span class="fam-caja-v">US$ ' + famFmt(sum(venc)) + '</span>' +
-      '<span class="fam-caja-n">' + venc.length + (venc.length === 1 ? ' factura' : ' facturas') + '</span></div>';
+    caja('total', 'Total por cobrar', pend).replace('</span></div>',
+      '</span><span class="fam-caja-n" style="margin-top:-2px">incluye lo vencido</span></div>') +
+    caja(venc.length ? 'mal' : '', 'Vencido', venc) +
+    '<div class="fam-corte"></div>' +
+    FAM_TRAMOS.map((t, i) => {
+      if (t.soloConDatos && !cubos[i].length) return '';
+      return caja('tramo' + (t.pronto ? ' pronto' : ''), t.k, cubos[i]);
+    }).join('') +
+    (sinFecha.length ? caja('tramo', 'Sin fecha de pago', sinFecha) : '');
 }
 
 // ── Subir el PDF ──────────────────────────────────────────
