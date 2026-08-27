@@ -9499,13 +9499,21 @@ async function cotVerDetalle(id) {
   const c = r.data;
   tituloConIcono(document.getElementById('cotDetalleTitle'), 'cotizaciones', (c.numero || c.id) + ' · ' + (c.cliente_nom || ''));
 
-  const filas = (c.items || []).map(i => `<tr>
+  // El unitario que se muestra es el COTIZADO, no el de lista: sale de
+  // dividir el total de la línea por la cantidad. Antes se mostraba el
+  // de lista y no coincidía con nada de lo que ve el cliente.
+  const filas = (c.items || []).map(i => {
+    const qty  = Number(i.qty) || 0;
+    const tot  = Number(i.precio_final) || 0;
+    const unit = qty ? tot / qty : tot;
+    return `<tr>
       <td class="pn">${cotEsc(i.pn)}</td>
       <td>${cotEsc(i.desc)}</td>
       <td style="text-align:center">${i.qty}</td>
-      <td style="text-align:right">${cotFmt(i.precio_lista)}</td>
-      <td style="text-align:right"><b>${cotFmt(i.precio_final)}</b></td>
-    </tr>`).join('');
+      <td style="text-align:right">${cotFmt(unit)}</td>
+      <td style="text-align:right"><b>${cotFmt(tot)}</b></td>
+    </tr>`;
+  }).join('');
 
   body.innerHTML = `
     <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:0 14px 12px">
@@ -9515,11 +9523,11 @@ async function cotVerDetalle(id) {
       ${c.enviado_a ? '<span style="color:var(--green)"><i class="i3d i3d-correo"></i> Enviada a <b>' + cotEsc(String(c.enviado_a).split(/[,;]/).map(x=>x.trim()).filter(Boolean).join(' · ')) + '</b>' + (c.enviado_el ? ' — último envío ' + cotEsc(cotFecha(c.enviado_el)) : '') + '</span>' : ''}
     </div>
     <table class="data-table">
-      <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Lista</th><th style="text-align:right">P. Final</th></tr></thead>
+      <thead><tr><th>PN</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Unitario</th><th style="text-align:right">Total</th></tr></thead>
       <tbody>${filas || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted)">Sin ítems</td></tr>'}</tbody>
     </table>
     <div style="display:flex;justify-content:space-between;padding:14px;border-top:1px solid var(--border2);font-size:15px">
-      <span style="color:var(--muted)">Subtotal ${cotFmt(c.subtotal)}</span>
+      <span style="color:var(--muted)">Subtotal de lista ${cotFmt(c.subtotal)}</span>
       <span style="font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace">TOTAL ${cotFmt(c.total)}</span>
     </div>`;
   cont.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
