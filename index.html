@@ -4811,7 +4811,7 @@ function renderPriceBook() {
     tabs.innerHTML += `<div class="pb-tab${i===0?' active':''}" onclick="switchPBTab('${safeId}',this)">${k}</div>`;
     const rows = grouped[k].map(r => `
       <tr>
-        <td><input type="checkbox" class="pb-chk" onchange="pbSel(this,'${r.pn}')"${PB_SEL.some(x=>x.pn===r.pn)?' checked':''}></td>
+        <td><input type="checkbox" class="pb-chk" data-pn="${r.pn}" data-cat="${k}" onchange="pbSel(this)"${pbElegido(r.pn,k)?' checked':''}></td>
         <td class="pn">${r.pn}</td>
         <td>${r.desc}</td>
         <td><b>$${Number(r.price).toLocaleString()}</b></td>
@@ -4966,8 +4966,10 @@ function filterPB() {
       '<th class="num">Precio Lista (USD)</th><th></th></tr></thead><tbody>' +
       hits.map(r =>
         '<tr>' +
-          '<td><input type="checkbox" class="pb-chk" onchange="pbSel(this,\'' + cotEsc(r.pn) + '\')"' +
-            (PB_SEL.some(x => x.pn === r.pn) ? ' checked' : '') + '></td>' +
+          '<td><input type="checkbox" class="pb-chk"' +
+            ' data-pn="' + cotEsc(r.pn) + '" data-cat="' + cotEsc(r.categoria) + '"' +
+            ' onchange="pbSel(this)"' +
+            (pbElegido(r.pn, r.categoria) ? ' checked' : '') + '></td>' +
           '<td class="pn">' + cotEsc(r.pn) + '</td>' +
           '<td>' + cotEsc(r.desc) + '</td>' +
           '<td><span class="badge es-muted">' + cotEsc(r.categoria) + '</span></td>' +
@@ -5001,18 +5003,41 @@ function addToInv(item) {
  */
 var PB_SEL = [];
 
-function pbSel(chk, pn) {
-  const item = PRICEBOOK_DATA.find(i => String(i.pn) === String(pn));
-  if (!item) return;
-  const i = PB_SEL.findIndex(x => x.pn === item.pn);
+/**
+ * Un ítem se identifica por PART NUMBER + LISTA, nunca por el part
+ * number solo.
+ *
+ * El mismo PN aparece en más de una lista con descripción y precio
+ * distintos: el 8900-0800-01 está en AED y en ZOLL M2. Buscando sólo
+ * por PN, tildabas la fila de una lista y a la cotización entraba el
+ * precio de la otra. Con la lista adelante, entra el precio del
+ * renglón que tildaste.
+ */
+function pbMismo(a, pn, cat) {
+  return String(a.pn) === String(pn) && String(a.categoria) === String(cat);
+}
+
+function pbElegido(pn, cat) {
+  return PB_SEL.some(function(x) { return pbMismo(x, pn, cat); });
+}
+
+function pbSel(chk) {
+  const pn  = chk.dataset.pn;
+  const cat = chk.dataset.cat;
+
+  const item = PRICEBOOK_DATA.find(function(i) { return pbMismo(i, pn, cat); });
+  if (!item) { showToast('No encontré ese ítem', 'error'); chk.checked = false; return; }
+
+  const i = PB_SEL.findIndex(function(x) { return pbMismo(x, pn, cat); });
   if (chk.checked && i === -1) PB_SEL.push(item);
   if (!chk.checked && i !== -1) PB_SEL.splice(i, 1);
 
-  // El mismo PN puede estar dibujado en la pestaña y en el buscador
-  document.querySelectorAll('.pb-chk').forEach(c => {
-    const fila = c.closest('tr');
-    const suPN = fila && fila.querySelector('.pn');
-    if (suPN && suPN.textContent.trim() === item.pn) c.checked = chk.checked;
+  // La MISMA fila puede estar dibujada dos veces: en su pestaña y en
+  // el resultado de la búsqueda. Se sincronizan las dos, pero sólo si
+  // coinciden PN y lista: la del mismo PN en otra lista es otro ítem
+  // y no tiene por qué tildarse sola.
+  document.querySelectorAll('.pb-chk').forEach(function(c) {
+    if (c.dataset.pn === pn && c.dataset.cat === cat) c.checked = chk.checked;
   });
 
   pbCarrito();
@@ -5041,6 +5066,7 @@ async function pbIrACotizar() {
   const elegidos = PB_SEL.slice();
 
   await cotAbrirNueva();
+  // El precio que viaja es el de la fila tildada, con su lista.
   elegidos.forEach(i => cotAgregarItem(i.pn, i.desc, Number(i.price) || 0));
 
   pbLimpiar();
