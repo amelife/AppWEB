@@ -2511,6 +2511,9 @@
       <input type="text" id="ocBuscarPN" placeholder="Buscá un PN o descripción en Precios ZOLL..." oninput="ocBuscarPB(this.value)" autocomplete="off">
       <div id="ocResultados" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:30;max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.18);margin-top:2px"></div>
     </div>
+    <div style="margin:-4px 0 10px">
+      <button type="button" class="tbl-txt" onclick="ocAgregarManual()">+ Ítem que no está en la lista</button>
+    </div>
     <div id="ocItems"></div>
 
     <div class="field" style="margin-top:14px"><label>Observations</label>
@@ -3669,7 +3672,12 @@ function ocBuscarPB(q) {
   ).slice(0, 10);
 
   if (!OC_STATE.resultados.length) {
-    box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>';
+    // Que no esté en la lista no quiere decir que no se pueda pedir.
+    box.innerHTML =
+      '<div style="padding:10px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>' +
+      '<div onclick="ocAgregarManual(\'' + cotEsc(q).replace(/'/g, "\\'") + '\')"' +
+        ' style="padding:9px 12px;cursor:pointer;border-top:1px solid var(--border2);font-size:13px;color:var(--green)">' +
+        '+ Agregarlo a mano como <span class="pn">' + cotEsc(q) + '</span></div>';
     box.style.display = 'block';
     return;
   }
@@ -3707,7 +3715,7 @@ function ocRenderItems() {
 
   cont.innerHTML =
     '<table class="data-table"><thead><tr>' +
-      '<th style="width:52px">Item</th><th>Part Number</th><th>Description</th>' +
+      '<th style="width:52px">Item</th><th style="width:160px">Part Number</th><th>Description</th>' +
       '<th style="width:82px">Qty</th><th style="width:150px">Sales Rep</th>' +
       '<th style="width:110px;text-align:right">Unit USD</th>' +
       '<th style="width:100px;text-align:right">Total</th><th style="width:40px"></th>' +
@@ -3716,8 +3724,10 @@ function ocRenderItems() {
       const tot = (Number(it.qty) || 0) * (Number(it.precio) || 0);
       return '<tr>' +
         '<td>' + (k + 1) + '</td>' +
-        '<td><span class="pn">' + cotEsc(it.pn) + '</span></td>' +
-        '<td style="font-size:12px">' + cotEsc(it.desc) + '</td>' +
+        '<td><input type="text" id="ocpn' + k + '" value="' + cotEsc(it.pn) + '" placeholder="Part number"' +
+          ' onchange="ocSetItem(' + k + ',\'pn\',this.value)" class="wh-input pn" style="width:100%"></td>' +
+        '<td><input type="text" value="' + cotEsc(it.desc) + '" placeholder="Descripción"' +
+          ' onchange="ocSetItem(' + k + ',\'desc\',this.value)" class="wh-input" style="width:100%;font-size:12px"></td>' +
         '<td><input type="number" min="1" value="' + it.qty + '" onchange="ocSetItem(' + k + ',\'qty\',this.value)" class="wh-input" style="text-align:center"></td>' +
         '<td><select onchange="ocSetItem(' + k + ',\'rep\',this.value)" class="wh-input">' +
           OC_REPS.map(r => '<option' + (r === it.rep ? ' selected' : '') + '>' + r + '</option>').join('') +
@@ -3732,10 +3742,51 @@ function ocRenderItems() {
   document.getElementById('ocTotal').textContent = ocFmt(total);
 }
 
+// pn, desc y rep son texto; qty y precio son números. Pasar el part
+// number por Number() lo convertía en 0.
+var OC_CAMPOS_TEXTO = ['pn', 'desc', 'rep', 'uom'];
+
 function ocSetItem(k, campo, valor) {
   if (!OC_STATE.items[k]) return;
-  OC_STATE.items[k][campo] = (campo === 'rep') ? valor : (Number(valor) || 0);
+  var esTexto = (OC_CAMPOS_TEXTO.indexOf(campo) !== -1);
+
+  OC_STATE.items[k][campo] = esTexto
+    ? String(valor == null ? '' : valor).trim()
+    : (Number(valor) || 0);
+
+  // Sólo se redibuja cuando cambia un número, que es lo único que
+  // mueve los totales. Redibujar al salir del part number recreaba la
+  // fila entera y el cursor no llegaba nunca a la descripción.
+  if (!esTexto) ocRenderItems();
+}
+
+/**
+ * Agrega una línea vacía para cargar a mano.
+ *
+ * No todo lo que se le compra a ZOLL está en la lista de precios: hay
+ * repuestos y cosas nuevas que todavía no entraron. Antes no había
+ * forma de meterlas y la orden se armaba por fuera de la app.
+ *
+ * @param {String} pn  Lo que se venía tipeando en el buscador, si había algo.
+ */
+function ocAgregarManual(pn) {
+  OC_STATE.items.push({
+    pn:   String(pn || '').trim(),
+    desc: '', qty: 1, uom: 'EA',
+    rep:  OC_REPS[0], precio: 0
+  });
+
+  var buscador = document.getElementById('ocBuscarPN');
+  if (buscador) buscador.value = '';
+  var caja = document.getElementById('ocResultados');
+  if (caja) caja.style.display = 'none';
+
   ocRenderItems();
+
+  // El cursor va al part number de la línea nueva: es lo primero que
+  // hay que escribir.
+  var campo = document.getElementById('ocpn' + (OC_STATE.items.length - 1));
+  if (campo) { campo.focus(); campo.select(); }
 }
 
 function ocQuitarItem(k) {
@@ -3747,6 +3798,15 @@ async function ocGuardar() {
   const numero = document.getElementById('ocNumero').value.trim();
   if (!numero)                { showToast('Falta el número de orden', 'error'); return; }
   if (!OC_STATE.items.length) { showToast('La orden no tiene ítems', 'error'); return; }
+
+  // Una línea sin part number no le sirve a nadie del otro lado.
+  var sinPN = OC_STATE.items.findIndex(function(i) { return !String(i.pn || '').trim(); });
+  if (sinPN !== -1) {
+    showToast('Falta el part number en la línea ' + (sinPN + 1), 'error');
+    var campo = document.getElementById('ocpn' + sinPN);
+    if (campo) campo.focus();
+    return;
+  }
 
   const data = {
     numero: numero,
