@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.4 | 2026-08-27 ARG - Textos editables desde Configuracion (4 correos + 4 de WhatsApp), precio real en el detalle de cotizaciones, y Notas con copia separada para WhatsApp y para correo -->
+<!-- AMELIFE EMS Technologies - Web App v8.5 | 2026-08-27 ARG - Facturas AME con pagos parciales, saldo, agrupacion por cliente y tramos de cobranza; orden de compra con PN editable e items fuera de lista -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -865,6 +865,38 @@
   .fam-caja.tramo.pronto .fam-caja-v { color:#B07C1E; }
   [data-theme="dark"] .fam-caja.tramo.pronto .fam-caja-v { color:#E5B55A; }
   .fam-corte { width:1px; align-self:stretch; background:var(--border2); margin:2px 4px; }
+
+  /* Encabezado del cliente con varias facturas abiertas. */
+  .fam-grupo td {
+    background:var(--card2); border-top:2px solid var(--border2);
+    padding:9px 14px !important;
+  }
+  .fam-grupo-n {
+    font-weight:800; font-size:13.5px; letter-spacing:.01em; text-transform:uppercase;
+  }
+  .fam-grupo-c { font-size:12px; color:var(--muted); margin-left:10px; }
+  .fam-grupo-v {
+    float:right; font-family:'JetBrains Mono',monospace; font-weight:700;
+    font-size:13px; color:var(--green);
+  }
+  /* Las filas del grupo van corridas: se ve de quién cuelgan. */
+  .fam-td-hijo { padding-left:26px !important; border-left:3px solid var(--green-glow); }
+
+  .fam-verpagos {
+    background:none; border:0; padding:0; cursor:pointer; font:inherit;
+    color:var(--muted); text-decoration:underline dotted;
+  }
+  .fam-verpagos:hover { color:var(--green); }
+  .fam-pagos-fila td { background:var(--card2); padding:4px 14px 10px 40px !important; }
+  .fam-pagos { display:flex; flex-direction:column; gap:4px; }
+  .fam-pago {
+    display:flex; align-items:center; gap:14px; font-size:12.5px;
+    padding:5px 10px; background:var(--card); border:1px solid var(--border2);
+    border-radius:var(--radius);
+  }
+  .fam-pago-f { color:var(--muted); min-width:88px; }
+  .fam-pago-m { font-family:'JetBrains Mono',monospace; font-weight:700; min-width:110px; }
+  .fam-pago-n { flex:1; color:var(--muted); }
 
   /* La fila vencida se marca de fondo: es lo que hay que mirar. */
   .fam-vencida { background:rgba(196,83,77,0.07); }
@@ -1778,6 +1810,7 @@
             <option value="">Todas</option>
             <option value="vencidas">Vencidas</option>
             <option value="Pendiente">Pendientes</option>
+            <option value="Parcial">Parciales</option>
             <option value="Pagada">Pagadas</option>
           </select>
           <button class="btn btn-outline" onclick="famCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
@@ -1793,12 +1826,13 @@
             <thead><tr>
               <th>Factura</th><th>Cliente</th>
               <th class="num">Total</th>
+              <th class="num">Saldo</th>
               <th class="fam-th-orden" onclick="famOrdenar()" title="Ordenar por fecha de pago">
                 Fecha de pago <span id="famFlecha">↑</span>
               </th>
               <th>Estado</th><th></th>
             </tr></thead>
-            <tbody id="famBody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr></tbody>
+            <tbody id="famBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr></tbody>
           </table>
           <div class="table-footer"><span id="famCount">—</span></div>
         </div>
@@ -2707,6 +2741,38 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalFacturaAME')">Cancelar</button>
       <button class="btn btn-primary" id="famBtnGuardar" onclick="famGuardar()">Guardar factura</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Registrar un pago -->
+<div class="modal-overlay" id="modalFamPago" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">Registrar pago</div>
+      <button class="modal-close" onclick="closeModal('modalFamPago')">✕</button>
+    </div>
+    <div id="famPagoResumen" style="font-size:13px;color:var(--muted);margin-bottom:16px"></div>
+
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Monto cobrado</label>
+        <input type="number" step="0.01" min="0" id="famPagoMonto" oninput="famPagoAviso()">
+      </div>
+      <div class="field"><label>Fecha del pago</label>
+        <input type="date" id="famPagoFecha">
+      </div>
+    </div>
+    <div class="field"><label>Nota · opcional</label>
+      <input type="text" id="famPagoNota" placeholder="Transferencia, cheque, a cuenta…">
+    </div>
+
+    <p class="cfg-ayuda" id="famPagoAvisoTxt"></p>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="famPagoTodo()">Cobró todo el saldo</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalFamPago')">Cancelar</button>
+      <button class="btn btn-primary" id="famPagoBtn" onclick="famGuardarPago()">Registrar</button>
     </div>
   </div>
 </div>
@@ -5156,7 +5222,8 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // editable. Lo que salió del PDF es una ayuda, no una verdad: el que
 // confirma antes de guardar es el usuario.
 
-var FAM_STATE = { lista: [], editando: null, recordando: null, cargado: false, asc: true };
+var FAM_STATE = { lista: [], editando: null, recordando: null, pagando: null,
+                  verPagos: null, cargado: false, asc: true };
 
 function famFmt(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -5386,12 +5453,138 @@ function famFiltrar() {
   }));
 }
 
+/** Lo que falta cobrar de una factura. Las viejas no traen saldo. */
+function famSaldo(f) {
+  if (f.saldo !== undefined && f.saldo !== null) return Number(f.saldo) || 0;
+  return Math.round(((Number(f.total) || 0) - (Number(f.pagado) || 0)) * 100) / 100;
+}
+
+function famPagado(f) { return Number(f.pagado) || 0; }
+function famAbierta(f) { return f.estado !== 'Pagada' && f.estado !== 'Anulada'; }
+
+/**
+ * Agrupa por cliente SÓLO a los que tienen dos o más facturas abiertas.
+ *
+ * El que debe una sola no necesita encabezado: agruparlo a él también
+ * llenaba la pantalla de títulos de una línea y costaba más leerla.
+ *
+ * Devuelve la lista en el mismo orden que entró, pero con los grupos
+ * juntos y ubicados donde aparecía la primera factura de ese cliente,
+ * para no romper el orden por fecha de pago que se eligió arriba.
+ */
+function famAgrupar(lista) {
+  const cuenta = {};
+  lista.forEach(f => {
+    if (!famAbierta(f)) return;
+    const k = (f.cliente || '—').trim().toUpperCase();
+    cuenta[k] = (cuenta[k] || 0) + 1;
+  });
+
+  const salida = [], hecho = {};
+  lista.forEach(f => {
+    const k = (f.cliente || '—').trim().toUpperCase();
+    if (!famAbierta(f) || cuenta[k] < 2) { salida.push({ tipo: 'fila', f: f }); return; }
+    if (hecho[k]) return;
+    hecho[k] = true;
+
+    const suyas = lista.filter(x => famAbierta(x) && (x.cliente || '—').trim().toUpperCase() === k);
+    salida.push({ tipo: 'grupo', cliente: f.cliente || '—', facturas: suyas });
+  });
+
+  // Las cerradas de un cliente agrupado quedaron fuera del grupo: van
+  // sueltas al final, que es donde no molestan.
+  lista.forEach(f => {
+    const k = (f.cliente || '—').trim().toUpperCase();
+    if (!famAbierta(f) && cuenta[k] >= 2) salida.push({ tipo: 'fila', f: f });
+  });
+
+  return salida;
+}
+
+function famFilaHTML(f, dentroDeGrupo) {
+  const vencida = famVencida(f);
+  const pagada  = f.estado === 'Pagada';
+  const anulada = f.estado === 'Anulada';
+  const parcial = f.estado === 'Parcial';
+  const saldo   = famSaldo(f);
+  const d = famDias(f.vence);
+
+  let cuando = famFecha(f.vence);
+  if (pagada) {
+    cuando += '<div class="fam-nota ok">cobrada' + (f.pagada_el ? ' el ' + famFecha(f.pagada_el) : '') + '</div>';
+  } else if (d !== null) {
+    cuando += d < 0
+      ? '<div class="fam-nota mal">' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + ' de atraso</div>'
+      : d === 0 ? '<div class="fam-nota aviso">vence hoy</div>'
+      : '<div class="fam-nota">en ' + d + (d === 1 ? ' día' : ' días') + '</div>';
+  }
+
+  const badge = pagada ? 'es-green' : vencida ? 'es-danger' : anulada ? 'es-muted'
+              : parcial ? 'es-warning' : 'es-info';
+  const etiqueta = pagada ? 'Pagada' : vencida ? (parcial ? 'Vencida · parcial' : 'Vencida') : f.estado;
+
+  const pagos = (f.pagos || []).length;
+  const abierto = (FAM_STATE.verPagos === f.id);
+
+  let h = '<tr' + (vencida ? ' class="fam-vencida"' : '') + (dentroDeGrupo ? ' data-grupo="1"' : '') + '>' +
+    '<td' + (dentroDeGrupo ? ' class="fam-td-hijo"' : '') + '><span class="pn">' + cotEsc(f.numero) + '</span>' +
+      (f.pdf_url ? '<div><a href="' + f.pdf_url + '" target="_blank" rel="noopener" class="fam-pdf">ver PDF ↗</a></div>' : '') +
+    '</td>' +
+    '<td style="min-width:150px">' +
+      (dentroDeGrupo ? '<span style="color:var(--muted);font-size:12.5px">' + cotEsc(f.contacto || '') + '</span>'
+                     : '<b>' + cotEsc(f.cliente || '—') + '</b>' +
+                       (f.contacto ? '<div style="font-size:12px;color:var(--muted)">' + cotEsc(f.contacto) + '</div>' : '')) +
+    '</td>' +
+    '<td class="num">' + cotEsc(f.moneda || 'USD') + ' ' + famFmt(f.total) +
+      (pagos ? '<div class="fam-nota"><button class="fam-verpagos" onclick="famVerPagos(\'' + f.id + '\')">' +
+               (abierto ? '▾ ' : '▸ ') + pagos + (pagos === 1 ? ' pago' : ' pagos') + '</button></div>' : '') +
+    '</td>' +
+    '<td class="num"><b' + (saldo > 0.005 ? '' : ' style="color:var(--muted);font-weight:400"') + '>' +
+      famFmt(saldo) + '</b>' +
+      (famPagado(f) > 0.005 && saldo > 0.005
+        ? '<div class="fam-nota ok">pagó ' + famFmt(famPagado(f)) + '</div>' : '') +
+    '</td>' +
+    '<td style="font-size:12.5px;white-space:nowrap">' + cuando + '</td>' +
+    '<td><span class="badge ' + badge + '">' + cotEsc(etiqueta) + '</span></td>' +
+    '<td><div class="acciones">' +
+      '<button class="tbl-txt" onclick="famEditar(\'' + f.id + '\')">Editar</button>' +
+      (pagada || anulada ? '' : '<button class="tbl-txt" onclick="famAbrirRecordar(\'' + f.id + '\')">Recordar</button>') +
+      (pagada || anulada ? '' : '<button class="tbl-txt" onclick="famAbrirPago(\'' + f.id + '\')">Registrar pago</button>') +
+      '<button class="tbl-txt peligro" onclick="famBorrar(\'' + f.id + '\',\'' + cotEsc(f.numero) + '\')">Borrar</button>' +
+    '</div></td>' +
+  '</tr>';
+
+  if (abierto) h += famPagosHTML(f);
+  return h;
+}
+
+/** El historial de pagos, desplegado debajo de su factura. */
+function famPagosHTML(f) {
+  const pagos = f.pagos || [];
+  if (!pagos.length) return '';
+  return '<tr class="fam-pagos-fila"><td colspan="7"><div class="fam-pagos">' +
+    pagos.map((p, i) =>
+      '<div class="fam-pago">' +
+        '<span class="fam-pago-f">' + cotEsc(famFecha(p.fecha)) + '</span>' +
+        '<span class="fam-pago-m">' + cotEsc(f.moneda || 'USD') + ' ' + famFmt(p.monto) + '</span>' +
+        '<span class="fam-pago-n">' + cotEsc(p.nota || '') + '</span>' +
+        '<button class="tbl-txt peligro" title="Borrar este pago"' +
+          ' onclick="famBorrarPago(\'' + f.id + '\',' + i + ')">Quitar</button>' +
+      '</div>').join('') +
+  '</div></td></tr>';
+}
+
+function famVerPagos(id) {
+  FAM_STATE.verPagos = (FAM_STATE.verPagos === id) ? null : id;
+  famFiltrar();
+}
+
 function famRender(lista) {
   const tb = document.getElementById('famBody');
   if (!tb) return;
 
   if (!lista.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">' +
+    tb.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">' +
       (FAM_STATE.lista.length ? 'Ninguna coincide' : 'Todavía no hay facturas. Subí un PDF para empezar.') +
       '</td></tr>';
     document.getElementById('famCount').textContent = '0 facturas';
@@ -5399,45 +5592,24 @@ function famRender(lista) {
     return;
   }
 
-  tb.innerHTML = lista.map(f => {
-    const vencida = famVencida(f);
-    const pagada  = f.estado === 'Pagada';
-    const d = famDias(f.vence);
+  tb.innerHTML = famAgrupar(lista).map(b => {
+    if (b.tipo === 'fila') return famFilaHTML(b.f, false);
 
-    let cuando = famFecha(f.vence);
-    if (pagada) {
-      cuando += '<div class="fam-nota ok">cobrada' + (f.pagada_el ? ' el ' + famFecha(f.pagada_el) : '') + '</div>';
-    } else if (d !== null) {
-      cuando += d < 0
-        ? '<div class="fam-nota mal">' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + ' de atraso</div>'
-        : d === 0 ? '<div class="fam-nota aviso">vence hoy</div>'
-        : '<div class="fam-nota">en ' + d + (d === 1 ? ' día' : ' días') + '</div>';
-    }
-
-    const badge = pagada ? 'es-green' : vencida ? 'es-danger' : f.estado === 'Anulada' ? 'es-muted' : 'es-info';
-    const etiqueta = pagada ? 'Pagada' : vencida ? 'Vencida' : f.estado;
-
-    return '<tr' + (vencida ? ' class="fam-vencida"' : '') + '>' +
-      '<td><span class="pn">' + cotEsc(f.numero) + '</span>' +
-        (f.pdf_url ? '<div><a href="' + f.pdf_url + '" target="_blank" rel="noopener" class="fam-pdf">ver PDF ↗</a></div>' : '') +
-      '</td>' +
-      '<td style="min-width:150px"><b>' + cotEsc(f.cliente || '—') + '</b>' +
-        (f.contacto ? '<div style="font-size:12px;color:var(--muted)">' + cotEsc(f.contacto) + '</div>' : '') + '</td>' +
-      '<td class="num"><b>' + cotEsc(f.moneda || 'USD') + ' ' + famFmt(f.total) + '</b></td>' +
-      '<td style="font-size:12.5px;white-space:nowrap">' + cuando + '</td>' +
-      '<td><span class="badge ' + badge + '">' + cotEsc(etiqueta) + '</span></td>' +
-      '<td><div class="acciones">' +
-        '<button class="tbl-txt" onclick="famEditar(\'' + f.id + '\')">Editar</button>' +
-        (pagada ? '' : '<button class="tbl-txt" onclick="famAbrirRecordar(\'' + f.id + '\')">Recordar</button>') +
-        (pagada ? '' : '<button class="tbl-txt" onclick="famPagar(\'' + f.id + '\')">Cobrada</button>') +
-        '<button class="tbl-txt peligro" onclick="famBorrar(\'' + f.id + '\',\'' + cotEsc(f.numero) + '\')">Borrar</button>' +
-      '</div></td>' +
-    '</tr>';
+    const debe = b.facturas.reduce((a, x) => a + famSaldo(x), 0);
+    const atrasadas = b.facturas.filter(famVencida).length;
+    return '<tr class="fam-grupo"><td colspan="7">' +
+        '<span class="fam-grupo-n">' + cotEsc(b.cliente) + '</span>' +
+        '<span class="fam-grupo-c">' + b.facturas.length + ' facturas' +
+          (atrasadas ? ' · ' + atrasadas + (atrasadas === 1 ? ' vencida' : ' vencidas') : '') + '</span>' +
+        '<span class="fam-grupo-v">debe US$ ' + famFmt(debe) + '</span>' +
+      '</td></tr>' +
+      b.facturas.map(x => famFilaHTML(x, true)).join('');
   }).join('');
 
-  const total = lista.reduce((a, f) => a + (Number(f.total) || 0), 0);
+  // El pie cuenta el SALDO, no el total facturado: es lo que falta entrar.
+  const saldo = lista.reduce((a, f) => a + (famAbierta(f) ? famSaldo(f) : 0), 0);
   document.getElementById('famCount').textContent =
-    lista.length + (lista.length === 1 ? ' factura' : ' facturas') + ' · US$ ' + famFmt(total);
+    lista.length + (lista.length === 1 ? ' factura' : ' facturas') + ' · falta cobrar US$ ' + famFmt(saldo);
   famResumen();
 }
 
@@ -5467,9 +5639,12 @@ function famResumen() {
   if (!c) return;
   if (!FAM_STATE.lista.length) { c.innerHTML = ''; return; }
 
-  const pend = FAM_STATE.lista.filter(f => f.estado === 'Pendiente');
+  // Abiertas = todo lo que todavía debe plata: Pendiente y Parcial.
+  // Y lo que se suma es el SALDO. Sumando el total, una factura de
+  // 5.000 con 4.000 ya cobrados seguía figurando entera por cobrar.
+  const pend = FAM_STATE.lista.filter(famAbierta);
   const venc = pend.filter(famVencida);
-  const sum  = a => a.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const sum  = a => a.reduce((s, f) => s + famSaldo(f), 0);
 
   // Reparto en tramos. Lo vencido ya se contó aparte y las que no
   // tienen fecha de pago cargada no se pueden ubicar en el tiempo:
@@ -5606,13 +5781,96 @@ function famGuardar() {
   });
 }
 
-function famPagar(id) {
+/**
+ * Registrar un cobro, entero o parcial.
+ *
+ * El monto arranca cargado con el saldo completo, que es el caso
+ * normal: se confirma y listo. El que cobró una parte lo pisa.
+ */
+function famAbrirPago(id) {
   const f = FAM_STATE.lista.find(x => x.id === id);
   if (!f) return;
-  if (!confirm('¿Marcar la factura ' + f.numero + ' como cobrada?')) return;
-  api('pagarFacturaAME', { id: id }).then(r => {
-    if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo marcar', 'error'); return; }
-    showToast(f.numero + ' · cobrada', 'success');
+  FAM_STATE.pagando = f;
+
+  const saldo = famSaldo(f);
+  document.getElementById('famPagoResumen').innerHTML =
+    '<b style="color:var(--text)">' + cotEsc(f.numero) + '</b> · ' + cotEsc(f.cliente || '') +
+    '<div style="margin-top:5px">Total ' + cotEsc(f.moneda || 'USD') + ' ' + famFmt(f.total) +
+      (famPagado(f) > 0.005 ? ' · ya pagó ' + famFmt(famPagado(f)) : '') +
+      ' · <b style="color:var(--green)">saldo ' + famFmt(saldo) + '</b></div>';
+
+  document.getElementById('famPagoMonto').value = saldo.toFixed(2);
+  document.getElementById('famPagoFecha').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('famPagoNota').value  = '';
+  famPagoAviso();
+  openModal('modalFamPago');
+}
+
+function famPagoTodo() {
+  const f = FAM_STATE.pagando;
+  if (!f) return;
+  document.getElementById('famPagoMonto').value = famSaldo(f).toFixed(2);
+  famPagoAviso();
+}
+
+/** Dice cómo va a quedar la factura ANTES de confirmar. */
+function famPagoAviso() {
+  const f = FAM_STATE.pagando;
+  const t = document.getElementById('famPagoAvisoTxt');
+  if (!f || !t) return;
+
+  const monto = Number(document.getElementById('famPagoMonto').value);
+  const saldo = famSaldo(f);
+
+  if (!(monto > 0)) { t.textContent = 'Poné cuánto cobraste.'; return; }
+  if (monto > saldo + 0.005) {
+    t.innerHTML = '<b style="color:var(--danger)">Ese monto es mayor al saldo de ' +
+                  famFmt(saldo) + '.</b> Revisá el número.';
+    return;
+  }
+  const queda = Math.round((saldo - monto) * 100) / 100;
+  t.innerHTML = queda <= 0.005
+    ? 'Con esto la factura queda <b>cobrada</b>.'
+    : 'Queda un saldo de <b>' + famFmt(queda) + '</b> y la factura pasa a <b>Parcial</b>, con la misma fecha de pago.';
+}
+
+function famGuardarPago() {
+  const f = FAM_STATE.pagando;
+  if (!f) return;
+
+  const monto = Number(document.getElementById('famPagoMonto').value);
+  const saldo = famSaldo(f);
+  if (!(monto > 0))            { showToast('Poné cuánto cobraste', 'error'); return; }
+  if (monto > saldo + 0.005)   { showToast('El monto es mayor al saldo', 'error'); return; }
+
+  const btn = document.getElementById('famPagoBtn');
+  btn.disabled = true; btn.textContent = 'Registrando…';
+
+  api('registrarPagoFacturaAME', {
+    id:    f.id,
+    monto: monto,
+    fecha: document.getElementById('famPagoFecha').value,
+    nota:  document.getElementById('famPagoNota').value.trim()
+  }).then(r => {
+    btn.disabled = false; btn.textContent = 'Registrar';
+    if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo registrar', 'error'); return; }
+    closeModal('modalFamPago');
+    showToast(r.data.estado === 'Pagada'
+      ? f.numero + ' · cobrada'
+      : f.numero + ' · queda saldo ' + famFmt(r.data.saldo), 'success');
+    famCargar(true);
+  });
+}
+
+function famBorrarPago(id, indice) {
+  const f = FAM_STATE.lista.find(x => x.id === id);
+  const p = f && (f.pagos || [])[indice];
+  if (!p) return;
+  if (!confirm('¿Quitar el pago de ' + famFmt(p.monto) + ' del ' + famFecha(p.fecha) + '?')) return;
+
+  api('borrarPagoFacturaAME', { id: id, indice: indice }).then(r => {
+    if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo quitar', 'error'); return; }
+    showToast('Pago quitado · saldo ' + famFmt(r.data.saldo), 'success');
     famCargar(true);
   });
 }
