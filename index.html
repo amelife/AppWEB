@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.8 | 2026-08-27 ARG - Estado de cuenta por cliente con PDF adjuntos, texto editable y vista previa; agrupacion como bloque delimitado; copiar para WhatsApp o correo en Precios ZOLL e Inventario -->
+<!-- AMELIFE EMS Technologies - Web App v8.9 | 2026-08-27 ARG - Agrupacion por cliente en Cotizaciones y Facturas con banda de tinta, todos los items visibles, fechas dd/mm/aaaa en toda la app, CC y CCO en los cuatro correos -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -875,6 +875,7 @@
     background:var(--ink); color:var(--ink-text);
     padding:11px 14px !important; border:0 !important;
   }
+  .fam-grupo + tr > td { border-top:0; }
   .fam-grupo-n {
     font-weight:800; font-size:14px; letter-spacing:.02em; text-transform:uppercase;
     color:var(--ink-text);
@@ -909,19 +910,39 @@
   .fam-res-f .v { flex:1; color:var(--muted); font-size:12px; }
   .fam-res-f .s { font-family:'JetBrains Mono',monospace; font-weight:700; }
   .fam-res-f.sinpdf { border-left:3px solid #D9A441; }
+  .fam-res-v {
+    display:flex; align-items:center; gap:5px; flex-shrink:0; cursor:pointer;
+    font-family:var(--cond); font-size:10.5px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .fam-res-v input { width:14px; height:14px; }
+
+  /* CC y CCO: escondidos hasta que hagan falta, que es casi nunca. */
+  .cc-caja { margin:-4px 0 12px; }
+  .cc-toggle {
+    background:none; border:0; padding:0; cursor:pointer;
+    font-family:'Outfit',sans-serif; font-size:12.5px; color:var(--muted);
+  }
+  .cc-toggle:hover { color:var(--green); }
+  .cc-campos { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+  @media (max-width:560px) { .cc-campos { grid-template-columns:1fr; } }
+  .fam-res-v:has(input:checked) { color:#C4534D; }
   .fam-res-tot {
     display:flex; justify-content:space-between; font-size:13px; font-weight:700;
     padding:8px 11px; border-top:1px solid var(--border2); margin-bottom:14px;
   }
-  /* Riel al costado y zebra suave: las filas del bloque se distinguen
-     entre sí sin gritar, y se ve de qué cliente cuelgan. */
-  tr[data-grupo] > td:first-child { box-shadow:inset 3px 0 0 var(--green); }
-  tr[data-grupo]:nth-of-type(even) > td { background:var(--card2); }
-  .fam-td-hijo { padding-left:24px !important; }
+  /* Las filas del bloque van en gris claro para no competir con la
+     banda, con un riel de tinta al costado y una línea que lo cierra
+     abajo. Sirve igual para Facturas y para Cotizaciones. */
+  tr[data-grupo] > td { background:var(--card2); }
+  tr[data-grupo] > td:first-child { box-shadow:inset 3px 0 0 var(--ink); }
+  tr[data-grupo].ultima > td { border-bottom:2px solid var(--ink); }
+  tr[data-grupo] .pn { white-space:nowrap; }
+  .fam-td-hijo, .grp-hijo { padding-left:24px !important; }
 
   /* Aire después del último: el cliente siguiente no queda pegado. */
-  .fam-cierre td { padding:0 !important; border:0 !important; height:14px; background:transparent; }
-  tr[data-grupo] .pn { white-space:nowrap; }
+  .grp-cierre td { padding:0 !important; border:0 !important;
+    height:16px; background:var(--bg) !important; }
 
   .fam-verpagos {
     background:none; border:0; padding:0; cursor:pointer; font:inherit;
@@ -1004,7 +1025,7 @@
 
   /* Lista completa de ítems de una orden. Con muchas líneas scrollea
      sola en vez de estirar la fila a media pantalla. */
-  .oc-items { max-height:150px; overflow-y:auto; }
+  .oc-items, .cot-items { max-height:150px; overflow-y:auto; }
   .oc-item { line-height:1.4; }
   .oc-parcial, .oc-completa {
     margin-left:8px; font-family:var(--cond); font-size:10.5px; font-weight:700;
@@ -2647,6 +2668,15 @@
         <button class="btn btn-outline" style="flex-shrink:0" onclick="ocEmailAgregar()">Agregar</button>
       </div>
     </div>
+    <div class="cc-caja">
+      <button type="button" class="cc-toggle" onclick="ccMostrar('ocEmail')">+ CC / CCO</button>
+      <div class="cc-campos" id="ocEmailBox" style="display:none">
+        <div class="field"><label>CC · con copia</label>
+          <input type="text" id="ocEmailCC" placeholder="Separados por coma"></div>
+        <div class="field"><label>CCO · copia oculta</label>
+          <input type="text" id="ocEmailCCO" placeholder="No los ve el destinatario"></div>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalOCEmail')">Cancelar</button>
       <button class="btn btn-primary" id="ocEmailBtn" onclick="ocEmailEnviar()"><i class="i3d i3d-correo"></i> Enviar orden</button>
@@ -2818,6 +2848,15 @@
       <label>Para</label>
       <input type="email" id="famResPara" placeholder="cliente@empresa.com">
     </div>
+    <div class="cc-caja">
+      <button type="button" class="cc-toggle" onclick="ccMostrar('famRes')">+ CC / CCO</button>
+      <div class="cc-campos" id="famResBox" style="display:none">
+        <div class="field"><label>CC · con copia</label>
+          <input type="text" id="famResCC" placeholder="Separados por coma"></div>
+        <div class="field"><label>CCO · copia oculta</label>
+          <input type="text" id="famResCCO" placeholder="No los ve el destinatario"></div>
+      </div>
+    </div>
     <div class="field">
       <label>Asunto</label>
       <input type="text" id="famResAsunto">
@@ -2899,6 +2938,16 @@
     </div>
 
     <p class="cfg-ayuda">Se manda un recordatorio con el número, el monto y la fecha de pago, y se le pide el comprobante si ya pagó. Si preferís WhatsApp, copiá el texto y pegalo.</p>
+    <div class="cc-caja">
+      <button type="button" class="cc-toggle" onclick="ccMostrar('famRec')">+ CC / CCO</button>
+      <div class="cc-campos" id="famRecBox" style="display:none">
+        <div class="field"><label>CC · con copia</label>
+          <input type="text" id="famRecCC" placeholder="Separados por coma"></div>
+        <div class="field"><label>CCO · copia oculta</label>
+          <input type="text" id="famRecCCO" placeholder="No los ve el destinatario"></div>
+      </div>
+    </div>
+
 
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="famCopiarRecordatorio()">Copiar para WhatsApp</button>
@@ -2928,6 +2977,15 @@
       </div>
     </div>
 
+    <div class="cc-caja">
+      <button type="button" class="cc-toggle" onclick="ccMostrar('cotEmail')">+ CC / CCO</button>
+      <div class="cc-campos" id="cotEmailBox" style="display:none">
+        <div class="field"><label>CC · con copia</label>
+          <input type="text" id="cotEmailCC" placeholder="Separados por coma"></div>
+        <div class="field"><label>CCO · copia oculta</label>
+          <input type="text" id="cotEmailCCO" placeholder="No los ve el destinatario"></div>
+      </div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCotEmail')">Cancelar</button>
       <button class="btn btn-primary" id="cotEmailBtnEnviar" onclick="cotEmailConfirmar()"><i class="i3d i3d-correo"></i> Enviar proforma</button>
@@ -3255,6 +3313,41 @@ function invCopiarMail(id) {
 
 // Copiar al portapapeles, con la alternativa vieja para cuando
 // navigator.clipboard no está disponible.
+// ============================================================
+// CC Y CCO
+// ------------------------------------------------------------
+// Van escondidos detrás de un «+ CC / CCO» porque en la mayoría de
+// los envíos no se usan, y dos campos vacíos en cada pantalla de
+// correo son dos campos que hay que saltear cada vez.
+// ============================================================
+
+function ccMostrar(prefijo) {
+  const caja = document.getElementById(prefijo + 'Box');
+  if (!caja) return;
+  const abierto = (caja.style.display !== 'none');
+  caja.style.display = abierto ? 'none' : '';
+  if (!abierto) { const c = document.getElementById(prefijo + 'CC'); if (c) c.focus(); }
+}
+
+/** Lo que hay cargado en CC y CCO, listo para mandar al servidor. */
+function ccValores(prefijo) {
+  const v = id => {
+    const el = document.getElementById(prefijo + id);
+    return el ? el.value.trim() : '';
+  };
+  return { cc: v('CC'), cco: v('CCO') };
+}
+
+/** Vaciar y cerrar, al abrir una pantalla de envío. */
+function ccLimpiar(prefijo) {
+  ['CC', 'CCO'].forEach(k => {
+    const el = document.getElementById(prefijo + k);
+    if (el) el.value = '';
+  });
+  const caja = document.getElementById(prefijo + 'Box');
+  if (caja) caja.style.display = 'none';
+}
+
 function copiarAlPortapapeles(txt, mensajeOk) {
   const bien = () => showToast(mensajeOk || 'Copiado', 'success');
   const mal  = () => showToast('No pude copiar', 'error');
@@ -3836,7 +3929,7 @@ function ocRender(lista) {
       '<td><span class="pn">' + cotEsc(o.numero) + '</span></td>' +
       '<td style="white-space:normal;min-width:330px">' + ocResumenItems(o) + '</td>' +
       '<td class="num">' + ocFmt(o.total) + '</td>' +
-      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(String(o.fecha || '').slice(0, 10)) +
+      '<td style="font-size:11.5px;color:var(--muted)">' + cotEsc(cotFecha(o.fecha, false)) +
         cotMarcaEnvio(o) + '</td>' +
       '<td><span class="badge ' + (OC_BADGE[o.estado] || 'es-muted') + '">' + cotEsc(ocEstadoTxt(o.estado)) + '</span>' +
         ocReloj(o) + '</td>' +
@@ -4138,6 +4231,7 @@ async function ocAbrirEmail(id) {
   document.getElementById('ocEmailTitulo').textContent = 'Enviar orden ' + OC_EMAIL.orden.numero;
   document.getElementById('ocEmailNuevo').value = '';
   ocEmailRender();
+  ccLimpiar('ocEmail');
   openModal('modalOCEmail');
 }
 
@@ -4175,7 +4269,11 @@ async function ocEmailEnviar() {
 
   const btn = document.getElementById('ocEmailBtn');
   btn.disabled = true;
-  const r = await api('emailOrden', { id: OC_EMAIL.orden.id, destinatarios: OC_EMAIL.elegidos });
+  const copia = ccValores('ocEmail');
+  const r = await api('emailOrden', {
+    id: OC_EMAIL.orden.id, destinatarios: OC_EMAIL.elegidos,
+    cc: copia.cc, cco: copia.cco
+  });
   btn.disabled = false;
 
   if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
@@ -5070,7 +5168,7 @@ function showPanel(id, el) {
 
 function updateClock() {
   const now = new Date();
-  const s = now.toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'}) + ' · ' +
+  const s = now.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' · ' +
             now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false});
   document.getElementById('topbarDate').textContent = s;
 }
@@ -5504,10 +5602,14 @@ function famVencida(f) {
 }
 
 const FAM_MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+/** Siempre día, después mes, después año: 19/10/2026. */
 function famFecha(v) {
   const d = famFechaObj(v);
   if (!d) return String(v || '—');
-  return d.getDate() + ' ' + FAM_MES[d.getMonth()] + ' ' + d.getFullYear();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return dd + '/' + mm + '/' + d.getFullYear();
 }
 
 // ── Enganche con la lista de Clientes ─────────────────────
@@ -5763,7 +5865,7 @@ function famAgrupar(lista) {
   return salida;
 }
 
-function famFilaHTML(f, dentroDeGrupo) {
+function famFilaHTML(f, dentroDeGrupo, ultima) {
   const vencida = famVencida(f);
   const pagada  = f.estado === 'Pagada';
   const anulada = f.estado === 'Anulada';
@@ -5788,7 +5890,8 @@ function famFilaHTML(f, dentroDeGrupo) {
   const pagos = (f.pagos || []).length;
   const abierto = (FAM_STATE.verPagos === f.id);
 
-  let h = '<tr' + (vencida ? ' class="fam-vencida"' : '') + (dentroDeGrupo ? ' data-grupo="1"' : '') + '>' +
+  let h = '<tr class="' + (vencida ? 'fam-vencida' : '') + (ultima ? ' ultima' : '') + '"' +
+    (dentroDeGrupo ? ' data-grupo="1"' : '') + '>' +
     '<td' + (dentroDeGrupo ? ' class="fam-td-hijo"' : '') + '><span class="pn">' + cotEsc(f.numero) + '</span>' +
       (f.pdf_url ? '<div><a href="' + f.pdf_url + '" target="_blank" rel="noopener" class="fam-pdf">ver PDF ↗</a></div>' : '') +
     '</td>' +
@@ -5869,8 +5972,8 @@ function famRender(lista) {
         '<button class="fam-grupo-b" onclick="famAbrirResumen(\'' + cotEsc(b.cliente).replace(/'/g, "\\'") + '\')">' +
           'Mandar estado de cuenta</button>' +
       '</td></tr>' +
-      b.facturas.map(x => famFilaHTML(x, true)).join('') +
-      '<tr class="fam-cierre"><td colspan="7"></td></tr>';
+      b.facturas.map((x, i) => famFilaHTML(x, true, i === b.facturas.length - 1)).join('') +
+      '<tr class="grp-cierre"><td colspan="7"></td></tr>';
   }).join('');
 
   // El pie cuenta el SALDO, no el total facturado: es lo que falta entrar.
@@ -6163,6 +6266,7 @@ async function famAbrirResumen(cliente) {
   document.getElementById('famResTitulo').textContent = 'Estado de cuenta · ' + cliente;
   document.getElementById('famResPara').value =
     suyas.map(f => f.email).filter(Boolean)[0] || '';
+  ccLimpiar('famRes');
 
   famResRender();
 
@@ -6215,8 +6319,8 @@ function famResVars() {
       '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC"><b>' + cotEsc(f.numero) + '</b></td>' +
       '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC">' + cotEsc(famFecha(f.fecha_emision)) + '</td>' +
       '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC' +
-        (famVencida(f) ? ';color:#C00000;font-weight:bold' : '') + '">' +
-        cotEsc(famFecha(f.vence)) + (famVencida(f) ? ' (vencida)' : '') + '</td>' +
+        (famResVencida(f) ? ';color:#C00000;font-weight:bold' : '') + '">' +
+        cotEsc(famFecha(f.vence)) + (famResVencida(f) ? ' · YA VENCIDA' : '') + '</td>' +
       '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap">' +
         cotEsc(moneda) + ' ' + famFmt(famSaldo(f)) + '</td>' +
     '</tr>').join('');
@@ -6276,17 +6380,31 @@ function famResRender() {
   const R = FAM_STATE.resumen;
   if (!R) return;
 
+  // El tilde de «ya vencida» viene marcado si la fecha ya pasó, pero
+  // se puede forzar: a veces se acordó un vencimiento por fuera de la
+  // fecha que quedó cargada y el cliente igual está en mora.
   document.getElementById('famResLista').innerHTML = R.facturas.map((f, i) =>
     '<div class="fam-res-f' + (f.pdf_url ? '' : ' sinpdf') + '">' +
       '<input type="checkbox" id="famres' + i + '" checked onchange="famResTotal()">' +
       '<span class="n">' + cotEsc(f.numero) + '</span>' +
       '<span class="v">' + cotEsc(famFecha(f.vence)) +
-        (famVencida(f) ? ' · <b style="color:var(--danger)">vencida</b>' : '') +
         (f.pdf_url ? '' : ' · sin PDF') + '</span>' +
+      '<label class="fam-res-v" title="Marcarla como vencida en el correo">' +
+        '<input type="checkbox" id="famvenc' + i + '"' + (famVencida(f) ? ' checked' : '') +
+          ' onchange="famResPreview()"> ya vencida</label>' +
       '<span class="s">' + famFmt(famSaldo(f)) + '</span>' +
     '</div>').join('');
 
   famResTotal();
+}
+
+/** Si esta factura va marcada como vencida en el correo. */
+function famResVencida(f) {
+  const R = FAM_STATE.resumen;
+  if (!R) return famVencida(f);
+  const i = R.facturas.indexOf(f);
+  const c = (i > -1) && document.getElementById('famvenc' + i);
+  return c ? c.checked : famVencida(f);
 }
 
 /** Los ids tildados. Es lo que se manda y lo que se suma. */
@@ -6332,8 +6450,12 @@ async function famEnviarResumen() {
   const btn = document.getElementById('famResBtn');
   btn.disabled = true; btn.textContent = 'Enviando…';
 
+  const copia = ccValores('famRes');
   const r = await api('resumenDeudaAME', {
     ids:      elegidas.map(f => f.id),
+    vencidas: elegidas.filter(famResVencida).map(f => f.id),
+    cc:       copia.cc,
+    cco:      copia.cco,
     para:     para,
     asunto:   document.getElementById('famResAsunto').value.trim(),
     cuerpo:   cuerpo,
@@ -6469,6 +6591,7 @@ function famAbrirRecordar(id) {
       ? '<div style="margin-top:5px;color:#C4534D">Vencida hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + '</div>'
       : '<div style="margin-top:5px">Fecha de pago: ' + famFecha(f.vence) + '</div>');
   document.getElementById('famRecMail').value = f.email || '';
+  ccLimpiar('famRec');
   msgCargar();                       // para que Copiar use el texto vigente
   openModal('modalFamRecordar');
 }
@@ -6523,7 +6646,8 @@ function famEnviarRecordatorio() {
   const btn = document.getElementById('famRecBtn');
   btn.disabled = true;
   btn.textContent = 'Enviando…';
-  api('recordatorioFacturaAME', { id: f.id, para: para }).then(r => {
+  const copia = ccValores('famRec');
+  api('recordatorioFacturaAME', { id: f.id, para: para, cc: copia.cc, cco: copia.cco }).then(r => {
     btn.disabled = false;
     btn.textContent = 'Enviar por correo';
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
@@ -8106,7 +8230,8 @@ const TRK_MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','
 function trkFecha(eta) {
   const d = trkFechaObj(eta);
   if (!d) return String(eta || '').slice(0, 10);
-  return d.getDate() + ' ' + TRK_MESES[d.getMonth()] + ' ' + d.getFullYear();
+  return String(d.getDate()).padStart(2, '0') + '/' +
+         String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
 }
 
 function trkDiasETA(eta) {
@@ -10434,7 +10559,8 @@ function cotFecha(f, conHora) {
     a = Number(m[1]); me = Number(m[2]); d = Number(m[3]); h = m[4]; mi = m[5];
   }
 
-  const txt = String(d).padStart(2, '0') + ' ' + (COT_MESES[me - 1] || me) + ' ' + a;
+  // Siempre día / mes / año.
+  const txt = String(d).padStart(2, '0') + '/' + String(me).padStart(2, '0') + '/' + a;
   return (conHora !== false && h !== undefined && h !== null) ? txt + ' · ' + h + ':' + mi : txt;
 }
 
@@ -10451,23 +10577,27 @@ function cotFecha(f, conHora) {
  * compra: cantidad, por, part number y la descripción acotada. Una
  * línea por ítem, que es como se lee un pedido.
  */
+/**
+ * Qué trae la cotización, sin tener que abrirla.
+ *
+ * Se listan TODAS las líneas. Cortarlas en tres obligaba a abrir la
+ * cotización para saber qué más tenía, que es justo lo que esta
+ * columna tendría que evitar. Con muchas líneas la celda scrollea sola
+ * en vez de estirar la fila.
+ */
 function cotResumenItems(items) {
   if (!items.length) return '<span style="color:var(--muted)">—</span>';
-  const visibles = items.slice(0, 3);
-  const resto    = items.length - visibles.length;
   const corta = t => {
     t = String(t || '').trim();
     return t.length > 42 ? t.slice(0, 41) + '…' : t;
   };
-  return visibles.map(i =>
-      '<div style="line-height:1.35">' +
+  return '<div class="cot-items">' + items.map(i =>
+      '<div style="line-height:1.4">' +
         '<b style="font-family:\'JetBrains Mono\',monospace">' + (Number(i.qty) || 0) + '</b>' +
         '<span style="color:var(--muted)"> × </span>' +
         '<span class="pn">' + cotEsc(i.pn) + '</span>' +
         (i.desc ? '<span style="color:var(--muted);font-size:13px"> · ' + cotEsc(corta(i.desc)) + '</span>' : '') +
-      '</div>').join('') +
-    (resto ? '<div style="color:var(--muted);font-size:13px">+' + resto +
-             (resto === 1 ? ' ítem más' : ' ítems más') + '</div>' : '');
+      '</div>').join('') + '</div>';
 }
 
 function cotMarcaEnvio(c) {
@@ -10539,6 +10669,61 @@ function cotFiltrar() {
   cotRender(filtradas);
 }
 
+/**
+ * Agrupa por cliente a los que tienen dos o más cotizaciones.
+ *
+ * Misma regla que en Facturas AME: el que tiene una sola queda como
+ * fila suelta, sin encabezado. El grupo se ubica donde aparecía su
+ * primera cotización, para no romper el orden de la lista.
+ */
+function cotAgrupar(lista) {
+  const cuenta = {};
+  lista.forEach(c => {
+    const k = (c.cliente_nom || '—').trim().toUpperCase();
+    cuenta[k] = (cuenta[k] || 0) + 1;
+  });
+
+  const salida = [], hecho = {};
+  lista.forEach(c => {
+    const k = (c.cliente_nom || '—').trim().toUpperCase();
+    if (cuenta[k] < 2) { salida.push({ tipo: 'fila', c: c }); return; }
+    if (hecho[k]) return;
+    hecho[k] = true;
+    salida.push({
+      tipo: 'grupo',
+      cliente: c.cliente_nom || '—',
+      cots: lista.filter(x => (x.cliente_nom || '—').trim().toUpperCase() === k)
+    });
+  });
+  return salida;
+}
+
+function cotFilaHTML(c, dentroDeGrupo, ultima) {
+  const opts = COT_ESTADOS_UI.map(e =>
+    '<option value="' + e + '"' + (e === c.estado ? ' selected' : '') + '>' + e + '</option>').join('');
+
+  return '<tr' + (ultima ? ' class="ultima"' : '') +
+      (dentroDeGrupo ? ' data-grupo="1"' : '') + '>' +
+    '<td class="pn' + (dentroDeGrupo ? ' grp-hijo' : '') + '" style="cursor:pointer"' +
+      ' onclick="cotVerDetalle(\'' + c.id + '\')">' + cotEsc(c.numero || c.id) + '</td>' +
+    // El nombre del cliente ya está en la banda del grupo.
+    '<td>' + (dentroDeGrupo ? '' : (cotEsc(c.cliente_nom) || '—')) + '</td>' +
+    '<td style="white-space:normal;min-width:330px">' + cotResumenItems(c.items || []) + '</td>' +
+    '<td><b>' + cotFmt(c.total) + '</b></td>' +
+    '<td style="font-size:12px;white-space:nowrap">' + cotEsc(cotFecha(c.fecha)) + cotMarcaEnvio(c) + '</td>' +
+    '<td><select class="estado-sel ' + cotEstadoClase(c.estado) + '"' +
+      ' onchange="cotCambiarEstado(\'' + c.id + '\', this.value)">' + opts + '</select></td>' +
+    '<td><div class="acciones">' +
+      '<button class="tbl-txt" onclick="cotVerDetalle(\'' + c.id + '\')">Ver</button>' +
+      '<button class="tbl-txt" onclick="cotDescargarPDF(\'' + c.id + '\')">PDF</button>' +
+      '<button class="tbl-txt" onclick="cotEnviarElegir(\'' + c.id + '\')">Enviar</button>' +
+      '<button class="tbl-txt" onclick="cotDuplicar(\'' + c.id + '\')">Copiar</button>' +
+      '<button class="tbl-txt" onclick="cotEditar(\'' + c.id + '\')">Editar</button>' +
+      '<button class="tbl-txt peligro" onclick="cotEliminar(\'' + c.id + '\')">Borrar</button>' +
+    '</div></td>' +
+  '</tr>';
+}
+
 function cotRender(lista) {
   const tbody = document.getElementById('cotBody');
   const count = document.getElementById('cotCount');
@@ -10550,29 +10735,17 @@ function cotRender(lista) {
     return;
   }
 
-  tbody.innerHTML = lista.map(c => {
-    const resumen = cotResumenItems(c.items || []);
-    const opts = COT_ESTADOS_UI.map(e =>
-      `<option value="${e}"${e === c.estado ? ' selected' : ''}>${e}</option>`).join('');
-    return `<tr>
-      <td class="pn" style="cursor:pointer" onclick="cotVerDetalle('${c.id}')">${cotEsc(c.numero || c.id)}</td>
-      <td>${cotEsc(c.cliente_nom) || '—'}</td>
-      <td style="white-space:normal;min-width:330px">${resumen}</td>
-      <td><b>${cotFmt(c.total)}</b></td>
-      <td style="font-size:12px;white-space:nowrap">${cotEsc(cotFecha(c.fecha))}${cotMarcaEnvio(c)}</td>
-      <td>
-        <select class="estado-sel ${cotEstadoClase(c.estado)}"
-                onchange="cotCambiarEstado('${c.id}', this.value)">${opts}</select>
-      </td>
-      <td><div class="acciones">
-        <button class="tbl-txt" onclick="cotVerDetalle('${c.id}')">Ver</button>
-        <button class="tbl-txt" onclick="cotDescargarPDF('${c.id}')">PDF</button>
-        <button class="tbl-txt" onclick="cotEnviarElegir('${c.id}')">Enviar</button>
-        <button class="tbl-txt" onclick="cotDuplicar('${c.id}')">Copiar</button>
-        <button class="tbl-txt" onclick="cotEditar('${c.id}')">Editar</button>
-        <button class="tbl-txt peligro" onclick="cotEliminar('${c.id}')">Borrar</button>
-      </div></td>
-    </tr>`;
+  tbody.innerHTML = cotAgrupar(lista).map(b => {
+    if (b.tipo === 'fila') return cotFilaHTML(b.c, false, false);
+
+    const total = b.cots.reduce((a, x) => a + (Number(x.total) || 0), 0);
+    return '<tr class="fam-grupo"><td colspan="7">' +
+        '<span class="fam-grupo-n">' + cotEsc(b.cliente) + '</span>' +
+        '<span class="fam-grupo-c">' + b.cots.length + ' cotizaciones</span>' +
+        '<span class="fam-grupo-v">' + cotFmt(total) + '</span>' +
+      '</td></tr>' +
+      b.cots.map((x, i) => cotFilaHTML(x, true, i === b.cots.length - 1)).join('') +
+      '<tr class="grp-cierre"><td colspan="7"></td></tr>';
   }).join('');
 
   if (count) count.textContent = lista.length + ' cotizacion' + (lista.length !== 1 ? 'es' : '') +
@@ -11347,6 +11520,7 @@ async function cotEnviarPorEmail() {
       : '<div style="margin-top:6px;color:var(--warning)"><i class="i3d i3d-alerta"></i> Este cliente no tiene email cargado — agregá uno abajo</div>');
 
   document.getElementById('cotEmailNuevo').value = '';
+  ccLimpiar('cotEmail');
   cotEmailRenderChips();
   openModal('modalCotEmail');
   setTimeout(() => {
@@ -11435,9 +11609,11 @@ async function cotEmailConfirmar() {
   btn.disabled = true;
   btn.textContent = 'Enviando…';
 
+  const copia = ccValores('cotEmail');
   const r = await api('emailCotizacion', {
     cotId: COT_ENVIO.id,
-    toEmail: COT_ENVIO.emails.join(',')
+    toEmail: COT_ENVIO.emails.join(','),
+    cc: copia.cc, cco: copia.cco
   });
 
   btn.disabled = false;
