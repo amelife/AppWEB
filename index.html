@@ -2808,11 +2808,16 @@
       <label>Mensaje</label>
       <textarea id="famResCuerpo" rows="12" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;outline:none;resize:vertical"></textarea>
     </div>
+    <div class="msg-vars">
+      <span class="msg-vars-tit">Tocá una para insertarla donde tenés el cursor:</span>
+      <div id="famResVars"></div>
+    </div>
     <p class="cfg-ayuda">
-      <b>{{detalle}}</b> es la tabla con cada factura, su fecha y su saldo — dejala donde quieras que aparezca.
-      También podés usar {{contacto}}, {{cliente}}, {{cantidad}} y {{total}}.
-      Una línea en blanco separa párrafos y *entre asteriscos* sale en negrita.
+      <b>{{detalle}}</b> es la tabla con las facturas. Una línea en blanco separa párrafos y *entre asteriscos* sale en negrita.
     </p>
+
+    <div class="msg-prev-tit">Así lo va a ver el cliente</div>
+    <div class="msg-prev" id="famResPrev"></div>
 
     <div class="cfg-fila" style="margin-bottom:4px">
       <input type="checkbox" id="famResAdj" checked>
@@ -4518,13 +4523,22 @@ function msgWa(clave, vars) {
   return lineas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-// Mismo armado que _msgArmar en 33_Mensajes.gs.
+/**
+ * Mismo armado que _msgArmar en 33_Mensajes.gs.
+ *
+ * Las variables de MSG_HTML_VARS traen HTML ya armado (una tabla, la
+ * firma, una lista de links). Si el llamador lo tiene, entra tal cual;
+ * si no lo tiene, `marcarHtml` decide entre mostrar un cartelito gris
+ * —que es lo que corresponde en Configuración, donde no hay datos
+ * reales— o no poner nada.
+ */
 function msgAHtml(txt, vars, marcarHtml) {
   let t = String(txt || '').replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, n) => {
+    const val = vars[n];
     if (MSG_HTML_VARS.indexOf(n) !== -1) {
+      if (val !== undefined && val !== null && val !== '') return String(val);
       return marcarHtml ? '<span class="msg-ph">[' + n + ']</span>' : '';
     }
-    const val = vars[n];
     return (val === undefined || val === null) ? '' : cotEsc(val);
   });
   t = t.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
@@ -6074,6 +6088,28 @@ function famGuardar() {
   });
 }
 
+// El texto por defecto del estado de cuenta. Es el MISMO que está en
+// 33_Mensajes.gs: está repetido acá a propósito, para que el modal se
+// abra ya escrito sin depender de un viaje al servidor. La copia del
+// servidor gana si la editaste desde Configuración.
+var FAM_RES_ASUNTO = 'Estado de cuenta · {{cliente}} · AME LIFE 911 LLC';
+var FAM_RES_CUERPO = [
+  'Estimado/a {{contacto}},',
+  '',
+  'Le enviamos el detalle de las {{cantidad}} facturas pendientes a la fecha, por un total de *{{total}}*.',
+  '',
+  '{{detalle}}',
+  '',
+  'Adjuntamos cada una de las facturas para su revisión.',
+  '',
+  'Si alguno de estos pagos ya fue realizado, le agradecemos que nos envíe el comprobante para darlo por recibido y actualizar la cuenta.',
+  '',
+  'Quedamos a disposición ante cualquier consulta.',
+  '',
+  'Saludos cordiales,',
+  'AME LIFE 911 LLC'
+].join('\n');
+
 /**
  * Estado de cuenta: un solo correo con todas las facturas que debe un
  * cliente, cada una con su fecha y su saldo, y los PDF adjuntos.
@@ -6098,14 +6134,110 @@ async function famAbrirResumen(cliente) {
 
   famResRender();
 
-  // La plantilla se pide al servidor: es la misma que se edita en
-  // Configuración, así lo que se cambió allá vale también acá.
-  const r = await api('borradorResumenAME', { ids: suyas.map(f => f.id) });
-  if (r && r.ok) {
-    document.getElementById('famResAsunto').value = r.data.asunto || '';
-    document.getElementById('famResCuerpo').value = r.data.cuerpo || '';
-  }
+  // El texto por defecto se escribe YA, sin esperar al servidor. Un
+  // viaje a Apps Script cuesta ~1,4 s y si falla —o si el backend
+  // todavía no se desplegó— los campos quedaban vacíos y no había
+  // nada que editar.
+  document.getElementById('famResAsunto').value = FAM_RES_ASUNTO;
+  document.getElementById('famResCuerpo').value = FAM_RES_CUERPO;
+
+  document.getElementById('famResVars').innerHTML =
+    ['contacto', 'cliente', 'cantidad', 'total', 'detalle'].map(v =>
+      '<button type="button" class="msg-var" onclick="famResVarInsertar(\'' + v + '\')">{{' + v + '}}</button>'
+    ).join('');
+  document.getElementById('famResAsunto').oninput = famResPreview;
+  document.getElementById('famResCuerpo').oninput = famResPreview;
+
+  famResPreview();
   openModal('modalFamResumen');
+
+  // Y por atrás se pide la plantilla guardada, que es la que se edita
+  // en Configuración. Sólo pisa lo de arriba si la cambiaste.
+  const local = msgBuscar('FAM_RESUMEN');
+  if (local && local.personalizado) {
+    document.getElementById('famResAsunto').value = local.asunto;
+    document.getElementById('famResCuerpo').value = local.cuerpo;
+    famResPreview();
+    return;
+  }
+
+  const r = await api('borradorResumenAME', { ids: suyas.map(f => f.id) });
+  // Si el usuario ya empezó a escribir, no se le pisa lo que puso.
+  const tocado = document.getElementById('famResCuerpo').value !== FAM_RES_CUERPO;
+  if (r && r.ok && r.data.cuerpo && !tocado) {
+    document.getElementById('famResAsunto').value = r.data.asunto || FAM_RES_ASUNTO;
+    document.getElementById('famResCuerpo').value = r.data.cuerpo;
+    famResPreview();
+  }
+}
+
+/** Las variables con los datos reales de este envío. */
+function famResVars() {
+  const R = FAM_STATE.resumen;
+  const elegidas = famResElegidas();
+  const total = elegidas.reduce((a, f) => a + famSaldo(f), 0);
+  const moneda = (elegidas[0] && elegidas[0].moneda) || 'USD';
+
+  const filas = elegidas.map(f =>
+    '<tr>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC"><b>' + cotEsc(f.numero) + '</b></td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC">' + cotEsc(famFecha(f.fecha_emision)) + '</td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC' +
+        (famVencida(f) ? ';color:#C00000;font-weight:bold' : '') + '">' +
+        cotEsc(famFecha(f.vence)) + (famVencida(f) ? ' (vencida)' : '') + '</td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap">' +
+        cotEsc(moneda) + ' ' + famFmt(famSaldo(f)) + '</td>' +
+    '</tr>').join('');
+
+  return {
+    contacto: (R && R.facturas[0] && String(R.facturas[0].contacto || '').trim()) || 'Estimados',
+    cliente:  (R && R.cliente) || '',
+    cantidad: String(elegidas.length),
+    total:    moneda + ' ' + famFmt(total),
+    detalle:
+      '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;width:100%">' +
+        '<tr style="background:#1C2A3D;color:#fff">' +
+          '<th style="padding:6px 9px;text-align:left">Factura</th>' +
+          '<th style="padding:6px 9px;text-align:left">Emitida</th>' +
+          '<th style="padding:6px 9px;text-align:left">Vencimiento</th>' +
+          '<th style="padding:6px 9px;text-align:right">Saldo</th>' +
+        '</tr>' + filas +
+        '<tr><td colspan="3" style="padding:8px 9px;text-align:right;font-weight:bold">TOTAL ADEUDADO</td>' +
+        '<td style="padding:8px 9px;text-align:right;font-weight:bold;white-space:nowrap">' +
+          cotEsc(moneda) + ' ' + famFmt(total) + '</td></tr>' +
+      '</table>'
+  };
+}
+
+/**
+ * La vista previa, con los datos reales en vez de los {{...}}.
+ *
+ * Usa el mismo armado que las plantillas de Configuración —msgAHtml—
+ * así lo que se ve acá es lo que sale del servidor.
+ */
+function famResPreview() {
+  const caja = document.getElementById('famResPrev');
+  if (!caja) return;
+
+  const vars = famResVars();
+  const asunto = document.getElementById('famResAsunto').value;
+  const cuerpo = document.getElementById('famResCuerpo').value;
+
+  caja.innerHTML =
+    '<p style="color:#5D6E67;font-size:12px;margin-bottom:14px">' +
+      '<b>Asunto:</b> ' + (msgAHtml(asunto, vars, false).replace(/<\/?p>/g, '') || '—') +
+    '</p>' + msgAHtml(cuerpo, vars, false);
+}
+
+/** Inserta una variable donde está el cursor. */
+function famResVarInsertar(v) {
+  const ta = document.getElementById('famResCuerpo');
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  const marca = '{{' + v + '}}';
+  ta.value = ta.value.slice(0, a) + marca + ta.value.slice(b);
+  ta.selectionStart = ta.selectionEnd = a + marca.length;
+  ta.focus();
+  famResPreview();
 }
 
 function famResRender() {
@@ -6145,6 +6277,8 @@ function famResTotal() {
     ? '<b>' + sinPDF + (sinPDF === 1 ? ' factura no tiene PDF' : ' facturas no tienen PDF') +
       '</b> cargado: van a figurar en la tabla igual, pero sin adjunto.'
     : '';
+
+  famResPreview();       // destildar una factura cambia la tabla y el total
 }
 
 /** Atajo a Configuración, para cambiar el texto de una vez y para siempre. */
