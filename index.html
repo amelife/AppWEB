@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.3 | 2026-08-27 ARG - Textos editables desde Configuracion: 4 correos (cotizacion, orden ZOLL, llegada, recordatorio) y 4 de WhatsApp (inventario, price book, tracking, ficha de cliente) -->
+<!-- AMELIFE EMS Technologies - Web App v8.4 | 2026-08-27 ARG - Textos editables desde Configuracion (4 correos + 4 de WhatsApp), precio real en el detalle de cotizaciones, y Notas con copia separada para WhatsApp y para correo -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -984,6 +984,12 @@
     letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
   }
   .not-cab .btn { padding:5px 12px; font-size:12px; flex-shrink:0; }
+  .not-acc { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+  .not-acc-rot {
+    font-family:var(--cond); font-size:11px; font-weight:700; letter-spacing:1.1px;
+    text-transform:uppercase; color:var(--muted); margin-right:1px;
+  }
+  .not-acc-sep { width:1px; height:18px; background:var(--border2); margin:0 5px; }
 
   .not-cuerpo { padding:2px 16px 14px 38px; border-top:1px solid var(--border2); }
   /* El texto se ve tal cual va a viajar, con los asteriscos: lo que se
@@ -1459,7 +1465,7 @@
       </div>
       <div class="nav-item" onclick="showPanel('pricebook',this)">
         <span class="nav-ico i3d i3d-pricebook"></span>
-        <span>Price Book ZOLL</span>
+        <span>Precios ZOLL</span>
       </div>
       <div class="nav-item" onclick="showPanel('clientes',this)">
         <span class="nav-ico i3d i3d-clientes"></span>
@@ -2381,7 +2387,7 @@
         <input type="number" id="cotMarkup" min="0" step="1" oninput="cotRenderItems()" />
       </div>
       <div class="field" style="grid-column:1/-1;margin-bottom:0">
-        <label>Buscar producto del Price Book</label>
+        <label>Buscar producto de Precios ZOLL</label>
         <input type="text" id="cotBuscar" autocomplete="off" placeholder="Escribí PN o descripción..." oninput="cotBuscarPB(this.value)" />
         <div id="cotResultados" style="margin-top:6px;max-height:180px;overflow-y:auto"></div>
       </div>
@@ -2502,7 +2508,7 @@
 
     <div class="cfg-seccion" style="margin-top:6px">Ítems</div>
     <div class="field" style="position:relative;margin-bottom:10px">
-      <input type="text" id="ocBuscarPN" placeholder="Buscá un PN o descripción del Price Book..." oninput="ocBuscarPB(this.value)" autocomplete="off">
+      <input type="text" id="ocBuscarPN" placeholder="Buscá un PN o descripción en Precios ZOLL..." oninput="ocBuscarPB(this.value)" autocomplete="off">
       <div id="ocResultados" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:30;max-height:220px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.18);margin-top:2px"></div>
     </div>
     <div id="ocItems"></div>
@@ -2785,7 +2791,7 @@
     <!-- PASO 2: procesando -->
     <div id="cotIAPaso2" style="display:none;text-align:center;padding:44px 20px">
       <div class="pdf-spinner" style="margin:0 auto 18px"></div>
-      <div style="color:var(--text);font-weight:600">Leyendo el pedido y buscando en el Price Book…</div>
+      <div style="color:var(--text);font-weight:600">Leyendo el pedido y buscando en Precios ZOLL…</div>
       <div style="color:var(--muted);font-size:12px;margin-top:6px">Suele tardar entre 10 y 40 segundos</div>
     </div>
 
@@ -3663,7 +3669,7 @@ function ocBuscarPB(q) {
   ).slice(0, 10);
 
   if (!OC_STATE.resultados.length) {
-    box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">Sin resultados en el Price Book</div>';
+    box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>';
     box.style.display = 'block';
     return;
   }
@@ -4651,7 +4657,7 @@ function panelPermitido(id) {
 
 function showPanel(id, el) {
   const titles = {
-    dashboard:'Dashboard', inventario:'Inventario', pricebook:'Price Book ZOLL',
+    dashboard:'Dashboard', inventario:'Inventario', pricebook:'Precios ZOLL',
     clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
     trackings:'Trackings', warehouse:'Warehouse', facturas:'Importar Factura',
     datos:'Datos Importantes', facturasame:'Facturas AME',
@@ -4796,7 +4802,7 @@ function renderPriceBook() {
 
   const keys = Object.keys(grouped);
   if (!keys.length) {
-    contents.innerHTML = '<div class="empty"><div class="empty-icon"><i class="i3d i3d-pricebook"></i></div><h3>Price Book vacío</h3><p>Ejecutá loadPriceBookZOLL() en Apps Script para cargar los ítems.</p></div>';
+    contents.innerHTML = '<div class="empty"><div class="empty-icon"><i class="i3d i3d-pricebook"></i></div><h3>Precios ZOLL vacío</h3><p>Ejecutá loadPriceBookZOLL() en Apps Script para cargar los ítems.</p></div>';
     return;
   }
 
@@ -4810,7 +4816,7 @@ function renderPriceBook() {
         <td>${r.desc}</td>
         <td><b>$${Number(r.price).toLocaleString()}</b></td>
         <td>
-          <button class="tbl-txt" title="Copiar el ítem listo para pegar" onclick="pbCopiar('${r.pn}')">Copiar ítem</button>
+          <button class="tbl-txt" title="Copiar el ítem listo para pegar" onclick="pbCopiar('${r.pn}','${k}')">Copiar ítem</button>
         </td>
       </tr>`).join('');
     contents.innerHTML += `
@@ -4867,8 +4873,27 @@ function pbPrecioConMarkup(lista) {
 // El PN va precedido de "PN" para que WhatsApp no lo lea como un
 // número de teléfono: una tira de dígitos con guiones sola en su
 // renglón le dispara el autoenlace y la subraya.
-function pbCopiar(pn) {
-  var it = PRICEBOOK_DATA.find(function(x) { return String(x.pn) === String(pn); });
+/**
+ * Copiar un ítem del Price Book.
+ *
+ * Hace falta la LISTA además del part number: el mismo PN aparece en
+ * más de una lista con descripción y precio distintos —el 8900-0800-01
+ * está en AED y en ZOLL M2—, y buscando sólo por PN se copiaba siempre
+ * el primero, que no era el de la fila que se tocó.
+ *
+ * @param {String} pn         Part number.
+ * @param {String} categoria  La lista de la que salió la fila.
+ */
+function pbCopiar(pn, categoria) {
+  var it = null;
+
+  if (categoria) {
+    it = PRICEBOOK_DATA.find(function(x) {
+      return String(x.pn) === String(pn) && String(x.categoria) === String(categoria);
+    });
+  }
+  // Sin lista, o si esa lista ya no está, se vuelve a buscar sólo por PN.
+  if (!it) it = PRICEBOOK_DATA.find(function(x) { return String(x.pn) === String(pn); });
   if (!it) { showToast('No encontré ese ítem', 'error'); return; }
 
   var precio = pbPrecioConMarkup(it.price);
@@ -4949,7 +4974,7 @@ function filterPB() {
           '<td class="num"><b>$' + Number(r.price).toLocaleString() + '</b></td>' +
           '<td style="text-align:right;white-space:nowrap">' +
             '<button class="tbl-txt" title="Copiar el ítem listo para pegar"' +
-              ' onclick="pbCopiar(\'' + cotEsc(r.pn) + '\')">Copiar ítem</button>' +
+              ' onclick="pbCopiar(\'' + cotEsc(r.pn) + '\',\'' + cotEsc(r.categoria) + '\')">Copiar ítem</button>' +
           '</td>' +
         '</tr>').join('') +
     '</tbody></table>' +
@@ -5603,9 +5628,14 @@ function notRender() {
         '<span class="not-chev">▶</span>' +
         '<span class="not-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
         '<span class="not-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
-        '<button class="btn btn-primary" onclick="event.stopPropagation();notCopiar(\'' + n.id + '\')">Copiar</button>' +
-        '<button class="btn btn-outline" onclick="event.stopPropagation();notEditar(\'' + n.id + '\')">Editar</button>' +
-        '<button class="btn btn-outline peligro" onclick="event.stopPropagation();notBorrar(\'' + n.id + '\')">Borrar</button>' +
+        '<span class="not-acc">' +
+          '<span class="not-acc-rot">Copiar</span>' +
+          '<button class="btn btn-primary" title="Con los asteriscos, como los lee WhatsApp" onclick="event.stopPropagation();notCopiarWA(\'' + n.id + '\')">WhatsApp</button>' +
+          '<button class="btn btn-primary" title="Con negrita de verdad, para pegar en el correo" onclick="event.stopPropagation();notCopiarMail(\'' + n.id + '\')">Correo</button>' +
+          '<span class="not-acc-sep"></span>' +
+          '<button class="btn btn-outline" onclick="event.stopPropagation();notEditar(\'' + n.id + '\')">Editar</button>' +
+          '<button class="btn btn-outline peligro" onclick="event.stopPropagation();notBorrar(\'' + n.id + '\')">Borrar</button>' +
+        '</span>' +
       '</div>';
 
     if (abierta) {
@@ -5620,13 +5650,103 @@ function notRender() {
 function notFiltrar() { notRender(); }
 function notSel(id) { NOT_STATE.sel = (NOT_STATE.sel === id ? null : id); notRender(); }
 
-function notCopiar(id) {
+/**
+ * Copiar una nota. Son dos formatos distintos y no hay uno que sirva
+ * para los dos lados:
+ *
+ *  · WhatsApp lee *asteriscos* y los convierte en negrita.
+ *  · El correo NO. Pegado en Gmail, *esto* queda con los asterisco a
+ *    la vista. La negrita del correo es HTML, así que hay que copiar
+ *    HTML al portapapeles, no texto.
+ */
+function notNota(id) {
   const n = NOT_STATE.lista.find(x => x.id === id);
-  if (!n) { showToast('No encontré esa nota', 'error'); return; }
+  if (!n) { showToast('No encontré esa nota', 'error'); return null; }
   const t = notTexto(n);
-  if (!t.txt) { showToast('La nota está vacía', 'error'); return; }
-  copiarAlPortapapeles(t.txt,
-    t.crudo ? 'Copiada sin ordenar' : 'Nota copiada · pegala en WhatsApp');
+  if (!t.txt) { showToast('La nota está vacía', 'error'); return null; }
+  return { nota: n, txt: t.txt, crudo: t.crudo };
+}
+
+function notCopiarWA(id) {
+  const d = notNota(id);
+  if (!d) return;
+  copiarAlPortapapeles(d.txt,
+    d.crudo ? 'Copiada sin ordenar · pegala en WhatsApp' : 'Nota copiada · pegala en WhatsApp');
+}
+
+function notCopiarMail(id) {
+  const d = notNota(id);
+  if (!d) return;
+  copiarRico(notAHtml(d.txt), notSinMarcas(d.txt),
+    d.crudo ? 'Copiada sin ordenar · pegala en el correo' : 'Nota copiada · pegala en el correo');
+}
+
+/** El texto de la nota pasado a HTML, con la negrita de verdad. */
+function notAHtml(txt) {
+  const partes = String(txt || '').split(/\n\s*\n/);
+  return partes.map(par => {
+    const linea = cotEsc(par.trim())
+      .replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
+      .replace(/_([^_\n]+)_/g, '<i>$1</i>')
+      .replace(/\n/g, '<br>');
+    return linea ? '<p style="margin:0 0 10px">' + linea + '</p>' : '';
+  }).filter(Boolean).join('');
+}
+
+/** El mismo texto sin los asteriscos, por si se pega donde no hay formato. */
+function notSinMarcas(txt) {
+  return String(txt || '')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/_([^_\n]+)_/g, '$1');
+}
+
+/**
+ * Copia HTML al portapapeles, con el texto plano como alternativa: el
+ * que pega decide cuál usa. Gmail toma el HTML y muestra la negrita;
+ * un bloc de notas toma el plano.
+ *
+ * El camino viejo es un div contenteditable seleccionado y copiado con
+ * execCommand: es la única forma de copiar formato en los navegadores
+ * que no tienen ClipboardItem.
+ */
+function copiarRico(html, plano, mensajeOk) {
+  const bien = () => showToast(mensajeOk || 'Copiado', 'success');
+  const mal  = () => showToast('No pude copiar', 'error');
+
+  const viejo = () => {
+    try {
+      const d = document.createElement('div');
+      d.innerHTML = html;
+      d.setAttribute('contenteditable', 'true');
+      d.style.position = 'fixed';
+      d.style.left = '-9999px';
+      d.style.whiteSpace = 'pre-wrap';
+      document.body.appendChild(d);
+
+      const sel = window.getSelection();
+      const rango = document.createRange();
+      rango.selectNodeContents(d);
+      sel.removeAllRanges();
+      sel.addRange(rango);
+
+      const r = document.execCommand('copy');
+      sel.removeAllRanges();
+      document.body.removeChild(d);
+      return r;
+    } catch (e) { return false; }
+  };
+
+  if (navigator.clipboard && window.ClipboardItem) {
+    try {
+      const item = new ClipboardItem({
+        'text/html':  new Blob([html],  { type: 'text/html' }),
+        'text/plain': new Blob([plano], { type: 'text/plain' })
+      });
+      navigator.clipboard.write([item]).then(bien).catch(() => { viejo() ? bien() : mal(); });
+      return;
+    } catch (e) { /* sigue por el camino viejo */ }
+  }
+  viejo() ? bien() : mal();
 }
 
 // ── Editor ────────────────────────────────────────────────
@@ -9697,7 +9817,7 @@ function cotBuscarPB(q) {
   ).slice(0, 10);
 
   if (!COT_STATE.resultados.length) {
-    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin resultados en el Price Book</div>';
+    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>';
     return;
   }
   box.innerHTML = COT_STATE.resultados.map((r, i) => `
@@ -10007,7 +10127,7 @@ function cotIARenderPropuesta(data) {
     const c = colorConf[i.confianza] || 'var(--muted)';
     const esManual = i.fuente === 'manual';
     const badge = esManual
-      ? `<span class="badge badge-warning" style="font-size:9px;margin-left:6px" title="Precio que diste vos, no del Price Book">precio tuyo</span>`
+      ? `<span class="badge badge-warning" style="font-size:9px;margin-left:6px" title="Precio que diste vos, no el de Precios ZOLL">precio tuyo</span>`
       : '';
     return `<tr${esManual ? ' style="background:rgba(192,122,16,0.06)"' : ''}>
       <td class="pn">${cotEsc(i.pn)}${badge}</td>
