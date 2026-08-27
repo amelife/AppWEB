@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v8.1 | 2026-08-26 ARG - Precio por linea editable a mano en las cotizaciones, Price Book cacheado, markup al copiar -->
+<!-- AMELIFE EMS Technologies - Web App v8.3 | 2026-08-27 ARG - Textos editables desde Configuracion: 4 correos (cotizacion, orden ZOLL, llegada, recordatorio) y 4 de WhatsApp (inventario, price book, tracking, ficha de cliente) -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -808,6 +808,17 @@
   .cliv-td-dir { min-width:250px; max-width:330px; }
 
   /* ── Precio por línea en el constructor de cotizaciones ── */
+  .cot-cab {
+    display:flex; align-items:center; gap:10px; margin-bottom:7px; padding-bottom:5px;
+    border-bottom:1px solid var(--border2);
+    font-family:var(--cond); font-size:11px; font-weight:700;
+    letter-spacing:1.1px; text-transform:uppercase; color:var(--muted);
+  }
+  .cot-linea {
+    width:100px; text-align:right;
+    font-family:'JetBrains Mono',monospace; font-size:12.5px;
+  }
+  .cot-cab .cot-linea { font-family:var(--cond); font-size:11px; }
   .cot-precio { display:flex; align-items:center; gap:3px; width:126px; justify-content:flex-end; }
   .cot-precio input {
     width:96px; padding:4px 6px; text-align:right;
@@ -1333,6 +1344,38 @@
   }
   .cfg-mover:hover:not(:disabled) { border-color:var(--green); color:var(--green); }
   .cfg-mover:disabled { opacity:0.3; cursor:default; }
+
+  /* ---- EDITOR DE MENSAJES DE CORREO ---- */
+  .msg-fila { display:flex; align-items:center; gap:11px;
+    padding:10px 12px; border:1px solid var(--border2); border-radius:var(--radius);
+    background:var(--card2); }
+  .msg-fila .msg-nom { flex:1; font-size:15px; }
+  .msg-fila .msg-nom small { display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+  .msg-editar { flex-shrink:0; cursor:pointer; font-family:'Outfit',sans-serif; font-size:13px;
+    border:1px solid var(--border2); border-radius:var(--radius); background:var(--card);
+    color:var(--text); padding:6px 14px; }
+  .msg-editar:hover { border-color:var(--green); color:var(--green); }
+  .msg-tag { font-family:var(--cond); font-size:10px; font-weight:700; letter-spacing:1px;
+    text-transform:uppercase; color:var(--green); border:1px solid var(--green);
+    border-radius:3px; padding:2px 6px; flex-shrink:0; }
+  .msg-sub { font-family:var(--cond); font-size:11px; font-weight:700; letter-spacing:1.4px;
+    text-transform:uppercase; color:var(--muted); margin:12px 0 2px; }
+  .msg-prev.wapp { background:#E5DDD5; color:#111; font-family:'Outfit',sans-serif; }
+  .msg-vars { margin:-4px 0 12px; }
+  .msg-vars-tit { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .msg-vars > div { display:flex; flex-wrap:wrap; gap:6px; }
+  .msg-var { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; cursor:pointer;
+    border:1px solid var(--border2); border-radius:3px; background:var(--card);
+    color:var(--muted); padding:3px 7px; }
+  .msg-var:hover { border-color:var(--green); color:var(--green); }
+  .msg-prev-tit { font-family:var(--cond); font-size:11px; font-weight:700; letter-spacing:1.4px;
+    text-transform:uppercase; color:var(--muted); margin:16px 0 8px; }
+  .msg-prev { border:1px solid var(--border2); border-radius:var(--radius);
+    background:#fff; color:#111; padding:14px 16px; font-size:14px; line-height:1.6;
+    max-height:220px; overflow-y:auto; overflow-wrap:break-word; }
+  .msg-prev p { margin:0 0 12px; }
+  .msg-prev table { font-size:13px; }
+  .msg-prev .msg-ph { color:#8A9BA8; font-style:italic; }
 
   /* ---- PILL STATUS ---- */
   .status-dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
@@ -2544,6 +2587,10 @@
       <div id="cfgFavLista" class="cfg-lista"></div>
     </div>
 
+    <div class="cfg-seccion" style="margin-top:24px">Textos de correos y WhatsApp</div>
+    <p class="cfg-ayuda">Lo que dice cada correo que manda la app y cada botón «Copiar». Se guarda en la planilla, así que vale para cualquier navegador.</p>
+    <div id="cfgMsgLista" class="cfg-lista"></div>
+
     <div class="cfg-seccion" style="margin-top:24px">Correos de órdenes ZOLL</div>
     <div class="field">
       <label>Destinatario por defecto</label>
@@ -2557,6 +2604,44 @@
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="cfgDashRestablecer()">Restablecer bloques</button>
       <button class="btn btn-primary" onclick="cfgGuardarTodo()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editor del texto de un correo -->
+<div class="modal-overlay" id="modalMensaje" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:640px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title" id="msgTitulo">Texto del correo</div>
+      <button class="modal-close" onclick="closeModal('modalMensaje')">✕</button>
+    </div>
+
+    <p class="cfg-ayuda" id="msgAyuda"></p>
+
+    <div class="field" id="msgCampoAsunto">
+      <label>Asunto</label>
+      <input type="text" id="msgAsunto" placeholder="Asunto del correo">
+    </div>
+
+    <div class="field">
+      <label>Mensaje</label>
+      <textarea id="msgCuerpo" rows="14" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;outline:none;resize:vertical"></textarea>
+    </div>
+
+    <div class="msg-vars">
+      <span class="msg-vars-tit">Tocá una para insertarla:</span>
+      <div id="msgVars"></div>
+    </div>
+    <p class="cfg-ayuda" id="msgNotaFormato"></p>
+
+    <div class="msg-prev-tit">Así se va a ver</div>
+    <div class="msg-prev" id="msgPrev"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="msgRestablecer()">Volver al original</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalMensaje')">Cancelar</button>
+      <button class="btn btn-primary" id="msgBtnGuardar" onclick="msgGuardar()">Guardar</button>
     </div>
   </div>
 </div>
@@ -2934,17 +3019,30 @@ function invCopiar(id) {
   const it = INVENTARIO.find(x => String(x.id) === String(id));
   if (!it) { showToast('No encontré ese ítem', 'error'); return; }
 
+  const cant = Number(it.stock);
+  const dep  = String(it.deposito || '').trim();
+
+  const desdePlantilla = msgWa('WA_INV', {
+    pn:        it.pn || 'S/N',
+    desc:      it.desc || '',
+    cantidad:  String(isNaN(cant) ? (it.stock || 0) : cant),
+    deposito:  dep ? dep.toUpperCase() : '',
+    wh:        it.wh || '',
+    ubicacion: it.notas || it.lugar || ''
+  });
+
+  if (desdePlantilla) {
+    copiarAlPortapapeles(desdePlantilla, 'Ítem copiado · pegalo en WhatsApp');
+    return;
+  }
+
+  // Respaldo si la plantilla todavía no llegó del servidor.
   const L = [];
   L.push('*' + (it.pn || 'S/N') + '*');
   if (it.desc) L.push(it.desc);
-
-  const cant = Number(it.stock);
   L.push('*Cantidad:* ' + (isNaN(cant) ? (it.stock || 0) : cant));
-
-  const dep = String(it.deposito || '').trim();
   if (dep) L.push('*Depósito:* ' + dep.toUpperCase());
   if (it.wh) L.push('*WH:* ' + it.wh);
-
   const lugar = it.notas || it.lugar || '';
   if (lugar) L.push('*Lugar:* ' + lugar);
 
@@ -3902,11 +4000,285 @@ async function abrirConfig() {
   // Los correos viven en el backend, así que se piden al abrir
   cfgLayoutRender();
 
+  msgCargar();
+
   const r = await api('getOrdenEmails');
   if (r.ok) {
     document.getElementById('cfgEmailTo').value = r.data.to || '';
     document.getElementById('cfgEmailPresets').value = (r.data.presets || []).join('\n');
   }
+}
+
+
+// ============================================================
+// TEXTOS DE LOS CORREOS
+// ------------------------------------------------------------
+// Las plantillas viven en la planilla (33_Mensajes.gs). Acá se
+// editan y se previsualizan. La vista previa repite el mismo
+// armado que hace el backend —párrafos, negritas, variables— para
+// que lo que se ve sea lo que se manda.
+// ============================================================
+
+const MSG_STATE = { lista: [], cargando: null, editando: null };
+
+// Valores de mentira para la vista previa. Los que arman HTML
+// (detalle, documentos, firma) no se inventan: se muestran como un
+// cartelito gris, porque su contenido real depende del envío.
+const MSG_EJEMPLOS = {
+  cliente:    'MEDICAL TEAMS S.A.',
+  numero:     'COT-2026-014',
+  total:      '4,197.00',
+  moneda:     'US$',
+  proveedor:  'ZOLL',
+  emisor:     'AME LIFE 911 LLC',
+  guia:       '7712 3344 5566',
+  carrier:    'FedEx',
+  fabricante: 'ZOLL',
+  contenido:  'Desfibriladores X Series',
+  deposito:   'WR Miami',
+  contacto:   'Juan Carlos Córdova',
+  monto:      'USD 4,197.00',
+  vence:      '15/09/2026',
+  // WhatsApp. `wh` y `lugar` van vacíos a propósito: así se ve en la
+  // vista previa cómo desaparece el renglón cuando no hay dato.
+  pn:         '8000-0580-01',
+  desc:       'ZOLL X Series Monitor/Defibrillator',
+  cantidad:   '3',
+  deposito:   'ADS',
+  wh:         '',
+  ubicacion:  '',
+  nombre:     'MEDICAL TEAMS S.A.',
+  empresa:    '',
+  lugar:      '🇪🇨 Guayaquil · Ecuador',
+  precio:     '18,400',
+  mercaderia: 'Desfibriladores X Series',
+  eta:        '02/09/2026 (en 6 días)',
+  ruta:       'Chelmsford → Miami',
+  estado:     'En tránsito',
+  link:       'https://www.fedex.com/fedextrack/?trknbrs=771233445566',
+  tipo:       'Aéreo',
+  direccion:  '',
+  ruc:        '0992...',
+  contactos:  '*Contacto:* Juan Carlos Córdova\n*Teléfono:* +593 99 123 4567\n*Correo:* jc@medicalteams.ec',
+  notas:      ''
+};
+const MSG_HTML_VARS = ['firma', 'detalle', 'documentos'];
+
+async function msgCargar(forzar) {
+  if (MSG_STATE.lista.length && !forzar) { msgRenderLista(); return MSG_STATE.lista; }
+  if (MSG_STATE.cargando) return MSG_STATE.cargando;
+
+  const cont = document.getElementById('cfgMsgLista');
+  if (cont) cont.innerHTML = '<div class="cfg-ayuda">Cargando…</div>';
+
+  MSG_STATE.cargando = api('getMensajes').then(r => {
+    MSG_STATE.cargando = null;
+    if (!r || !r.ok) {
+      if (cont) cont.innerHTML = '<div class="cfg-ayuda">No se pudieron cargar los textos.</div>';
+      return [];
+    }
+    MSG_STATE.lista = r.data.mensajes || [];
+    msgRenderLista();
+    return MSG_STATE.lista;
+  });
+  return MSG_STATE.cargando;
+}
+
+function msgRenderLista() {
+  const cont = document.getElementById('cfgMsgLista');
+  if (!cont) return;
+
+  const fila = m =>
+    '<div class="msg-fila">' +
+      '<div class="msg-nom">' + cotEsc(m.titulo) +
+        (m.personalizado ? ' <span class="msg-tag">Editado</span>' : '') +
+        '<small>' + cotEsc(m.tipo === 'whatsapp' ? msgResumen(m) : m.asunto) + '</small>' +
+      '</div>' +
+      '<button class="msg-editar" onclick="msgEditar(\'' + m.clave + '\')">Editar</button>' +
+    '</div>';
+
+  const correos = MSG_STATE.lista.filter(m => m.tipo !== 'whatsapp');
+  const wapp    = MSG_STATE.lista.filter(m => m.tipo === 'whatsapp');
+
+  cont.innerHTML =
+    correos.map(fila).join('') +
+    (wapp.length
+      ? '<div class="msg-sub">Botones «Copiar» para WhatsApp</div>' + wapp.map(fila).join('')
+      : '');
+}
+
+/** Primera línea útil de una plantilla, para la lista de Configuración. */
+function msgResumen(m) {
+  const l = String(m.cuerpo || '').split('\n').find(x => x.trim());
+  return (l || '').replace(/[*_]/g, '').replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, '$1');
+}
+
+function msgBuscar(clave) {
+  return MSG_STATE.lista.find(m => m.clave === clave) || null;
+}
+
+function msgEditar(clave) {
+  const m = msgBuscar(clave);
+  if (!m) return;
+  MSG_STATE.editando = clave;
+
+  const wapp = (m.tipo === 'whatsapp');
+  document.getElementById('msgTitulo').textContent = m.titulo;
+  document.getElementById('msgAyuda').textContent  = m.ayuda || '';
+  document.getElementById('msgAsunto').value       = m.asunto || '';
+  document.getElementById('msgCuerpo').value       = m.cuerpo || '';
+
+  // Un texto que se copia y se pega no tiene asunto.
+  document.getElementById('msgCampoAsunto').style.display = wapp ? 'none' : '';
+  document.getElementById('msgNotaFormato').innerHTML = wapp
+    ? 'Un renglón se borra solo si todos sus datos vienen vacíos: un cliente sin RUC no arrastra un «RUC:» pelado. Lo que pongas *entre asteriscos* sale en negrita de WhatsApp.'
+    : 'Una línea en blanco separa párrafos. Lo que pongas *entre asteriscos* sale en negrita.';
+
+  document.getElementById('msgVars').innerHTML = (m.variables || []).map(v =>
+    '<button type="button" class="msg-var" onclick="msgVarInsertar(\'' + v + '\')">{{' + v + '}}</button>'
+  ).join('');
+
+  document.getElementById('msgAsunto').oninput = msgPreview;
+  document.getElementById('msgCuerpo').oninput = msgPreview;
+  msgPreview();
+  openModal('modalMensaje');
+}
+
+/** Inserta la variable donde está el cursor, no al final. */
+function msgVarInsertar(v) {
+  const ta = document.getElementById('msgCuerpo');
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  const marca = '{{' + v + '}}';
+  ta.value = ta.value.slice(0, a) + marca + ta.value.slice(b);
+  ta.selectionStart = ta.selectionEnd = a + marca.length;
+  ta.focus();
+  msgPreview();
+}
+
+/**
+ * Texto de WhatsApp desde la plantilla guardada.
+ *
+ * Devuelve null si la plantilla todavía no llegó —la precarga puede
+ * fallar o el usuario puede apretar Copiar antes— y ahí cada botón usa
+ * el texto de siempre, que quedó como respaldo. Un botón que no hace
+ * nada es peor que uno que copia el formato viejo.
+ *
+ * Un renglón cuyas variables quedaron TODAS vacías no se escribe, y
+ * una variable vacía se lleva puesto el espacio que tiene pegado. Es
+ * la misma regla que _msgWa en 33_Mensajes.gs.
+ */
+function msgWa(clave, vars) {
+  const m = msgBuscar(clave);
+  if (!m || !m.cuerpo) return null;
+
+  const lineas = String(m.cuerpo).split('\n').map(linea => {
+    let conVar = false, conDato = false;
+    const out = linea.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, n) => {
+      conVar = true;
+      let v = vars[n];
+      if (v === undefined || v === null) v = '';
+      v = String(v);
+      if (v !== '') { conDato = true; return v; }
+      return '\u0000';       // marca de dato vacío, se limpia abajo
+    });
+    if (conVar && !conDato) return null;
+    return out.replace(/\u0000 /g, '').replace(/ \u0000/g, '').replace(/\u0000/g, '');
+  }).filter(l => l !== null);
+
+  return lineas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Mismo armado que _msgArmar en 33_Mensajes.gs.
+function msgAHtml(txt, vars, marcarHtml) {
+  let t = String(txt || '').replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, n) => {
+    if (MSG_HTML_VARS.indexOf(n) !== -1) {
+      return marcarHtml ? '<span class="msg-ph">[' + n + ']</span>' : '';
+    }
+    const val = vars[n];
+    return (val === undefined || val === null) ? '' : cotEsc(val);
+  });
+  t = t.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+  return t.split(/\n\s*\n/)
+    .map(par => { const c = par.replace(/\n/g, '<br>').trim(); return c ? '<p>' + c + '</p>' : ''; })
+    .filter(Boolean).join('');
+}
+
+function msgPreview() {
+  const m = msgBuscar(MSG_STATE.editando);
+  const asunto = document.getElementById('msgAsunto').value;
+  const cuerpo = document.getElementById('msgCuerpo').value;
+  const prev = document.getElementById('msgPrev');
+
+  if (m && m.tipo === 'whatsapp') {
+    // Se previsualiza con los datos de ejemplo Y con la regla del
+    // renglón vacío, que es la mitad de lo que hay que ver acá.
+    prev.className = 'msg-prev wapp';
+    const txt = msgWaTexto(cuerpo, MSG_EJEMPLOS);
+    prev.innerHTML = txt
+      ? cotEsc(txt).replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
+                   .replace(/_([^_\n]+)_/g, '<i>$1</i>')
+                   .replace(/\n/g, '<br>')
+      : '<span class="msg-ph">Con estos datos no quedaría nada escrito.</span>';
+    return;
+  }
+
+  prev.className = 'msg-prev';
+  prev.innerHTML =
+    '<p style="color:#5D6E67;font-size:12px;margin-bottom:14px">' +
+      '<b>Asunto:</b> ' + (msgAHtml(asunto, MSG_EJEMPLOS, true).replace(/<\/?p>/g, '') || '—') +
+    '</p>' + msgAHtml(cuerpo, MSG_EJEMPLOS, true);
+}
+
+/** El armado de WhatsApp sobre un texto suelto, para la vista previa. */
+function msgWaTexto(cuerpo, vars) {
+  const lineas = String(cuerpo || '').split('\n').map(linea => {
+    let conVar = false, conDato = false;
+    const out = linea.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, n) => {
+      conVar = true;
+      let v = vars[n];
+      if (v === undefined || v === null) v = '';
+      v = String(v);
+      if (v !== '') { conDato = true; return v; }
+      return '\u0000';       // marca de dato vacío, se limpia abajo
+    });
+    if (conVar && !conDato) return null;
+    return out.replace(/\u0000 /g, '').replace(/ \u0000/g, '').replace(/\u0000/g, '');
+  }).filter(l => l !== null);
+  return lineas.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+async function msgGuardar() {
+  const clave = MSG_STATE.editando;
+  if (!clave) return;
+  const m = msgBuscar(clave);
+  const wapp = (m && m.tipo === 'whatsapp');
+  const asunto = wapp ? '' : document.getElementById('msgAsunto').value.trim();
+  const cuerpo = document.getElementById('msgCuerpo').value;
+  if (!wapp && !asunto) { showToast('El asunto no puede quedar vacío', 'error'); return; }
+  if (!cuerpo.trim())   { showToast('El mensaje no puede quedar vacío', 'error'); return; }
+
+  const btn = document.getElementById('msgBtnGuardar');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  const r = await api('saveMensajes', { items: [{ clave, asunto, cuerpo }] });
+  btn.disabled = false; btn.textContent = 'Guardar';
+
+  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo guardar', 'error'); return; }
+  await msgCargar(true);
+  closeModal('modalMensaje');
+  showToast('Texto guardado', 'success');
+}
+
+async function msgRestablecer() {
+  const clave = MSG_STATE.editando;
+  const m = msgBuscar(clave);
+  if (!m) return;
+  if (!confirm('¿Volver al texto original de «' + m.titulo + '»?')) return;
+
+  const r = await api('resetMensaje', { clave });
+  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo restablecer', 'error'); return; }
+  await msgCargar(true);
+  if (msgBuscar(clave)) msgEditar(clave);
+  showToast('Volvió al texto original', 'success');
 }
 
 function cfgLayoutRender() {
@@ -4151,6 +4523,13 @@ const PRECARGA = [
       // Si el panel ya está a la vista, se dibuja; si no, queda listo.
       const p = document.getElementById('panel-facturasame');
       if (p && p.classList.contains('active')) famFiltrar();
+    } },
+  // Sin panel: los textos los usa cualquiera que toque un botón Copiar,
+  // así que viajan siempre. No cuestan un pedido más: van en el mismo.
+  { panel: null, clave: 'mensajes', accion: 'getMensajes',
+    luego: d => {
+      if (typeof MSG_STATE === 'undefined') return;
+      MSG_STATE.lista = (d && d.mensajes) || [];
     } }
 ];
 
@@ -4166,7 +4545,7 @@ const PRECARGA = [
  * pedidos de antes: la app arranca igual, sólo que más lento.
  */
 async function precargarModulos() {
-  const modulos = PRECARGA.filter(m => panelPermitido(m.panel));
+  const modulos = PRECARGA.filter(m => m.panel === null || panelPermitido(m.panel));
   if (!modulos.length) return;
 
   const tarea = actIniciar('Preparando los módulos');
@@ -4493,8 +4872,19 @@ function pbCopiar(pn) {
   if (!it) { showToast('No encontré ese ítem', 'error'); return; }
 
   var precio = pbPrecioConMarkup(it.price);
-  var txt = '*PN ' + (it.pn || 'S/N') + '*\n' + (it.desc || '') + '\n' +
-            'USD ' + (precio === null ? '' : precio.toLocaleString('en-US'));
+
+  // El renglón del USD tiene que quedar aunque no haya markup elegido:
+  // por eso va un espacio y no una cadena vacía, que lo haría desaparecer.
+  var txt = msgWa('WA_PB', {
+    pn:     it.pn || 'S/N',
+    desc:   it.desc || '',
+    precio: precio === null ? ' ' : precio.toLocaleString('en-US')
+  });
+
+  if (!txt) {
+    txt = '*PN ' + (it.pn || 'S/N') + '*\n' + (it.desc || '') + '\n' +
+          'USD ' + (precio === null ? '' : precio.toLocaleString('en-US'));
+  }
 
   copiarAlPortapapeles(txt, precio === null
     ? 'Ítem copiado · pegalo y ponele el precio'
@@ -5080,11 +5470,32 @@ function famAbrirRecordar(id) {
       ? '<div style="margin-top:5px;color:#C4534D">Vencida hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + '</div>'
       : '<div style="margin-top:5px">Fecha de pago: ' + famFecha(f.vence) + '</div>');
   document.getElementById('famRecMail').value = f.email || '';
+  msgCargar();                       // para que Copiar use el texto vigente
   openModal('modalFamRecordar');
 }
 
 /** El mismo texto que va por correo, servido para pegar en WhatsApp. */
+/**
+ * Texto para WhatsApp. Sale de la MISMA plantilla que el correo, así
+ * editarla en Configuración cambia los dos. Si todavía no se cargó
+ * (nunca se abrió Configuración en esta sesión), se manda el texto
+ * corto de siempre: es mejor eso que dejar el botón sin hacer nada.
+ */
 function famTextoRecordatorio(f) {
+  const m = msgBuscar('FAM');
+  if (m) {
+    const vars = {
+      contacto: f.contacto || 'Estimados',
+      cliente:  f.cliente  || '',
+      numero:   f.numero   || '',
+      monto:    'US$ ' + famFmt(f.total),
+      vence:    famFecha(f.vence)
+    };
+    return String(m.cuerpo)
+      .replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, n) => vars[n] === undefined ? '' : vars[n])
+      .replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   const L = [];
   L.push('*Recordatorio de pago · ' + f.numero + '*');
   L.push('');
@@ -5625,6 +6036,32 @@ function clivListaContactos(id) {
 function clivTextoCopia(id) {
   const c = clivObjs(id)[0];
   if (!c) return '';
+
+  const b = clivBandera(c.pais);
+  const lugarTxt = [c.ciudad, c.pais].filter(Boolean).join(' · ');
+
+  // Las personas son un bloque de varias líneas: no hay forma de que
+  // una plantilla las repita sola, así que entran armadas.
+  const bloques = [];
+  clivContactos(c).forEach(ct => {
+    const b2 = [];
+    if (ct.q) b2.push('*Contacto:* ' + ct.q);
+    ct.tel.forEach(v  => b2.push('*Teléfono:* ' + v));
+    ct.mail.forEach(v => b2.push('*Correo:* ' + v));
+    if (b2.length) bloques.push(b2.join('\n'));
+  });
+
+  const desdePlantilla = msgWa('WA_CLI', {
+    nombre:    c.nombre || 'Cliente',
+    lugar:     lugarTxt ? ((b ? b + ' ' : '') + lugarTxt) : '',
+    empresa:   (c.empresa && clivNorm(c.empresa) !== clivNorm(c.nombre)) ? c.empresa : '',
+    ruc:       c.ruc || '',
+    direccion: c.dir_fiscal || '',
+    contactos: bloques.join('\n\n'),
+    notas:     c.notas || ''
+  });
+  if (desdePlantilla) return desdePlantilla;
+
   const L = [];
 
   L.push('*' + (c.nombre || 'Cliente') + '*');
@@ -6658,30 +7095,48 @@ function trkCopiar(id) {
   const t = (TRK_STATE.lista || []).find(x => String(x.id) === String(id));
   if (!t) { showToast('No encontré ese tracking', 'error'); return; }
 
-  const L = [];
-  L.push('*' + (t.carrier ? t.carrier.toUpperCase() + ' ' : '') + (t.numero || 'sin número') + '*');
-  if (t.tipo) L.push('_' + t.tipo + '_');
-  L.push('');
-
-  if (t.fabricante) L.push('*Fabricante:* ' + t.fabricante);
-  if (t.contenido)  L.push('*Mercadería:* ' + t.contenido);
-
+  // La ETA se arma acá porque no es un dato pelado: lleva el atraso o
+  // los días que faltan, que es lo que le sirve al que la lee.
+  let eta = '';
   if (t.eta) {
     const dias = trkDiasETA(t.eta);
     const enCamino = ['Arribado','Entregado'].indexOf(t.estado) === -1;
-    let eta = trkFecha(t.eta);
+    eta = trkFecha(t.eta);
     if (enCamino && dias !== null) {
       eta += dias < 0 ? ' (' + Math.abs(dias) + (Math.abs(dias) === 1 ? ' día' : ' días') + ' de atraso)'
            : dias === 0 ? ' (llega hoy)'
            : dias === 1 ? ' (llega mañana)'
            : ' (en ' + dias + ' días)';
     }
-    L.push('*ETA:* ' + eta);
+  }
+  const ruta = (t.origen || t.destino) ? (t.origen || '—') + ' → ' + (t.destino || '—') : '';
+
+  const desdePlantilla = msgWa('WA_TRK', {
+    carrier:    t.carrier ? t.carrier.toUpperCase() : '',
+    numero:     t.numero || 'sin número',
+    tipo:       t.tipo || '',
+    fabricante: t.fabricante || '',
+    mercaderia: t.contenido || '',
+    eta:        eta,
+    ruta:       ruta,
+    estado:     t.estado || '',
+    link:       t.link || ''
+  });
+
+  if (desdePlantilla) {
+    copiarAlPortapapeles(desdePlantilla, 'Tracking copiado · pegalo en WhatsApp');
+    return;
   }
 
-  if (t.origen || t.destino) L.push('*Ruta:* ' + (t.origen || '—') + ' → ' + (t.destino || '—'));
+  const L = [];
+  L.push('*' + (t.carrier ? t.carrier.toUpperCase() + ' ' : '') + (t.numero || 'sin número') + '*');
+  if (t.tipo) L.push('_' + t.tipo + '_');
+  L.push('');
+  if (t.fabricante) L.push('*Fabricante:* ' + t.fabricante);
+  if (t.contenido)  L.push('*Mercadería:* ' + t.contenido);
+  if (eta)   L.push('*ETA:* ' + eta);
+  if (ruta)  L.push('*Ruta:* ' + ruta);
   if (t.estado) L.push('*Estado:* ' + t.estado);
-
   if (t.link) { L.push(''); L.push('Seguimiento: ' + t.link); }
 
   copiarAlPortapapeles(L.join('\n').replace(/\n{3,}/g, '\n\n').trim(),
@@ -9273,22 +9728,39 @@ function cotSetQty(idx, valor) {
 }
 
 /**
- * Precio puesto a mano para una línea. Vacío = vuelve a seguir el markup.
+ * Precio unitario de una línea, y el total que sale de él.
+ *
+ * El unitario es el que manda: es lo que se negocia y lo que el cliente
+ * revisa. El total de la línea siempre es unitario × cantidad, así que
+ * las cuentas cierran a la vista y no por dos decimales escondidos.
+ */
+function cotUnitAuto(item, mk) {
+  return Math.round((Number(item.precio_lista) || 0) * (1 + mk / 100) * 100) / 100;
+}
+function cotUnit(item, mk) {
+  return (item.precio_unit !== undefined) ? Number(item.precio_unit) : cotUnitAuto(item, mk);
+}
+function cotLinea(item, mk) {
+  return Math.round(cotUnit(item, mk) * (Number(item.qty) || 0) * 100) / 100;
+}
+
+/**
+ * Unitario puesto a mano. Vacío = vuelve a seguir el markup.
  * El 0 vale: una bonificación es un precio, no una celda sin llenar.
  */
-function cotSetPrecio(idx, valor) {
+function cotSetUnit(idx, valor) {
   const it = COT_STATE.items[idx];
   if (!it) return;
   const v = String(valor).trim();
-  if (v === '' || !isFinite(Number(v))) delete it.precio_final;
-  else it.precio_final = Math.round(Number(v) * 100) / 100;
+  if (v === '' || !isFinite(Number(v))) delete it.precio_unit;
+  else it.precio_unit = Math.round(Number(v) * 100) / 100;
   cotRenderItems();
 }
 
-/** Vuelve la línea al cálculo por markup. */
+/** Vuelve la línea al unitario que sale del markup. */
 function cotAutoPrecio(idx) {
   if (!COT_STATE.items[idx]) return;
-  delete COT_STATE.items[idx].precio_final;
+  delete COT_STATE.items[idx].precio_unit;
   cotRenderItems();
 }
 
@@ -9346,11 +9818,9 @@ function cotRenderItems() {
     const linea = (Number(item.precio_lista) || 0) * item.qty;
     subtotal += linea;
 
-    // Si tiene precio a mano, ese manda y el markup no se le aplica.
-    const aMano = item.precio_final !== undefined;
-    const lineaFinal = aMano
-      ? Number(item.precio_final)
-      : Math.round(linea * (1 + mk / 100) * 100) / 100;
+    const aMano = item.precio_unit !== undefined;
+    const unit  = cotUnit(item, mk);
+    const lineaFinal = cotLinea(item, mk);
     granTotal += lineaFinal;
 
     const rango  = cotRangoItem(item);
@@ -9373,18 +9843,31 @@ function cotRenderItems() {
       <input type="number" value="${item.qty}" min="1" onchange="cotSetQty(${i}, this.value)"
         style="width:56px;padding:4px;background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center">
       <span class="cot-precio${aMano ? ' aMano' : ''}">
-        <input type="number" step="0.01" min="0" value="${lineaFinal.toFixed(2)}"
-          title="${aMano ? 'Precio puesto a mano · no le entra el markup' : 'Precio calculado con el markup · escribí otro para fijarlo'}"
-          onchange="cotSetPrecio(${i}, this.value)">
+        <input type="number" step="0.01" min="0" value="${unit.toFixed(2)}"
+          title="${aMano ? 'Unitario puesto a mano · no le entra el markup' : 'Unitario con markup · escribí otro para fijarlo'}"
+          onchange="cotSetUnit(${i}, this.value)">
         ${aMano
-          ? `<button class="cot-precio-auto" title="Volver al precio con markup" onclick="cotAutoPrecio(${i})">&#8635;</button>`
-          : ''}
+          ? `<button class="cot-precio-auto" title="Volver al unitario con markup" onclick="cotAutoPrecio(${i})">&#8635;</button>`
+          : `<span style="display:inline-block;width:19px"></span>`}
       </span>
+      <span class="cot-linea">${cotFmt(lineaFinal)}</span>
       <button class="tbl-txt peligro" title="Quitar" onclick="cotQuitarItem(${i})">Quitar</button>
     </div>`;
   }).join('');
 
-  box.innerHTML = html || '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
+  const encabezado = COT_STATE.items.length
+    ? `<div class="cot-cab">
+         <span style="width:16px"></span>
+         <span style="min-width:130px">PN</span>
+         <span style="flex:1">Descripción</span>
+         <span style="width:56px;text-align:center">Cant.</span>
+         <span style="width:126px;text-align:right">Unitario</span>
+         <span class="cot-linea">Total</span>
+         <span style="width:52px"></span>
+       </div>` : '';
+
+  box.innerHTML = encabezado + html ||
+    '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
   document.getElementById('cotSubtotal').textContent = cotFmt(subtotal);
   // El total es la suma de las líneas: con precios a mano, "subtotal por
   // markup" ya no da lo mismo.
@@ -9418,13 +9901,14 @@ async function cotGuardar() {
       markup:      markup,
       notas:       document.getElementById('cotNotas').value.trim(),
       incoterm:    document.getElementById('cotIncoterm').value.trim(),
-      items:       COT_STATE.items.map(i => {
-        const o = { pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista };
-        // Sólo viaja si lo pusiste a mano. Sin esto, el backend no puede
-        // distinguir un precio negociado de uno calculado.
-        if (i.precio_final !== undefined) o.precio_final = i.precio_final;
-        return o;
-      })
+      // Va el TOTAL de cada línea ya calculado, que es como se guarda.
+      // Lo manda siempre el navegador: así el número que viste en
+      // pantalla es exactamente el que queda en la hoja y en la proforma,
+      // sin que dos redondeos distintos digan cosas distintas.
+      items:       COT_STATE.items.map(i => ({
+        pn: i.pn, desc: i.desc, qty: i.qty, precio_lista: i.precio_lista,
+        precio_final: cotLinea(i, markup)
+      }))
     }
   });
 
@@ -9637,12 +10121,13 @@ async function cotDescargarPDF(id) {
 /**
  * Arma un ítem del constructor a partir de una fila guardada.
  *
- * En la hoja no queda anotado si el precio se puso a mano: sólo está el
- * número final. Se deduce comparándolo con lo que habría dado el markup;
- * si difiere en más de un centavo, era a mano.
+ * En la hoja se guarda el TOTAL de la línea, no el unitario. Se divide
+ * por la cantidad para recuperarlo.
  *
- * El centavo de tolerancia es por el redondeo: 341 × 2 × 1,15 da 784,30
- * exacto, pero otras combinaciones caen en 784,2999999.
+ * Tampoco queda anotado si el precio se puso a mano: se deduce
+ * comparando el unitario contra el que habría dado el markup. El centavo
+ * de tolerancia es por el redondeo, que si no confunde una cuenta con
+ * una negociación.
  */
 function cotItemDesdeHoja(i, markup) {
   const it = {
@@ -9656,11 +10141,11 @@ function cotItemDesdeHoja(i, markup) {
   // precio se habría leído como una línea bonificada.
   const crudo = i.precio_final;
   if (crudo === '' || crudo === null || crudo === undefined) return it;
-  const guardado = Number(crudo);
-  if (!isFinite(guardado)) return it;
+  const total = Number(crudo);
+  if (!isFinite(total) || !it.qty) return it;
 
-  const calculado = it.precio_lista * it.qty * (1 + markup / 100);
-  if (Math.abs(guardado - calculado) > 0.011) it.precio_final = Math.round(guardado * 100) / 100;
+  const unit = Math.round((total / it.qty) * 100) / 100;
+  if (Math.abs(unit - cotUnitAuto(it, markup)) > 0.011) it.precio_unit = unit;
   return it;
 }
 
