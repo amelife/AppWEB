@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.2 | 2026-08-28 ARG - Agradecimiento de pago por correo y WhatsApp al registrar un cobro; recordatorio con la factura adjunta; ordenar por cualquier columna -->
+<!-- AMELIFE EMS Technologies - Web App v9.3 | 2026-08-28 ARG - Registro de recordatorios en las vencidas (a que correos y cuando); agradecimiento de pago; ordenar por cualquier columna -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -967,6 +967,24 @@
   .fam-pago-f { color:var(--muted); min-width:88px; }
   .fam-pago-m { font-family:'JetBrains Mono',monospace; font-weight:700; min-width:110px; }
   .fam-pago-n { flex:1; color:var(--muted); }
+  .fam-rec-tipo {
+    font-family:var(--cond); font-size:10px; font-weight:700; letter-spacing:.8px;
+    text-transform:uppercase; color:var(--muted); border:1px solid var(--border2);
+    border-radius:3px; padding:1px 6px; min-width:104px; text-align:center;
+  }
+
+  /* Si ya se le reclamó la factura al cliente. Sólo en las vencidas. */
+  .fam-rec {
+    display:block; margin-top:5px; font-family:var(--cond); font-size:10.5px;
+    font-weight:700; letter-spacing:.8px; text-transform:uppercase; white-space:nowrap;
+  }
+  .fam-rec.sin { color:#C4534D; }
+  .fam-rec.ok {
+    background:none; border:0; padding:0; cursor:pointer; color:var(--green);
+    text-align:left;
+  }
+  .fam-rec.ok:hover { text-decoration:underline; }
+  [data-theme="dark"] .fam-rec.sin { color:#E27B75; }
 
   /* La fila vencida se marca de fondo: es lo que hay que mirar. */
   .fam-vencida { background:rgba(196,83,77,0.07); }
@@ -5664,7 +5682,8 @@ function addPBtoInventario() { showToast('Marcá los ítems con la casilla de la
 // confirma antes de guardar es el usuario.
 
 var FAM_STATE = { lista: [], editando: null, recordando: null, pagando: null,
-                  resumen: null, verPagos: null, cargado: false, asc: true };
+                  resumen: null, verPagos: null, verRecordatorios: null,
+                  cargado: false, asc: true };
 
 function famFmt(n) {
   return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -6103,7 +6122,10 @@ function famFilaHTML(f, dentroDeGrupo, ultima) {
         ? '<div class="fam-nota ok">pagó ' + famFmt(famPagado(f)) + '</div>' : '') +
     '</td>' +
     '<td style="font-size:12.5px;white-space:nowrap">' + cuando + '</td>' +
-    '<td><span class="badge ' + badge + '">' + cotEsc(etiqueta) + '</span></td>' +
+    '<td><span class="badge ' + badge + '">' + cotEsc(etiqueta) + '</span>' +
+      // Sólo en las vencidas: en una que todavía no venció, "sin
+      // recordar" no es una falta, es lo normal.
+      (vencida ? famMarcaRecordatorio(f) : '') + '</td>' +
     '<td><div class="acciones">' +
       '<button class="tbl-txt" onclick="famEditar(\'' + f.id + '\')">Editar</button>' +
       (pagada || anulada ? '' : '<button class="tbl-txt" onclick="famAbrirRecordar(\'' + f.id + '\')">Recordar</button>') +
@@ -6112,8 +6134,55 @@ function famFilaHTML(f, dentroDeGrupo, ultima) {
     '</div></td>' +
   '</tr>';
 
-  if (abierto) h += famPagosHTML(f);
+  if (abierto)                              h += famPagosHTML(f);
+  if (FAM_STATE.verRecordatorios === f.id)  h += famRecordatoriosHTML(f);
   return h;
+}
+
+/**
+ * Si ya se le reclamó esta factura al cliente, y cuándo.
+ *
+ * Va sólo en las vencidas. Cuenta el recordatorio individual y también
+ * el estado de cuenta: si la factura entró en un estado de cuenta, al
+ * cliente se le reclamó igual.
+ */
+function famMarcaRecordatorio(f) {
+  const lista = f.recordatorios || [];
+
+  if (!lista.length) {
+    return '<div class="fam-rec sin">sin recordar</div>';
+  }
+
+  const ultimo = lista[lista.length - 1];
+  const cuando = famFecha(String(ultimo.fecha || '').slice(0, 10));
+  return '<button class="fam-rec ok" onclick="famVerRecordatorios(\'' + f.id + '\')"' +
+    ' title="Ver a qué correos se le mandó">' +
+    (FAM_STATE.verRecordatorios === f.id ? '▾ ' : '▸ ') +
+    (lista.length === 1 ? 'recordado' : 'recordado ' + lista.length + '×') +
+    ' · ' + cotEsc(cuando) + '</button>';
+}
+
+function famVerRecordatorios(id) {
+  FAM_STATE.verRecordatorios = (FAM_STATE.verRecordatorios === id) ? null : id;
+  famFiltrar();
+}
+
+/** A qué correos y cuándo, desplegado debajo de la factura. */
+function famRecordatoriosHTML(f) {
+  const lista = f.recordatorios || [];
+  if (!lista.length) return '';
+
+  // El más reciente arriba: es el que se busca.
+  return '<tr class="fam-pagos-fila"><td colspan="7"><div class="fam-pagos">' +
+    lista.slice().reverse().map(r =>
+      '<div class="fam-pago">' +
+        '<span class="fam-pago-f">' + cotEsc(String(r.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
+        '<span class="fam-rec-tipo">' + cotEsc(r.tipo || 'individual') + '</span>' +
+        '<span class="fam-pago-n">' +
+          cotEsc(String(r.para || '').split(/[,;]/).map(x => x.trim()).filter(Boolean).join(' · ')) +
+        '</span>' +
+      '</div>').join('') +
+  '</div></td></tr>';
 }
 
 /** El historial de pagos, desplegado debajo de su factura. */
@@ -6661,6 +6730,7 @@ async function famEnviarResumen() {
   if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
 
   closeModal('modalFamResumen');
+  famCargar(true);          // cada factura del resumen queda recordada
   let msg = 'Estado de cuenta enviado a ' + r.data.enviado_a +
             ' · ' + r.data.facturas + ' facturas';
   if (r.data.adjuntos) msg += ' · ' + r.data.adjuntos + ' PDF adjuntos';
@@ -7015,6 +7085,7 @@ function famEnviarRecordatorio() {
     closeModal('modalFamRecordar');
     showToast('Recordatorio enviado a ' + para +
       (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
+    famCargar(true);        // para que la marca aparezca al instante
     if (r.data.sin_pdf) {
       showToast('Esa factura no tiene PDF cargado: fue sin adjunto', 'info');
     }
