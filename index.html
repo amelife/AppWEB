@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.3 | 2026-08-28 ARG - Registro de recordatorios en las vencidas (a que correos y cuando); agradecimiento de pago; ordenar por cualquier columna -->
+<!-- AMELIFE EMS Technologies - Web App v9.4 | 2026-08-28 ARG - Cotizaciones con PN y descripcion editables e items fuera de la lista de precios; registro de recordatorios en las vencidas; agradecimiento de pago -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -808,6 +808,14 @@
   .cliv-td-dir { min-width:250px; max-width:330px; }
 
   /* ── Precio por línea en el constructor de cotizaciones ── */
+  /* PN y descripción editables en la línea de la cotización. */
+  .cot-txt {
+    padding:4px 7px; background:var(--card); border:1px solid var(--border2);
+    border-radius:6px; color:var(--text); font-family:'Outfit',sans-serif; font-size:13px;
+  }
+  .cot-txt.pn { font-family:'JetBrains Mono',monospace; font-size:12.5px; color:var(--green); }
+  .cot-txt:focus { border-color:var(--green); outline:none; }
+
   .cot-cab {
     display:flex; align-items:center; gap:10px; margin-bottom:7px; padding-bottom:5px;
     border-bottom:1px solid var(--border2);
@@ -2549,7 +2557,10 @@
       </div>
     </div>
 
-    <div style="margin:14px 0 8px;font-size:13px;color:var(--muted)">Ítems en la cotización:</div>
+    <div style="display:flex;align-items:baseline;gap:14px;margin:14px 0 8px">
+      <span style="font-size:13px;color:var(--muted)">Ítems en la cotización:</span>
+      <button type="button" class="tbl-txt" onclick="cotAgregarManual()">+ Ítem que no está en la lista</button>
+    </div>
     <div id="cotItemsBox" style="background:var(--card2);border-radius:var(--radius);padding:12px;min-height:60px;font-size:13px;">
       <div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>
     </div>
@@ -11478,7 +11489,12 @@ function cotBuscarPB(q) {
   ).slice(0, 10);
 
   if (!COT_STATE.resultados.length) {
-    box.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>';
+    // Que no esté en la lista no quiere decir que no se pueda cotizar.
+    box.innerHTML =
+      '<div style="padding:8px;color:var(--muted);font-size:12px">Sin resultados en Precios ZOLL</div>' +
+      '<div onclick="cotAgregarManual(\'' + cotEsc(q).replace(/'/g, "\\'") + '\')"' +
+        ' style="padding:8px 10px;cursor:pointer;font-size:13px;color:var(--green);border:1px dashed var(--green);border-radius:6px">' +
+        '+ Agregarlo a mano como <span class="pn">' + cotEsc(q) + '</span></div>';
     return;
   }
   box.innerHTML = COT_STATE.resultados.map((r, i) => `
@@ -11508,6 +11524,49 @@ function cotAgregarItem(pn, desc, precio) {
     showToast('📄 ' + pn + ' agregado', 'info');
   }
   cotRenderItems();
+}
+
+/**
+ * Editar el PN o la descripción de una línea.
+ *
+ * No se redibuja la tabla: recrear la fila al salir del PN se lleva
+ * puesto el cursor y nunca se llega a la descripción con Tab. Sólo los
+ * números mueven los totales, y ésos sí redibujan.
+ */
+function cotSetTexto(idx, campo, valor) {
+  if (!COT_STATE.items[idx]) return;
+  COT_STATE.items[idx][campo] = String(valor == null ? '' : valor).trim();
+}
+
+/**
+ * Agrega una línea vacía para cargar a mano.
+ *
+ * No todo lo que se cotiza está en Precios ZOLL: hay accesorios,
+ * fletes, servicios y cosas nuevas que todavía no entraron en la
+ * lista. Antes había que armar esa cotización por fuera de la app.
+ *
+ * @param {String} pn  Lo que se venía tipeando en el buscador, si había algo.
+ */
+function cotAgregarManual(pn) {
+  COT_STATE.items.push({
+    pn: String(pn || '').trim(),
+    desc: '', qty: 1,
+    precio_lista: 0,
+    // Se marca como precio puesto a mano: un ítem que no está en la
+    // lista no tiene precio de lista al que aplicarle markup.
+    precio_unit: 0
+  });
+
+  const buscador = document.getElementById('cotBuscar');
+  if (buscador) buscador.value = '';
+  const caja = document.getElementById('cotResultados');
+  if (caja) caja.innerHTML = '';
+
+  cotRenderItems();
+
+  // El cursor va al part number: es lo primero que hay que escribir.
+  const campo = document.getElementById('cotpn' + (COT_STATE.items.length - 1));
+  if (campo) { campo.focus(); campo.select(); }
 }
 
 function cotSetQty(idx, valor) {
@@ -11626,9 +11685,14 @@ function cotRenderItems() {
         ${flecha(-1, puedeSubir, '▲', 'Subir')}
         ${flecha( 1, puedeBajar, '▼', 'Bajar')}
       </span>
-      <span class="pn" style="min-width:130px">${cotEsc(item.pn)}</span>
-      <span style="flex:1;min-width:0">${cotEsc(item.desc)}
-        ${fijo ? `<span class="badge badge-muted" style="font-size:9px;margin-left:6px" title="Este cargo va siempre al final">fijo al final</span>` : ''}</span>
+      <input type="text" id="cotpn${i}" class="cot-txt pn" style="min-width:130px;width:130px"
+        value="${cotEsc(item.pn)}" placeholder="Part number"
+        onchange="cotSetTexto(${i}, 'pn', this.value)">
+      <span style="flex:1;min-width:0;display:flex;align-items:center;gap:6px">
+        <input type="text" class="cot-txt" style="flex:1;min-width:0"
+          value="${cotEsc(item.desc)}" placeholder="Descripción"
+          onchange="cotSetTexto(${i}, 'desc', this.value)">
+        ${fijo ? `<span class="badge badge-muted" style="font-size:9px;flex-shrink:0" title="Este cargo va siempre al final">fijo al final</span>` : ''}</span>
       <input type="number" value="${item.qty}" min="1" onchange="cotSetQty(${i}, this.value)"
         style="width:56px;padding:4px;background:var(--card);border:1px solid var(--border2);border-radius:6px;color:var(--text);text-align:center">
       <span class="cot-precio${aMano ? ' aMano' : ''}">
@@ -11656,7 +11720,7 @@ function cotRenderItems() {
        </div>` : '';
 
   box.innerHTML = encabezado + html ||
-    '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba para agregarlos</div>';
+    '<div style="color:var(--muted);text-align:center;padding:16px 0">Buscá productos arriba, o agregá uno a mano</div>';
   document.getElementById('cotSubtotal').textContent = cotFmt(subtotal);
   // El total es la suma de las líneas: con precios a mano, "subtotal por
   // markup" ya no da lo mismo.
@@ -11673,6 +11737,16 @@ async function cotGuardar() {
   if (!cliente)                { showToast('Elegí un cliente de la lista, o creá uno nuevo', 'error'); return; }
   if (!COT_STATE.items.length) { showToast('Agregá al menos un ítem', 'error'); return; }
   if (!(markup >= 0))          { showToast('El markup tiene que ser un número', 'error'); return; }
+
+  // Una línea sin part number no le sirve a nadie del otro lado, y en
+  // la proforma queda un renglón mudo.
+  const sinPN = COT_STATE.items.findIndex(i => !String(i.pn || '').trim());
+  if (sinPN !== -1) {
+    showToast('Falta el part number en la línea ' + (sinPN + 1), 'error');
+    const campo = document.getElementById('cotpn' + sinPN);
+    if (campo) campo.focus();
+    return;
+  }
 
   const btn = document.getElementById('cotBtnGuardar');
   COT_STATE.guardando = true;
