@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.4 | 2026-08-28 ARG - Cotizaciones con PN y descripcion editables e items fuera de la lista de precios; registro de recordatorios en las vencidas; agradecimiento de pago -->
+<!-- AMELIFE EMS Technologies - Web App v9.5 | 2026-08-28 ARG - La cotizacion guardada aparece al instante y una recarga fallida ya no vacia la tabla; PN editable e items fuera de lista; registro de recordatorios -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3861,6 +3861,21 @@ function cacheInvalidar(clave) {
  * Trae de caché si hay y refresca por atrás. `pintar` puede correr
  * dos veces: una con lo viejo y otra con lo nuevo, y sólo si cambió.
  */
+/**
+ * Trae un listado con caché, y lo blinda contra dos cosas.
+ *
+ *  1. UN ERROR NO VACÍA LA PANTALLA. Si ya había datos dibujados, se
+ *     dejan y se avisa. Antes, un error de red después de guardar
+ *     dejaba la tabla en "Sin resultados" hasta refrescar a mano.
+ *
+ *  2. UNA RESPUESTA VACÍA CUANDO HABÍA DATOS ES SOSPECHOSA. Nadie
+ *     borra veinte cotizaciones entre dos clics: es el viaje que
+ *     volvió mal. Se conserva lo que había y se reintenta una vez.
+ *     Si la segunda también viene vacía, se acepta: puede ser que de
+ *     verdad no quede nada.
+ */
+var CACHE_REINTENTOS = {};
+
 async function conCache(clave, accion, params, pintar) {
   var c = cacheLeer(clave);
   if (c) pintar(c.data, true);
@@ -3868,7 +3883,30 @@ async function conCache(clave, accion, params, pintar) {
   if (c && !c.vencido) return c.data;      // fresco: no se vuelve a pedir
 
   var r = await api(accion, params || {});
-  if (!r.ok) { if (!c) pintar(null, false, r.error); return null; }
+
+  if (!r || !r.ok) {
+    var previo = cacheLeer(clave);
+    if (previo && previo.data && previo.data.length) {
+      showToast('No pude actualizar · ' + ((r && r.error) || 'error de red'), 'error');
+      return previo.data;
+    }
+    if (!c) pintar(null, false, (r && r.error) || 'Error de red');
+    return null;
+  }
+
+  var vacio  = !r.data || (r.data.length === 0);
+  var teniaN = c && c.data && c.data.length;
+
+  if (vacio && teniaN && !CACHE_REINTENTOS[clave]) {
+    CACHE_REINTENTOS[clave] = true;
+    cacheInvalidar(clave);
+    setTimeout(function() {
+      CACHE_REINTENTOS[clave] = false;
+      conCache(clave, accion, params, pintar);
+    }, 1200);
+    return c.data;                          // se deja lo que había
+  }
+  CACHE_REINTENTOS[clave] = false;
 
   var antes = c ? JSON.stringify(c.data) : null;
   cacheGuardar(clave, r.data);
@@ -11086,13 +11124,21 @@ async function cotCargar(forzar) {
 
   await conCache('cotizaciones', 'getCotizaciones', {}, function(data, deCache, error) {
     if (error) {
+      // Si ya había cotizaciones en pantalla, se dejan: un error de red
+      // no es motivo para vaciar la tabla.
+      if (COT_STATE.lista.length) { showToast('No pude actualizar la lista · ' + error, 'error'); return; }
       if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--danger)"><i class="i3d i3d-error"></i> ' + cotEsc(error) + '</td></tr>';
       return;
     }
-    COT_STATE.lista = (data || []).map(c => {
+
+    const nuevas = (data || []).map(c => {
       c.estado = cotEstadoNorm(c.estado);
       return c;
     }).slice().reverse();          // más nuevas primero
+
+    // De la respuesta vacía y del error de red se encarga conCache:
+    // acá sólo llega lo que hay que dibujar.
+    COT_STATE.lista = nuevas;
     cotFiltrar();
   });
 }
@@ -11783,9 +11829,65 @@ async function cotGuardar() {
 
   showToast(editando ? '✅ Cambios guardados' : '✅ ' + r.data.numero + ' guardada · ' + cotFmt(r.data.total), 'success');
   closeModal('modalCotizacion');
+
+  // La cotización se dibuja YA, con lo que se acaba de guardar, sin
+  // esperar el viaje de vuelta. Apps Script cobra ~1,4 s por request y
+  // ejecuta de a uno: quedarse mirando una tabla vacía mientras tanto
+  // es lo que hacía sentir que "no carga nada".
+  cotPatchLocal(editando, r.data, cliente, markup);
+
   COT_STATE.items = [];
   COT_STATE.editandoId = null;
+
+  // Y por atrás se trae la versión del servidor, en silencio.
   cotCargar(true);
+}
+
+/**
+ * Mete en la lista la cotización recién guardada, sin ir al servidor.
+ *
+ * Lo que devuelve el backend alcanza para dibujar la fila: id, número,
+ * total y estado. Los ítems y el cliente los tenemos acá. Cuando llega
+ * la respuesta de getCotizaciones, esto se pisa con el dato real.
+ */
+function cotPatchLocal(editandoId, resp, cliente, markup) {
+  if (!resp) return;
+
+  const items = COT_STATE.items.map(i => ({
+    pn: i.pn, desc: i.desc, qty: i.qty,
+    precio_lista: i.precio_lista,
+    precio_final: cotLinea(i, markup)
+  }));
+  const total = items.reduce((a, i) => a + (Number(i.precio_final) || 0), 0);
+
+  if (editandoId) {
+    const idx = COT_STATE.lista.findIndex(c => c.id === editandoId);
+    if (idx > -1) {
+      const c = COT_STATE.lista[idx];
+      c.cliente_id  = cliente.id;
+      c.cliente_nom = cliente.empresa || cliente.nombre;
+      c.markup      = markup;
+      c.items       = items;
+      c.total       = Number(resp.total) || total;
+      c.notas       = document.getElementById('cotNotas').value.trim();
+    }
+  } else {
+    COT_STATE.lista.unshift({
+      id:          resp.id,
+      numero:      resp.numero,
+      cliente_id:  cliente.id,
+      cliente_nom: cliente.empresa || cliente.nombre,
+      markup:      markup,
+      subtotal:    Number(resp.subtotal) || 0,
+      total:       Number(resp.total) || total,
+      estado:      cotEstadoNorm(resp.estado || 'Borrador'),
+      fecha:       new Date().toISOString(),
+      items:       items
+    });
+  }
+
+  cacheGuardar('cotizaciones', COT_STATE.lista.slice().reverse());
+  cotFiltrar();
 }
 
 // ============================================================
