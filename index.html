@@ -2959,7 +2959,7 @@
       <input type="email" id="famRecMail" placeholder="cliente@empresa.com">
     </div>
 
-    <p class="cfg-ayuda">Se manda un recordatorio con el número, el monto y la fecha de pago, y se le pide el comprobante si ya pagó. Si preferís WhatsApp, copiá el texto y pegalo.</p>
+    <p class="cfg-ayuda">Se manda un recordatorio con el número, el monto y la fecha de pago, <b>con la factura adjunta</b>, y se le pide el comprobante si ya pagó. Si preferís WhatsApp, copiá el texto y pegalo.</p>
     <div class="cc-caja">
       <button type="button" class="cc-toggle" onclick="ccMostrar('famRec')">+ CC / CCO</button>
       <div class="cc-campos" id="famRecBox" style="display:none">
@@ -6792,7 +6792,11 @@ function famEnviarRecordatorio() {
     btn.textContent = 'Enviar por correo';
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
     closeModal('modalFamRecordar');
-    showToast('Recordatorio enviado a ' + para, 'success');
+    showToast('Recordatorio enviado a ' + para +
+      (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
+    if (r.data.sin_pdf) {
+      showToast('Esa factura no tiene PDF cargado: fue sin adjunto', 'info');
+    }
   });
 }
 
