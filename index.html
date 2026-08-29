@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.5 | 2026-08-29 ARG - Bancos: un renglon por banco bajo la fecha, con su fecha y si vino del statement o de una foto; las fotos se leen solas sin elegir cuenta; resumenes con el total de todas las cuentas -->
+<!-- AMELIFE EMS Technologies - Web App v11.6 | 2026-08-29 ARG - Bancos: una sola forma de cargar (statements y fotos, todo automatico por numero de cuenta); fuera los modales con desplegable de cuenta; un renglon por banco con su fecha y origen -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2419,8 +2419,19 @@
           <div class="panel-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
             <button class="btn btn-primary" onclick="stmAbrir()"><i class="i3d i3d-adjunto"></i> Subir statements o fotos</button>
             <button class="btn btn-outline" onclick="bcoResAbrir()"><i class="i3d i3d-enviar"></i> Enviar resumen</button>
-            <button class="btn btn-outline" onclick="bancosAbrirOCR()"><i class="i3d i3d-cotizaciones"></i> Subir Extracto (OCR)</button>
-            <button class="btn btn-outline" onclick="bancosAbrirManual()"><i class="i3d i3d-editar"></i> Cargar Manual</button>
+            <!-- El botón "Subir Extracto (OCR)" salió de acá.
+                 Abría un modal con un desplegable de cuenta por fila, y
+                 ahí estaba el problema: las líneas que no reconocía se
+                 quedaban en la primera cuenta de la lista, así que una
+                 captura de Safra terminaba guardando plata en IFB.
+                 Además trataba a 0730 y 1191 como cuentas propias
+                 cuando son el desglose del brokerage.
+                 "Subir statements o fotos" hace lo mismo sin preguntar
+                 nada: cada línea se ata a su cuenta por el número.
+                 Tampoco está "Cargar a mano": era el otro lugar donde
+                 había que elegir cuenta de un desplegable, y no se usa.
+                 El código de los dos modales sigue en el archivo, sin
+                 nada que los abra. -->
             <button class="btn btn-outline" onclick="bancosAbrirGestion()"><i class="i3d i3d-config"></i> Gestionar Cuentas</button>
             <button class="btn btn-primary" onclick="bancosRefresh();bancosCargarEvolucion();"><i class="i3d i3d-actualizar"></i> Actualizar</button>
             <button class="btn btn-outline" onclick="lockBancos()" style="margin-left:auto;"><i class="i3d i3d-candado"></i> Bloquear</button>
