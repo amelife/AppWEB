@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.1 | 2026-08-29 ARG - Bancos: grafico de 3 lineas (IFB, Safra, todo junto) y SOLO con statements; disponible separado por banco; banda grande de ultima actualizacion; resumen de saldos por correo y WhatsApp; carga de statements de a varios -->
+<!-- AMELIFE EMS Technologies - Web App v11.2 | 2026-08-29 ARG - Bancos: eje del grafico mes a mes continuo (la distancia horizontal es tiempo real); dic-2024 corregido desde el statement consolidado; grafico de 3 lineas solo con statements; disponible por banco; resumen de saldos por correo y WhatsApp -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -11483,14 +11483,18 @@ async function bancosCargarEvolucion() {
     data: sumar(series.filter(s => s.banco === b)),
     borderColor: COLOR[b] || '#D9A441',
     backgroundColor: 'transparent',
-    borderWidth: 2.5, tension: 0.25, pointRadius: 3, spanGaps: true
+    borderWidth: 2.5, tension: 0.3, spanGaps: true,
+    // Sin círculo en cada mes: con el eje completo son más de veinte
+    // marcas y los puntos tapaban la línea. Aparecen al pasar el mouse.
+    pointRadius: 0, pointHoverRadius: 5
   }));
 
   datasets.push({
     label: 'Todo junto',
     data: sumar(series),
     borderColor: '#8892A0', borderDash: [6, 4], borderWidth: 2,
-    backgroundColor: 'transparent', tension: 0.25, pointRadius: 2, spanGaps: true
+    backgroundColor: 'transparent', tension: 0.3, spanGaps: true,
+    pointRadius: 0, pointHoverRadius: 5
   });
 
   const info = document.getElementById('bancosChartInfo');
@@ -11512,7 +11516,12 @@ async function bancosCargarEvolucion() {
           }
         }
       },
-      scales: { y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } } }
+      scales: {
+        y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } },
+        // No hace falta escribir los 23 meses: se ponen algunos y el
+        // resto se entiende por la posición.
+        x: { ticks: { maxTicksLimit: 12, autoSkip: true, maxRotation: 0 } }
+      }
     }
   });
 }
