@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.5 | 2026-08-28 ARG - La cotizacion guardada aparece al instante y una recarga fallida ya no vacia la tabla; PN editable e items fuera de lista; registro de recordatorios -->
+<!-- AMELIFE EMS Technologies - Web App v9.7 | 2026-08-28 ARG - CC con los correos de la casa como casillas (amelife ya tildado, ezzy a un clic) en los cinco envios; atraso en meses; cotizacion instantanea -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -934,13 +934,23 @@
   }
   .fecha-eco b { color:var(--text); }
 
-  .cc-caja { margin:-4px 0 12px; }
-  .cc-toggle {
-    background:none; border:0; padding:0; cursor:pointer;
-    font-family:'Outfit',sans-serif; font-size:12.5px; color:var(--muted);
+  /* CC y CCO. Los correos de la casa van como casillas, a la vista:
+     el que va siempre ya viene tildado y no hay que acordarse. */
+  .cc-caja { margin:2px 0 14px; }
+  .cc-tit {
+    font-family:var(--cond); font-size:11.5px; font-weight:700;
+    letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); margin-bottom:7px;
   }
-  .cc-toggle:hover { color:var(--green); }
-  .cc-campos { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+  .cc-presets { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .cc-chk {
+    display:flex; align-items:center; gap:7px; cursor:pointer; font-size:13px;
+    padding:6px 11px; border:1px solid var(--border2); border-radius:var(--radius);
+    background:var(--card2); color:var(--muted); user-select:none;
+  }
+  .cc-chk input { width:15px; height:15px; accent-color:var(--green); cursor:pointer; flex-shrink:0; }
+  .cc-chk:has(input:checked) { border-color:var(--green); color:var(--text); }
+  .cc-chk:hover { border-color:var(--green); }
+  .cc-campos { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   @media (max-width:560px) { .cc-campos { grid-template-columns:1fr; } }
   .fam-res-v:has(input:checked) { color:#C4534D; }
   .fam-res-tot {
@@ -2715,15 +2725,7 @@
         <button class="btn btn-outline" style="flex-shrink:0" onclick="ocEmailAgregar()">Agregar</button>
       </div>
     </div>
-    <div class="cc-caja">
-      <button type="button" class="cc-toggle" onclick="ccMostrar('ocEmail')">+ CC / CCO</button>
-      <div class="cc-campos" id="ocEmailBox" style="display:none">
-        <div class="field"><label>CC · con copia</label>
-          <input type="text" id="ocEmailCC" placeholder="Separados por coma"></div>
-        <div class="field"><label>CCO · copia oculta</label>
-          <input type="text" id="ocEmailCCO" placeholder="No los ve el destinatario"></div>
-      </div>
-    </div>
+    <div class="cc-caja" id="ocEmailCcCaja"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalOCEmail')">Cancelar</button>
       <button class="btn btn-primary" id="ocEmailBtn" onclick="ocEmailEnviar()"><i class="i3d i3d-correo"></i> Enviar orden</button>
@@ -2899,15 +2901,7 @@
       <label>Para</label>
       <input type="email" id="famResPara" placeholder="cliente@empresa.com">
     </div>
-    <div class="cc-caja">
-      <button type="button" class="cc-toggle" onclick="ccMostrar('famRes')">+ CC / CCO</button>
-      <div class="cc-campos" id="famResBox" style="display:none">
-        <div class="field"><label>CC · con copia</label>
-          <input type="text" id="famResCC" placeholder="Separados por coma"></div>
-        <div class="field"><label>CCO · copia oculta</label>
-          <input type="text" id="famResCCO" placeholder="No los ve el destinatario"></div>
-      </div>
-    </div>
+    <div class="cc-caja" id="famResCcCaja"></div>
     <div class="field">
       <label>Asunto</label>
       <input type="text" id="famResAsunto">
@@ -2956,15 +2950,7 @@
       <input type="email" id="famGrPara" placeholder="cliente@empresa.com">
     </div>
 
-    <div class="cc-caja">
-      <button type="button" class="cc-toggle" onclick="ccMostrar('famGr')">+ CC / CCO</button>
-      <div class="cc-campos" id="famGrBox" style="display:none">
-        <div class="field"><label>CC · con copia</label>
-          <input type="text" id="famGrCC" placeholder="Separados por coma"></div>
-        <div class="field"><label>CCO · copia oculta</label>
-          <input type="text" id="famGrCCO" placeholder="No los ve el destinatario"></div>
-      </div>
-    </div>
+    <div class="cc-caja" id="famGrCcCaja"></div>
 
     <div class="field">
       <label>Asunto</label>
@@ -3044,15 +3030,7 @@
     </div>
 
     <p class="cfg-ayuda">Se manda un recordatorio con el número, el monto y la fecha de pago, <b>con la factura adjunta</b>, y se le pide el comprobante si ya pagó. Si preferís WhatsApp, copiá el texto y pegalo.</p>
-    <div class="cc-caja">
-      <button type="button" class="cc-toggle" onclick="ccMostrar('famRec')">+ CC / CCO</button>
-      <div class="cc-campos" id="famRecBox" style="display:none">
-        <div class="field"><label>CC · con copia</label>
-          <input type="text" id="famRecCC" placeholder="Separados por coma"></div>
-        <div class="field"><label>CCO · copia oculta</label>
-          <input type="text" id="famRecCCO" placeholder="No los ve el destinatario"></div>
-      </div>
-    </div>
+    <div class="cc-caja" id="famRecCcCaja"></div>
 
 
     <div class="modal-footer">
@@ -3083,15 +3061,7 @@
       </div>
     </div>
 
-    <div class="cc-caja">
-      <button type="button" class="cc-toggle" onclick="ccMostrar('cotEmail')">+ CC / CCO</button>
-      <div class="cc-campos" id="cotEmailBox" style="display:none">
-        <div class="field"><label>CC · con copia</label>
-          <input type="text" id="cotEmailCC" placeholder="Separados por coma"></div>
-        <div class="field"><label>CCO · copia oculta</label>
-          <input type="text" id="cotEmailCCO" placeholder="No los ve el destinatario"></div>
-      </div>
-    </div>
+    <div class="cc-caja" id="cotEmailCcCaja"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCotEmail')">Cancelar</button>
       <button class="btn btn-primary" id="cotEmailBtnEnviar" onclick="cotEmailConfirmar()"><i class="i3d i3d-correo"></i> Enviar proforma</button>
@@ -3437,36 +3407,71 @@ function soloTelefono(v) {
 // ============================================================
 // CC Y CCO
 // ------------------------------------------------------------
-// Van escondidos detrás de un «+ CC / CCO» porque en la mayoría de
-// los envíos no se usan, y dos campos vacíos en cada pantalla de
-// correo son dos campos que hay que saltear cada vez.
+// Los correos de la casa van siempre a mano en cada envío, y eso es
+// justo lo que se olvida. Acá van como casillas: la principal ya
+// tildada, la otra a un clic, y un campo libre para lo que haga falta
+// en ese envío puntual.
+//
+// El bloque es el MISMO en las cinco pantallas de correo. Se dibuja
+// desde acá en vez de estar cinco veces en el HTML: agregar una
+// dirección nueva es tocar una sola línea.
 // ============================================================
 
-function ccMostrar(prefijo) {
-  const caja = document.getElementById(prefijo + 'Box');
+/**
+ * Los correos de la casa que se ofrecen en todos los envíos.
+ * `fijo: true` significa que arranca tildado.
+ */
+var CC_PRESETS = [
+  { mail: 'amelife@amelife-911.com', fijo: true  },
+  { mail: 'ezzy@ame-life.net',       fijo: false }
+];
+
+/** Dibuja el bloque de CC/CCO adentro de su contenedor. */
+function ccMontar(prefijo) {
+  const caja = document.getElementById(prefijo + 'CcCaja');
   if (!caja) return;
-  const abierto = (caja.style.display !== 'none');
-  caja.style.display = abierto ? 'none' : '';
-  if (!abierto) { const c = document.getElementById(prefijo + 'CC'); if (c) c.focus(); }
+
+  const casillas = CC_PRESETS.map((p, i) =>
+    '<label class="cc-chk">' +
+      '<input type="checkbox" id="' + prefijo + 'Pre' + i + '"' + (p.fijo ? ' checked' : '') + '>' +
+      cotEsc(p.mail) +
+    '</label>').join('');
+
+  caja.innerHTML =
+    '<div class="cc-tit">Con copia</div>' +
+    '<div class="cc-presets">' + casillas + '</div>' +
+    '<div class="cc-campos">' +
+      '<div class="field"><label>Otros CC</label>' +
+        '<input type="text" id="' + prefijo + 'CC" placeholder="Separados por coma"></div>' +
+      '<div class="field"><label>CCO · copia oculta</label>' +
+        '<input type="text" id="' + prefijo + 'CCO" placeholder="No los ve el destinatario"></div>' +
+    '</div>';
 }
 
-/** Lo que hay cargado en CC y CCO, listo para mandar al servidor. */
+/**
+ * Lo que hay cargado en CC y CCO, listo para mandar al servidor.
+ * Junta las casillas tildadas con lo que se escribió a mano.
+ */
 function ccValores(prefijo) {
   const v = id => {
     const el = document.getElementById(prefijo + id);
     return el ? el.value.trim() : '';
   };
-  return { cc: v('CC'), cco: v('CCO') };
+
+  const marcados = CC_PRESETS.filter((p, i) => {
+    const c = document.getElementById(prefijo + 'Pre' + i);
+    return c && c.checked;
+  }).map(p => p.mail);
+
+  const libre = v('CC');
+  if (libre) marcados.push(libre);
+
+  return { cc: marcados.join(', '), cco: v('CCO') };
 }
 
-/** Vaciar y cerrar, al abrir una pantalla de envío. */
+/** Deja el bloque como recién abierto: la fija tildada y el resto vacío. */
 function ccLimpiar(prefijo) {
-  ['CC', 'CCO'].forEach(k => {
-    const el = document.getElementById(prefijo + k);
-    if (el) el.value = '';
-  });
-  const caja = document.getElementById(prefijo + 'Box');
-  if (caja) caja.style.display = 'none';
+  ccMontar(prefijo);
 }
 
 function copiarAlPortapapeles(txt, mensajeOk) {
@@ -5755,6 +5760,42 @@ function famDias(vence) {
   return Math.round((d - hoy) / 86400000);
 }
 
+/**
+ * Cuánto hace que venció, en la unidad que se entienda.
+ *
+ * Pasados los 100 días, "523 días de atraso" ya no le dice nada a
+ * nadie: hay que ponerse a dividir para saber si es medio año o año y
+ * medio. De ahí en adelante se cuenta en meses, y pasado el año, en
+ * años y meses.
+ *
+ * Los meses se cuentan por CALENDARIO, no dividiendo por 30: del 23 de
+ * marzo al 23 de agosto son 5 meses exactos, y dividir por 30,44 daría
+ * 5,03 — que redondeado sigue dando 5, pero en otras fechas no.
+ *
+ * @param {Number} dias  Días de atraso, en positivo.
+ * @param {String} vence La fecha de pago, para contar por calendario.
+ */
+function famAtraso(dias, vence) {
+  dias = Math.abs(Number(dias) || 0);
+  if (dias <= 100) return dias + (dias === 1 ? ' día' : ' días');
+
+  const d = famFechaObj(vence);
+  if (!d) return dias + ' días';
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  let meses = (hoy.getFullYear() - d.getFullYear()) * 12 + (hoy.getMonth() - d.getMonth());
+  // Si todavía no llegó al día del mes, el mes no está cumplido.
+  if (hoy.getDate() < d.getDate()) meses--;
+  if (meses < 1) return dias + ' días';
+
+  if (meses < 12) return meses + (meses === 1 ? ' mes' : ' meses');
+
+  const anios = Math.floor(meses / 12);
+  const resto = meses % 12;
+  const a = anios + (anios === 1 ? ' año' : ' años');
+  return resto ? (a + ' y ' + resto + (resto === 1 ? ' mes' : ' meses')) : a;
+}
+
 function famVencida(f) {
   if (f.estado === 'Pagada' || f.estado === 'Anulada') return false;
   const d = famDias(f.vence);
@@ -6138,7 +6179,7 @@ function famFilaHTML(f, dentroDeGrupo, ultima) {
     cuando += '<div class="fam-nota ok">cobrada' + (f.pagada_el ? ' el ' + famFecha(f.pagada_el) : '') + '</div>';
   } else if (d !== null) {
     cuando += d < 0
-      ? '<div class="fam-nota mal">' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + ' de atraso</div>'
+      ? '<div class="fam-nota mal">' + famAtraso(d, f.vence) + ' de atraso</div>'
       : d === 0 ? '<div class="fam-nota aviso">vence hoy</div>'
       : '<div class="fam-nota">en ' + d + (d === 1 ? ' día' : ' días') + '</div>';
   }
@@ -7068,7 +7109,7 @@ function famAbrirRecordar(id) {
     '<b style="color:var(--text)">' + cotEsc(f.numero) + '</b> · ' + cotEsc(f.cliente || '') +
     ' · <b style="color:var(--green)">US$ ' + famFmt(f.total) + '</b>' +
     (d !== null && d < 0
-      ? '<div style="margin-top:5px;color:#C4534D">Vencida hace ' + Math.abs(d) + (Math.abs(d) === 1 ? ' día' : ' días') + '</div>'
+      ? '<div style="margin-top:5px;color:#C4534D">Vencida hace ' + famAtraso(d, f.vence) + '</div>'
       : '<div style="margin-top:5px">Fecha de pago: ' + famFecha(f.vence) + '</div>');
   document.getElementById('famRecMail').value = f.email || '';
   ccLimpiar('famRec');
@@ -8742,7 +8783,7 @@ function trkRender(lista) {
     if (enCamino && dias !== null) {
       etaTxt += dias < 0
         ? '<div style="color:var(--danger);font-size:11px;font-weight:600">' +
-          Math.abs(dias) + (Math.abs(dias) === 1 ? ' día' : ' días') + ' de atraso</div>'
+          famAtraso(dias, t.eta) + ' de atraso</div>'
         : '<div style="color:var(--muted);font-size:11px">' +
           (dias === 0 ? 'llega hoy' : dias === 1 ? 'llega mañana' : 'en ' + dias + ' días') + '</div>';
     } else if (t.demora !== null && t.demora !== undefined) {
@@ -8807,7 +8848,7 @@ function trkCopiar(id) {
     const enCamino = ['Arribado','Entregado'].indexOf(t.estado) === -1;
     eta = trkFecha(t.eta);
     if (enCamino && dias !== null) {
-      eta += dias < 0 ? ' (' + Math.abs(dias) + (Math.abs(dias) === 1 ? ' día' : ' días') + ' de atraso)'
+      eta += dias < 0 ? ' (' + famAtraso(dias, t.eta) + ' de atraso)'
            : dias === 0 ? ' (llega hoy)'
            : dias === 1 ? ' (llega mañana)'
            : ' (en ' + dias + ' días)';
