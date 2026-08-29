@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.1 | 2026-08-29 ARG - Resumen de saldos: titulo AMELIFE SALDOS y el total de cada banco mas el general; Bancos con el total primero y la fecha de actualizacion en cada caja -->
+<!-- AMELIFE EMS Technologies - Web App v12.2 | 2026-08-29 ARG - Dashboard rehecho: ultimas 5 cotizaciones con recordatorio por WhatsApp, saldos de bancos solo para German y Ezequiel, trackings sin arribar con link de rastreo, cobranza de Facturas AME a 15 dias, sin accesos rapidos; Datos Importantes en dos columnas -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1122,12 +1122,19 @@
   /* ============ DATOS IMPORTANTES ============ */
   /* Lista de títulos. El cuerpo aparece al abrir la nota: lo que se
      hace todo el tiempo es buscar una y copiarla, no leerlas todas. */
+  /* DOS COLUMNAS. Las notas son cortas y en una sola columna quedaba
+     media pantalla vacía a la derecha. Cada nota pasa a ser su propia
+     tarjeta en vez de un renglón de una lista corrida. */
   .not-lista {
+    display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;
+  }
+  .not-fila {
     background:var(--card); border:1px solid var(--border2);
     border-radius:var(--radius-lg); overflow:hidden;
+    /* Sin esto, abrir una nota estira a la de al lado. */
+    align-self:start;
   }
-  .not-fila { border-bottom:1px solid var(--border2); }
-  .not-fila:last-child { border-bottom:0; }
+  @media(max-width:1000px){ .not-lista { grid-template-columns:1fr; } }
   .not-fila.abierta { background:var(--green-glow); }
 
   .not-cab {
@@ -1748,19 +1755,15 @@
           </div>
         </div>
 
-            <!-- Trackings vencidos -->
-            <div class="card" id="dashTracksVencidosCard" data-bloque="vencidos" style="border-left:3px solid var(--danger);display:none;">
+            <!-- UN SOLO BLOQUE DE TRACKINGS: los que todavía no llegaron.
+                 Antes había dos —"vencidos" y "por llegar en 2 días"— y
+                 los vencidos son también los que no llegaron, así que el
+                 mismo envío aparecía repetido. Acá van todos juntos,
+                 ordenados por cuándo llegan, con los atrasados en rojo. -->
+            <div class="card" id="dashTracksVencidosCard" data-bloque="vencidos" style="display:none;"></div>
+            <div class="card" data-bloque="porllegar" style="border-left:3px solid var(--info);">
               <div class="card-header">
-                <div class="card-title" style="color:var(--danger);"><i class="i3d i3d-urgente"></i> Trackings Vencidos</div>
-                <span class="card-action" id="dashTracksVencidosCount">0</span>
-              </div>
-              <div id="dashTracksVencidosList" style="padding:4px 16px 14px;"></div>
-            </div>
-
-            <!-- Trackings por llegar -->
-            <div class="card" id="dashTracksPorLlegarCard" data-bloque="porllegar" style="border-left:3px solid var(--info);">
-              <div class="card-header">
-                <div class="card-title"><i class="i3d i3d-trackings"></i> Trackings por llegar (≤2 días)</div>
+                <div class="card-title"><i class="i3d i3d-trackings"></i> Trackings sin arribar</div>
                 <span class="card-action" id="dashTracksPorLlegarCountLabel">0</span>
               </div>
               <div id="dashTracksPorLlegarList" style="padding:4px 16px 14px;"></div>
@@ -1784,6 +1787,16 @@
               <div id="dashCotsSeguimientoList" style="padding:4px 16px 14px;"></div>
             </div>
 
+            <!-- Facturas AME · cobranza -->
+            <div class="card" id="dashFacturasCard" data-bloque="facturas" style="display:none;border-left:3px solid var(--warning);">
+              <div class="card-header">
+                <div class="card-title"><i class="i3d i3d-facturasame"></i> Facturas AME</div>
+                <span class="card-action" style="cursor:pointer;"
+                  onclick="showPanel('facturasame',document.querySelector('[onclick*=\'facturasame\']'))">Ver todas →</span>
+              </div>
+              <div id="dashFacturasContent" style="padding:14px 16px;"></div>
+            </div>
+
             <!-- Resumen por estado de cotizaciones -->
             <div class="card" data-bloque="estados">
               <div class="card-header">
@@ -1793,42 +1806,14 @@
             </div>
 
             <!-- Finanzas rápidas (último total consolidado bancos) -->
-            <div class="card" id="dashFinanzasCard" data-bloque="bancos" style="display:none;">
+            <div class="card" id="dashFinanzasCard" data-bloque="bancos" style="display:none;border-left:3px solid var(--green);">
               <div class="card-header">
-                <div class="card-title"><i class="i3d i3d-dinero"></i> Bancos (consolidado)</div>
+                <div class="card-title"><i class="i3d i3d-dinero"></i> AMELIFE Saldos</div>
                 <span class="card-action" style="cursor:pointer;" onclick="showPanel('bancos',document.querySelector('[onclick*=\'bancos\']'))">Ver →</span>
               </div>
               <div id="dashFinanzasContent" style="padding:14px 16px;"></div>
             </div>
 
-            <!-- Accesos rápidos -->
-            <div class="card" data-bloque="accesos">
-              <div class="card-header">
-                <div class="card-title"><i class="i3d i3d-cohete"></i> Accesos rápidos</div>
-              </div>
-              <div class="quick-actions">
-                <div class="qa-btn" onclick="showPanel('cotizaciones',null); openModal('modalCotizacion')">
-                  <div class="qa-icon"><i class="i3d i3d-cotizaciones"></i></div>
-                  <b>Nueva Cotización</b>
-                  <span>Con template AMELIFE</span>
-                </div>
-                <div class="qa-btn" onclick="showPanel('inventario',null); openModal('modalItem')">
-                  <div class="qa-icon"><i class="i3d i3d-agregar"></i></div>
-                  <b>Agregar Ítem</b>
-                  <span>Al inventario</span>
-                </div>
-                <div class="qa-btn" onclick="showPanel('clientes',null); nuevoCliente()">
-                  <div class="qa-icon"><i class="i3d i3d-clientes"></i></div>
-                  <b>Nuevo Cliente</b>
-                  <span>Autoguardado</span>
-                </div>
-                <div class="qa-btn" onclick="showPanel('trackings',null)">
-                  <div class="qa-icon"><i class="i3d i3d-trackings"></i></div>
-                  <b>Ver Trackings</b>
-                  <span>Estado de envíos</span>
-                </div>
-              </div>
-            </div>
         </div>
       </div>
 
@@ -4819,8 +4804,8 @@ var DASH_BLOQUES = [
   { id: 'stockbajo',   nombre: 'Stock bajo' },
   { id: 'seguimiento', nombre: 'Cotizaciones para dar seguimiento' },
   { id: 'estados',     nombre: 'Cotizaciones por estado' },
-  { id: 'bancos',      nombre: 'Bancos (consolidado)' },
-  { id: 'accesos',     nombre: 'Accesos rápidos' }
+  { id: 'bancos',      nombre: 'Saldos de bancos' },
+  { id: 'facturas',    nombre: 'Facturas AME · cobranza' }
 ];
 
 function dashCfgLeer() {
@@ -12231,52 +12216,42 @@ function dashRender() {
     (s.tracksPorLlegarCount ? `⚠️ ${s.tracksPorLlegarCount} por llegar` : 'Ninguno urgente') +
     (s.tracksVencidosCount ? ` · 🚨 ${s.tracksVencidosCount} vencidos` : '');
 
-  // ── Trackings vencidos
+  // ── Trackings sin arribar
+  //   El bloque de "vencidos" quedó vacío y oculto: los atrasados son
+  //   también trackings sin arribar, y tenerlos en dos listas hacía
+  //   que el mismo envío apareciera dos veces en la misma pantalla.
   const vencCard = document.getElementById('dashTracksVencidosCard');
-  const vencList = document.getElementById('dashTracksVencidosList');
-  const vencidos = d.tracksVencidos || [];
-  document.getElementById('dashTracksVencidosCount').textContent = vencidos.length + ' tracking' + (vencidos.length!==1?'s':'');
-  if (vencidos.length > 0) {
-    vencCard.style.display = '';
-    vencList.innerHTML = vencidos.map(t => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border2);gap:10px;">
-        <div style="min-width:0;flex:1;">
-          <div style="font-weight:600;font-size:13px;color:var(--text);">${t.numero||'(sin número)'} · ${t.carrier||''}</div>
-          <div style="font-size:11px;color:var(--danger);"><i class="i3d i3d-urgente"></i> Vencido hace ${t.diasVencido} día${t.diasVencido!==1?'s':''} · ETA: ${t.eta||'—'}</div>
-        </div>
-        <button class="btn btn-outline" style="padding:6px 10px;font-size:11px;" onclick="dashMarcarRecibido('${t.id}')">✓ Recibido</button>
-      </div>
-    `).join('');
-  } else {
-    vencCard.style.display = 'none';
-  }
+  if (vencCard) vencCard.style.display = 'none';
 
-  // ── Trackings por llegar
-  const porLlegar = d.tracksPorLlegar || [];
-  document.getElementById('dashTracksPorLlegarCountLabel').textContent = porLlegar.length + ' tracking' + (porLlegar.length!==1?'s':'');
-  const porLlegarList = document.getElementById('dashTracksPorLlegarList');
-  if (porLlegar.length > 0) {
-    porLlegarList.innerHTML = porLlegar.map(t => {
-      const diasTexto = t.diasRestantes === 0 ? '🔥 HOY' :
-                         t.diasRestantes === 1 ? '⚡ Mañana' :
-                         `En ${t.diasRestantes} días`;
-      const colorDias = t.diasRestantes === 0 ? 'var(--danger)' :
-                         t.diasRestantes === 1 ? 'var(--warning)' : 'var(--info)';
+  const sinArribar = d.tracksNoArribados || [];
+  const trkList = document.getElementById('dashTracksPorLlegarList');
+  document.getElementById('dashTracksPorLlegarCountLabel').textContent =
+    sinArribar.length + ' en camino';
+
+  if (sinArribar.length) {
+    trkList.innerHTML = sinArribar.map(t => {
+      const dias = t.diasRestantes;
+      let cuando, color;
+      if (dias === null)   { cuando = 'sin ETA';                    color = 'var(--muted)'; }
+      else if (dias < 0)   { cuando = 'atrasado ' + Math.abs(dias) + 'd'; color = 'var(--danger)'; }
+      else if (dias === 0) { cuando = 'llega hoy';                  color = 'var(--warning)'; }
+      else                 { cuando = 'en ' + dias + 'd';           color = 'var(--text)'; }
+
       return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border2);gap:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border2);">
           <div style="min-width:0;flex:1;">
-            <div style="font-weight:600;font-size:13px;color:var(--text);">${t.numero||'(sin número)'} · ${t.carrier||''}</div>
-            <div style="font-size:11px;color:var(--muted);">${t.origen||'?'} → ${t.destino||'?'} · ETA: ${t.eta||'—'}</div>
+            <div style="font-weight:700;font-size:14px;color:var(--text);">${cotEsc(t.numero || t.id)}</div>
+            <div style="font-size:12.5px;color:var(--muted);">${cotEsc(t.carrier || '')}${t.destino ? ' → ' + cotEsc(t.destino) : ''}</div>
           </div>
-          <div style="text-align:right;">
-            <div style="font-weight:700;color:${colorDias};font-size:12px;">${diasTexto}</div>
-            <button class="btn btn-outline" style="padding:4px 8px;font-size:10px;margin-top:4px;" onclick="dashMarcarRecibido('${t.id}')">✓ Recibido</button>
+          <div style="text-align:right;white-space:nowrap;">
+            <div style="font-size:13px;font-weight:700;color:${color};">${cuando}</div>
+            <a href="${dashLinkRastreo(t)}" target="_blank" rel="noopener"
+               style="font-size:12px;color:var(--green);font-weight:600;">Rastrear ↗</a>
           </div>
-        </div>
-      `;
+        </div>`;
     }).join('');
   } else {
-    porLlegarList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>No hay trackings por llegar en los próximos 2 días</em></div>';
+    trkList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>No hay envíos en camino</em></div>';
   }
 
   // ── Stock bajo
@@ -12305,36 +12280,43 @@ function dashRender() {
   }
 
   // ── Cotizaciones para seguimiento
-  const cotsSeg = d.cotsSeguimiento || [];
-  document.getElementById('dashCotsSeguimientoCountLabel').textContent = cotsSeg.length + ' cotización' + (cotsSeg.length!==1?'es':'');
+  // ── Cotizaciones para dar seguimiento
+  //   Se muestran las últimas cinco SIEMPRE, aunque ninguna haya
+  //   cumplido los días para reclamar: el bloque vacío no decía nada y
+  //   obligaba a ir hasta Cotizaciones para ver en qué estaba cada una.
+  //   Las que ya pasaron el plazo van marcadas.
+  const ultimas  = d.ultimasCots || [];
+  const paraSeg  = {};
+  (d.cotsSeguimiento || []).forEach(c => { paraSeg[c.id] = true; });
+  DASH_COTS = ultimas;
+
+  document.getElementById('dashCotsSeguimientoCountLabel').textContent =
+    (d.cotsSeguimiento || []).length + ' para reclamar';
+
   const cotsList = document.getElementById('dashCotsSeguimientoList');
-  if (cotsSeg.length > 0) {
-    cotsList.innerHTML = cotsSeg.map(c => {
-      const selectOpts = DASHBOARD_ESTADOS_COT.map(e =>
-        `<option value="${e}"${e===c.estado?' selected':''}>${e}</option>`
-      ).join('');
+  if (ultimas.length) {
+    cotsList.innerHTML = ultimas.map((c, i) => {
+      const toca = paraSeg[c.id];
       return `
-        <div style="padding:10px 0;border-bottom:1px dashed var(--border2);">
-          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
-            <div style="min-width:0;flex:1;">
-              <div style="font-weight:600;font-size:13px;color:var(--text);">${c.numero||c.id} · ${c.cliente||'(sin cliente)'}</div>
-              <div style="font-size:11px;color:var(--muted);">
-                ${dashFmt(c.total)} · Enviada hace ${c.diasEnviada||0} día${c.diasEnviada!==1?'s':''} · ${c.fecha||''}
-              </div>
-            </div>
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <select data-cot-id="${c.id}" onchange="dashCambiarEstadoCotizacion('${c.id}', this.value)"
-              style="padding:5px 8px;font-size:11px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text);flex:1;">
-              ${selectOpts}
-            </select>
-            <button class="btn btn-outline" style="padding:5px 8px;font-size:11px;" onclick="dashNotaSeguimiento('${c.id}')" title="Agregar nota de seguimiento"><i class="i3d i3d-nota"></i></button>
-          </div>
-        </div>
-      `;
-    }).join('');
+        <label style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border2);cursor:pointer;">
+          <input type="checkbox" class="dash-cot-chk" data-i="${i}" onchange="dashSegContar()">
+          <span style="min-width:0;flex:1;">
+            <span style="display:block;font-weight:700;font-size:14px;color:var(--text);">
+              ${cotEsc(c.numero || c.id)} · ${cotEsc(c.cliente || '(sin cliente)')}</span>
+            <span style="display:block;font-size:12.5px;color:var(--muted);">
+              ${dashFmt(c.total)} · ${cotEsc(c.estado || '')}${c.diasEnviada !== null ? ' · hace ' + c.diasEnviada + 'd' : ''}</span>
+          </span>
+          ${toca ? '<span style="font-size:11px;font-weight:700;color:var(--warning);white-space:nowrap;">RECLAMAR</span>' : ''}
+        </label>`;
+    }).join('') + `
+      <div style="padding:12px 0 2px;display:flex;align-items:center;gap:10px;">
+        <a href="#" id="dashSegLink" onclick="dashSegRecordar();return false;"
+           style="font-weight:700;color:var(--muted);pointer-events:none;font-size:13.5px;">
+          Recordar las seleccionadas</a>
+        <span id="dashSegCount" style="font-size:12.5px;color:var(--muted);"></span>
+      </div>`;
   } else {
-    cotsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em><i class="i3d i3d-ok"></i> No hay cotizaciones pendientes de seguimiento</em></div>';
+    cotsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>Todavía no hay cotizaciones</em></div>';
   }
 
   // ── Resumen por estado de cotizaciones
@@ -12358,24 +12340,131 @@ function dashRender() {
     `;
   }).join('') + (totalCots === 0 ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:6px;"><em>Sin cotizaciones todavía</em></div>' : '');
 
-  // ── Finanzas/Bancos (si hay data)
+  // ── Bancos · AMELIFE SALDOS
+  //   El servidor sólo manda `finanzas` a los roles habilitados, así
+  //   que si el usuario no corresponde acá no llega nada que ocultar.
+  //   La lista de nombres es una segunda barrera, no la única.
   const finCard = document.getElementById('dashFinanzasCard');
   const finDiv  = document.getElementById('dashFinanzasContent');
-  if (d.finanzas && d.finanzas.totalUSD > 0) {
+  const quien   = String((d.usuario && d.usuario.nombre) || '').toLowerCase();
+  const habilitado = /germ[áa]n|ezequiel|ezzy/.test(quien);
+
+  if (d.finanzas && habilitado) {
+    const f = d.finanzas;
     finCard.style.display = '';
-    finDiv.innerHTML = `
-      <div style="text-align:center;">
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Total Consolidado USD</div>
-        <div style="font-size:24px;font-weight:800;color:var(--green);font-family:'JetBrains Mono',monospace;margin:4px 0;">${dashFmt(d.finanzas.totalUSD)}</div>
-        <div style="font-size:11px;color:var(--muted);">${d.finanzas.cuentas} cuentas · ${d.finanzas.bancos} bancos</div>
+    finDiv.innerHTML =
+      (f.porBanco || []).map(b => `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;">
+          <span style="font-size:14px;font-weight:600;color:var(--text);">Total ${cotEsc(b.banco.toUpperCase())}</span>
+          <span style="font-size:17px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text);">${dashFmt(b.total)}</span>
+        </div>`).join('') + `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:11px 0 3px;margin-top:6px;border-top:2px solid var(--border2);">
+        <span style="font-size:14px;font-weight:800;color:var(--text);">TOTAL GENERAL</span>
+        <span style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--green);">${dashFmt(f.totalUSD)}</span>
       </div>
-    `;
+      ${f.fecha ? `<div style="font-size:12.5px;color:var(--muted);">al ${cotEsc(bcoFecha(f.fecha))}</div>` : ''}`;
   } else {
     finCard.style.display = 'none';
+  }
+
+  // ── Facturas AME · cobranza
+  const facCard = document.getElementById('dashFacturasCard');
+  const facDiv  = document.getElementById('dashFacturasContent');
+  const fa = d.facturasAME;
+  if (fa && fa.cantidad) {
+    facCard.style.display = '';
+    facDiv.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-size:14px;font-weight:600;color:var(--text);">Total por cobrar</span>
+        <span style="font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text);">${dashFmt(fa.total)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">${fa.cantidad} factura${fa.cantidad!==1?'s':''} abierta${fa.cantidad!==1?'s':''}</div>
+
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;border-top:1px dashed var(--border2);">
+        <span style="font-size:14px;font-weight:600;color:var(--text);">Entra en 15 días</span>
+        <span style="font-size:19px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--green);">${dashFmt(fa.prox15)}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--muted);">${fa.prox15Cantidad} factura${fa.prox15Cantidad!==1?'s':''}</div>
+
+      ${fa.vencidasCantidad ? `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;padding-top:10px;margin-top:8px;border-top:1px dashed var(--border2);">
+          <span style="font-size:14px;font-weight:600;color:var(--danger);">Vencido</span>
+          <span style="font-size:19px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--danger);">${dashFmt(fa.vencido)}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);">${fa.vencidasCantidad} factura${fa.vencidasCantidad!==1?'s':''}</div>` : ''}
+    `;
+  } else {
+    facCard.style.display = 'none';
   }
 }
 
 // ---- Acciones desde el dashboard ----
+
+var DASH_COTS = [];        // las cinco que se están mostrando
+
+/**
+ * El link para rastrear un envío.
+ *
+ * Cada courier tiene su propia URL. Si el carrier no se reconoce se
+ * manda a buscar el número en Google: es preferible a un link muerto
+ * o a no ofrecer nada.
+ */
+function dashLinkRastreo(t) {
+  const n = encodeURIComponent(String(t.numero || '').trim());
+  const c = String(t.carrier || '').toLowerCase();
+  if (!n) return 'https://www.google.com/search?q=tracking';
+  if (/dhl/.test(c))          return 'https://www.dhl.com/ar-es/home/tracking.html?tracking-id=' + n;
+  if (/fedex/.test(c))        return 'https://www.fedex.com/fedextrack/?trknbr=' + n;
+  if (/ups/.test(c))          return 'https://www.ups.com/track?tracknum=' + n;
+  if (/tnt/.test(c))          return 'https://www.tnt.com/express/es_ar/site/herramientas-envio/rastrear.html?searchType=con&cons=' + n;
+  if (/usps/.test(c))         return 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + n;
+  if (/estafeta/.test(c))     return 'https://www.estafeta.com/Herramientas/Rastreo?wayBill=' + n;
+  if (/correo|oca|andreani/.test(c)) return 'https://www.google.com/search?q=' + n + '+' + encodeURIComponent(c);
+  return 'https://www.google.com/search?q=' + n + '+tracking';
+}
+
+/** Cuántas cotizaciones hay tildadas, y prender o apagar el link. */
+function dashSegContar() {
+  const n = document.querySelectorAll('.dash-cot-chk:checked').length;
+  const link = document.getElementById('dashSegLink');
+  const cnt  = document.getElementById('dashSegCount');
+  if (!link) return;
+
+  // El link arranca apagado: sin nada tildado no hay a quién recordarle.
+  link.style.pointerEvents = n ? 'auto' : 'none';
+  link.style.color = n ? 'var(--green)' : 'var(--muted)';
+  if (cnt) cnt.textContent = n ? (n === 1 ? '1 elegida' : n + ' elegidas') : 'elegí una o varias';
+}
+
+/**
+ * Arma el recordatorio de las cotizaciones tildadas.
+ *
+ * Copia el texto y abre WhatsApp. Sirve para una sola o para varias:
+ * cuando son varias van todas en un mismo mensaje, que es como se
+ * reclama en la práctica —no se manda un WhatsApp por cotización—.
+ */
+function dashSegRecordar() {
+  const elegidas = [].slice.call(document.querySelectorAll('.dash-cot-chk:checked'))
+    .map(c => DASH_COTS[Number(c.dataset.i)])
+    .filter(Boolean);
+  if (!elegidas.length) { showToast('Elegí al menos una cotización', 'error'); return; }
+
+  const L = ['*AMELIFE · Cotizaciones pendientes*', ''];
+  elegidas.forEach(c => {
+    L.push('• ' + (c.numero || c.id) + ' · ' + (c.cliente || '') +
+           ' · ' + dashFmt(c.total) +
+           (c.diasEnviada !== null ? ' · enviada hace ' + c.diasEnviada + ' días' : ''));
+  });
+  L.push('');
+  L.push(elegidas.length === 1
+    ? '¿Pudiste verla? Quedo atento.'
+    : '¿Pudiste verlas? Quedo atento.');
+
+  const txt = L.join('\n');
+  copiarAlPortapapeles(txt, 'Copiado · pegalo en WhatsApp');
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
 
 async function dashMarcarRecibido(id) {
   if (!confirm('¿Marcar este tracking como RECIBIDO?')) return;
