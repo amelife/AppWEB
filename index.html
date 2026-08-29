@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.8 | 2026-08-29 ARG - Facturas AME no se vacia sola; un cliente nuevo aparece al toque en la factura y en la cotizacion (las tres listas se refrescan juntas); Clientes con un solo campo Nombre/Empresa y modal en blanco al crear; boton Actualizar en la barra superior -->
+<!-- AMELIFE EMS Technologies - Web App v9.9 | 2026-08-29 ARG - Resumen de lo pendiente por correo y WhatsApp desde Facturas AME; Facturas AME no se vacia sola; un cliente nuevo aparece al toque en la factura y en la cotizacion; Clientes con un solo campo Nombre/Empresa y modal en blanco al crear; boton Actualizar en la barra -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1935,6 +1935,7 @@
             <option value="Pagada">Pagadas</option>
           </select>
           <button class="btn btn-outline" onclick="famCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
+          <button class="btn btn-outline" onclick="famPendAbrir()"><i class="i3d i3d-enviar"></i> Enviar resumen</button>
           <button class="btn btn-outline" onclick="famNueva()">+ Cargar a mano</button>
           <button class="btn btn-primary" onclick="document.getElementById('famPDF').click()">+ Subir facturas PDF</button>
           <input type="file" id="famPDF" accept=".pdf" multiple style="display:none" onchange="famSubirPDF(event)">
@@ -2943,6 +2944,50 @@
   </div>
 </div>
 
+<!-- Modal: Resumen de lo pendiente.
+     Ojo, este NO va al cliente: es la foto de la cobranza para uno
+     mismo o para el equipo. Por eso no adjunta PDF ni le anota el
+     recordatorio a ninguna factura. -->
+<div class="modal-overlay" id="modalFamPend" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title"><i class="i3d i3d-facturasame"></i> Resumen de lo pendiente</div>
+      <button class="modal-close" onclick="closeModal('modalFamPend')">&#10005;</button>
+    </div>
+
+    <div class="cfg-fila" style="margin-bottom:4px">
+      <input type="checkbox" id="famPendSoloVenc" onchange="famPendPreview()">
+      <label for="famPendSoloVenc">En el cuadro, s&oacute;lo las vencidas</label>
+    </div>
+    <p class="cfg-ayuda">Los totales de arriba se calculan siempre sobre todo lo pendiente. Esto cambia qu&eacute; facturas se listan en el cuadro de abajo.</p>
+
+    <div class="cfg-seccion">As&iacute; se va a ver</div>
+    <div class="msg-prev" id="famPendPrev"></div>
+
+    <div class="cfg-seccion">Mandarlo por correo</div>
+    <div class="field">
+      <label>Para</label>
+      <input type="email" id="famPendPara" placeholder="amelife@amelife-911.com">
+    </div>
+    <div class="cc-caja" id="famPendCcCaja"></div>
+    <div class="field">
+      <label>Asunto</label>
+      <input type="text" id="famPendAsunto">
+    </div>
+    <div class="field">
+      <label>Nota arriba del cuadro <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+      <textarea id="famPendNota" rows="3" placeholder="Ej: Prioridad de la semana: LATINMED e INTERSERVICE." style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;outline:none;resize:vertical" oninput="famPendPreview()"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="famPendWhatsApp()"><i class="i3d i3d-telefono"></i> Copiar para WhatsApp</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalFamPend')">Cancelar</button>
+      <button class="btn btn-primary" id="famPendBtn" onclick="famPendEnviar()"><i class="i3d i3d-enviar"></i> Enviar por correo</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Agradecer un pago -->
 <div class="modal-overlay" id="modalFamGracias" data-no-cerrar-fuera>
   <div class="modal" style="max-width:640px;max-height:92vh;overflow-y:auto">
@@ -3532,6 +3577,7 @@ const ETIQUETAS_ACCION = {
   getProformaHTML:           'Generando proforma',
   getProformaPDF:            'Generando proforma',
   emailCotizacion:           'Enviando el email',
+  resumenPendientesAME:      'Enviando el resumen',
   cotizarConIA:              'La IA está armando la cotización',
   actualizarEstadoCotizacion:'Cambiando el estado',
   addCliente:                'Creando cliente',
@@ -6449,6 +6495,259 @@ function famResumen() {
       return caja('tramo' + (t.pronto ? ' pronto' : ''), t.k, cubos[i]);
     }).join('') +
     (sinFecha.length ? caja('tramo', 'Sin fecha de pago', sinFecha) : '');
+}
+
+// ============================================
+//  RESUMEN DE LO PENDIENTE · por correo y por WhatsApp
+//
+//  Esto NO es el estado de cuenta que se le manda a un cliente. Es la
+//  foto completa de la cobranza —los mismos numeros de las cajas de
+//  arriba, mas el detalle factura por factura— para uno mismo o para
+//  el equipo. Por eso no adjunta PDF ni le anota recordatorio a
+//  ninguna factura: nadie le esta reclamando nada a nadie.
+// ============================================
+
+/**
+ * Arma los numeros del resumen.
+ *
+ * SE CALCULA ACA Y NO EN EL SERVIDOR, a proposito: asi lo que sale
+ * por correo es EXACTAMENTE lo que estas viendo en pantalla. Repetir
+ * el reparto en tramos del lado del .gs seria tener la misma cuenta
+ * escrita dos veces, y el dia que una cambie el resumen mentiria sin
+ * que nadie se entere.
+ *
+ * @param {Boolean} soloVencidas  Acota el CUADRO, no los totales.
+ */
+function famPendDatos(soloVencidas) {
+  const abiertas = FAM_STATE.lista.filter(famAbierta);
+  const venc     = abiertas.filter(famVencida);
+  const sum      = a => a.reduce((s, f) => s + famSaldo(f), 0);
+
+  // Mismo reparto que famResumen(): tramos excluyentes, lo vencido
+  // contado aparte y las que no tienen fecha en su propia caja, para
+  // que la suma cierre contra el total.
+  const cubos = FAM_TRAMOS.map(() => []);
+  const sinFecha = [];
+  abiertas.forEach(f => {
+    if (famVencida(f)) return;
+    const d = famDias(f.vence);
+    if (d === null) { sinFecha.push(f); return; }
+    const i = FAM_TRAMOS.findIndex(t => d <= t.hasta);
+    cubos[i === -1 ? FAM_TRAMOS.length - 1 : i].push(f);
+  });
+
+  const cajas = [
+    { k: 'Total por cobrar', monto: sum(abiertas), n: abiertas.length, tipo: 'total' },
+    { k: 'Vencido',          monto: sum(venc),     n: venc.length,     tipo: venc.length ? 'mal' : '' }
+  ];
+  // En pantalla los tramos vacíos se muestran en gris, porque ocupan
+  // un lugar fijo y ayudan a leer la escala. En un mensaje son ruido:
+  // seis renglones diciendo "US$ 0.00" tapan los dos que importan.
+  FAM_TRAMOS.forEach((t, i) => {
+    if (!cubos[i].length) return;
+    cajas.push({ k: t.k, monto: sum(cubos[i]), n: cubos[i].length, tipo: '' });
+  });
+  if (sinFecha.length) {
+    cajas.push({ k: 'Sin fecha de pago', monto: sum(sinFecha), n: sinFecha.length, tipo: '' });
+  }
+
+  // El cuadro va de lo mas viejo a lo mas nuevo: es el orden en que
+  // hay que salir a cobrar.
+  const base = soloVencidas ? venc : abiertas;
+  const filas = base.slice()
+    .sort((a, b) => String(a.vence || '9999').localeCompare(String(b.vence || '9999')))
+    .map(f => {
+      const d = famDias(f.vence);
+      const esVencida = famVencida(f);
+      let cuando;
+      if (esVencida)        cuando = 'Vencida · ' + famAtraso(d, f.vence) + ' de atraso';
+      else if (d === null)  cuando = 'Sin fecha de pago';
+      else if (d === 0)     cuando = 'Vence hoy';
+      else                  cuando = 'En ' + d + (d === 1 ? ' día' : ' días');
+
+      return {
+        cliente: f.cliente || '—',
+        numero:  f.numero  || '—',
+        moneda:  f.moneda  || 'USD',
+        saldo:   famSaldo(f),
+        vence:   famFecha(f.vence),
+        cuando:  cuando,
+        vencida: esVencida,
+        sinFecha: d === null
+      };
+    });
+
+  return {
+    cajas: cajas,
+    filas: filas,
+    total: sum(base),
+    n:     base.length,
+    soloVencidas: !!soloVencidas,
+    fecha: famFecha(new Date().toISOString().slice(0, 10))
+  };
+}
+
+/** El cuadro y las cajas en HTML. Es lo que se ve y lo que se manda. */
+function famPendHTML(d, nota) {
+  const cajas = d.cajas.map(c =>
+    '<tr>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC">' + cotEsc(c.k) + '</td>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap' +
+        (c.tipo === 'mal' ? ';color:#C00000;font-weight:bold' : '') +
+        (c.tipo === 'total' ? ';font-weight:bold' : '') + '">US$ ' + famFmt(c.monto) + '</td>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC;color:#5D6E67;white-space:nowrap">' +
+        c.n + (c.n === 1 ? ' factura' : ' facturas') + '</td>' +
+    '</tr>').join('');
+
+  const filas = d.filas.map(f =>
+    '<tr>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC">' + cotEsc(f.cliente) + '</td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC"><b>' + cotEsc(f.numero) + '</b></td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap">' +
+        cotEsc(f.moneda) + ' ' + famFmt(f.saldo) + '</td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;white-space:nowrap">' + cotEsc(f.vence) + '</td>' +
+      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC' +
+        (f.vencida ? ';color:#C00000;font-weight:bold' : ';color:#5D6E67') + '">' + cotEsc(f.cuando) + '</td>' +
+    '</tr>').join('');
+
+  const txtNota = String(nota || '').trim();
+
+  return '' +
+    '<p style="margin:0 0 14px">Cuentas por cobrar al <b>' + cotEsc(d.fecha) + '</b>.</p>' +
+    (txtNota ? '<p style="margin:0 0 14px">' + cotEsc(txtNota).replace(/\n/g, '<br>') + '</p>' : '') +
+
+    '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;width:100%;margin-bottom:18px">' +
+      '<tr style="background:#1C2A3D;color:#fff">' +
+        '<th style="padding:7px 10px;text-align:left" colspan="3">Cuándo entra la plata</th>' +
+      '</tr>' + cajas +
+    '</table>' +
+
+    '<p style="margin:0 0 8px;font-weight:bold">' +
+      (d.soloVencidas ? 'Facturas vencidas' : 'Detalle de lo pendiente') +
+      ' · ' + d.n + (d.n === 1 ? ' factura' : ' facturas') + '</p>' +
+
+    (d.filas.length
+      ? '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;width:100%">' +
+          '<tr style="background:#1C2A3D;color:#fff">' +
+            '<th style="padding:6px 9px;text-align:left">Cliente</th>' +
+            '<th style="padding:6px 9px;text-align:left">Factura</th>' +
+            '<th style="padding:6px 9px;text-align:right">Monto</th>' +
+            '<th style="padding:6px 9px;text-align:left">Vencimiento</th>' +
+            '<th style="padding:6px 9px;text-align:left">Estado</th>' +
+          '</tr>' + filas +
+          '<tr><td colspan="2" style="padding:8px 9px;text-align:right;font-weight:bold">TOTAL</td>' +
+          '<td style="padding:8px 9px;text-align:right;font-weight:bold;white-space:nowrap">US$ ' + famFmt(d.total) + '</td>' +
+          '<td colspan="2"></td></tr>' +
+        '</table>'
+      : '<p style="color:#5D6E67">No hay facturas para listar.</p>');
+}
+
+/** El mismo resumen en texto plano, con el negrita de WhatsApp. */
+function famPendTexto(d, nota) {
+  const L = [];
+  L.push('*AME LIFE 911 · Cuentas por cobrar*');
+  L.push('Al ' + d.fecha);
+
+  const txtNota = String(nota || '').trim();
+  if (txtNota) { L.push(''); L.push(txtNota); }
+
+  L.push('');
+  d.cajas.forEach(c => {
+    L.push('*' + c.k + ':* US$ ' + famFmt(c.monto) +
+           ' (' + c.n + (c.n === 1 ? ' factura' : ' facturas') + ')');
+  });
+
+  L.push('');
+  L.push('*' + (d.soloVencidas ? 'Facturas vencidas' : 'Detalle de lo pendiente') + '*');
+
+  // En texto plano un cuadro de cinco columnas no se lee: se agrupa
+  // por cliente, que es como se sale a reclamar.
+  let ultimo = null;
+  d.filas.forEach(f => {
+    if (f.cliente !== ultimo) { L.push(''); L.push('*' + f.cliente + '*'); ultimo = f.cliente; }
+    L.push('• ' + f.numero + ' · ' + f.moneda + ' ' + famFmt(f.saldo) +
+           (f.sinFecha ? '' : ' · vence ' + f.vence) + ' · ' + f.cuando);
+  });
+
+  L.push('');
+  L.push('*TOTAL: US$ ' + famFmt(d.total) + '*');
+  return L.join('\n');
+}
+
+function famPendAbrir() {
+  if (!FAM_STATE.lista.length) { showToast('Todavía no hay facturas cargadas', 'error'); return; }
+
+  document.getElementById('famPendSoloVenc').checked = false;
+  document.getElementById('famPendNota').value = '';
+  document.getElementById('famPendPara').value = (CC_PRESETS[0] && CC_PRESETS[0].mail) || '';
+  ccLimpiar('famPend');
+
+  // La casilla de la casa viene tildada de fábrica en el bloque de CC.
+  // Si es la misma a la que se manda, se destilda: no tiene sentido
+  // mandarse una copia a uno mismo.
+  const dest = document.getElementById('famPendPara').value.trim().toLowerCase();
+  CC_PRESETS.forEach((pre, i) => {
+    const c = document.getElementById('famPendPre' + i);
+    if (c && String(pre.mail).toLowerCase() === dest) c.checked = false;
+  });
+
+  famPendPreview();
+  openModal('modalFamPend');
+}
+
+function famPendPreview() {
+  const solo = document.getElementById('famPendSoloVenc').checked;
+  const nota = document.getElementById('famPendNota').value;
+  const d    = famPendDatos(solo);
+
+  const caja = document.getElementById('famPendPrev');
+  if (caja) caja.innerHTML = famPendHTML(d, nota);
+
+  // El asunto se rearma con el numero real, salvo que lo hayas tocado.
+  const asunto = document.getElementById('famPendAsunto');
+  if (asunto && (!asunto.value || asunto.dataset.auto !== '0')) {
+    asunto.value = 'Cuentas por cobrar al ' + d.fecha + ' · US$ ' + famFmt(d.total);
+    asunto.dataset.auto = '1';
+    asunto.oninput = () => { asunto.dataset.auto = '0'; };
+  }
+}
+
+function famPendWhatsApp() {
+  const d = famPendDatos(document.getElementById('famPendSoloVenc').checked);
+  const txt = famPendTexto(d, document.getElementById('famPendNota').value);
+  copiarAlPortapapeles(txt, 'Copiado · pegalo en WhatsApp');
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
+async function famPendEnviar() {
+  const para = document.getElementById('famPendPara').value.trim();
+  if (!para) { showToast('Poné a quién mandárselo', 'error'); return; }
+
+  const solo = document.getElementById('famPendSoloVenc').checked;
+  const nota = document.getElementById('famPendNota').value;
+  const d    = famPendDatos(solo);
+
+  const btn = document.getElementById('famPendBtn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const copia = ccValores('famPend');
+  const r = await api('resumenPendientesAME', {
+    para:   para,
+    cc:     copia.cc,
+    cco:    copia.cco,
+    asunto: document.getElementById('famPendAsunto').value.trim(),
+    // Va el HTML ya armado: es el mismo que estas viendo en la vista
+    // previa, asi no hay forma de que el correo diga otra cosa.
+    html:   famPendHTML(d, nota),
+    texto:  famPendTexto(d, nota)
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="i3d i3d-enviar"></i> Enviar por correo';
+  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
+
+  closeModal('modalFamPend');
+  showToast('Resumen enviado a ' + r.data.enviado_a, 'success');
 }
 
 // ── Subir el PDF ──────────────────────────────────────────
