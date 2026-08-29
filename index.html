@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.8 | 2026-08-29 ARG - Facturas AME no se vacia sola (respuesta vacia teniendo datos se descarta y se reintenta); Clientes con un solo campo Nombre/Empresa y el modal abre en blanco al crear; boton Actualizar en la barra superior -->
+<!-- AMELIFE EMS Technologies - Web App v9.8 | 2026-08-29 ARG - Facturas AME no se vacia sola; un cliente nuevo aparece al toque en la factura y en la cotizacion (las tres listas se refrescan juntas); Clientes con un solo campo Nombre/Empresa y modal en blanco al crear; boton Actualizar en la barra superior -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -8063,15 +8063,88 @@ function clivOrdenar(list) {
 // Ordenar de la A a la Z, o filtrar por país, sobre los últimos 20 no
 // dice nada: hay que mirarlos a todos. Se piden UNA vez y quedan
 // guardados, así ir y volver después no cuesta otro viaje.
+var CLIV_TODOS_TS   = 0;               // cuando se trajo la lista completa
+var CLIV_TODOS_VIDA = 90 * 1000;       // misma vida que el resto de la cache
+var CLIV_PIDIENDO   = null;            // pedido en curso, para no duplicarlo
+
 function clivAsegurarTodos(cb) {
-  if (CLIV_TODOS) { cb(); return; }
+  if (CLIV_TODOS) {
+    cb();
+    // Se contesta YA con lo que sabemos —eso es lo que hace que abrir
+    // una factura sea instantaneo— y si la lista quedo vieja se vuelve
+    // a pedir por atras: cuando llega, el desplegable se redibuja solo.
+    // Sin esto, un cliente dado de alta en la otra casilla no aparecia
+    // hasta recargar la pagina entera.
+    if (Date.now() - CLIV_TODOS_TS > CLIV_TODOS_VIDA) clientesRefrescar();
+    return;
+  }
   const lbl = document.getElementById('clientCountLabel');
   if (lbl) lbl.textContent = 'Trayendo todos los clientes…';
   api('getClientes').then(r => {
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo traer la lista', 'error'); return; }
-    CLIV_TODOS = r.data;
+    CLIV_TODOS    = r.data;
+    CLIV_TODOS_TS = Date.now();
     cb();
   });
+}
+
+/**
+ * Vuelve a traer la lista de clientes y actualiza TODAS sus copias.
+ *
+ * HAY TRES COPIAS, Y ESE ERA EL PROBLEMA
+ *   La app guarda la lista de clientes en tres lugares distintos,
+ *   cada uno para lo suyo:
+ *
+ *     · CLIENTES / CLIV_LISTA  → la pantalla de Clientes
+ *     · CLIV_TODOS             → el desplegable de Facturas AME
+ *     · COT_STATE.clientes     → el buscador de Cotizaciones
+ *
+ *   Las dos ultimas se traen UNA sola vez y despues no se vuelven a
+ *   pedir nunca (`clivAsegurarTodos` corta con `if (CLIV_TODOS)`, y
+ *   `cotCargarClientes` con `if (!COT_STATE.clientes.length)`). Al dar
+ *   de alta un cliente solo se refrescaba CLIENTES, asi que el cliente
+ *   nuevo aparecia en la lista pero NO se podia elegir ni en una
+ *   factura ni en una cotizacion hasta recargar la pagina entera.
+ *
+ *   Un solo pedido al servidor deja las tres al dia.
+ */
+function clientesRefrescar(cb) {
+  // Dos llamados juntos —guardar y el refresco de fondo— se enganchan
+  // al mismo pedido en vez de mandar dos.
+  if (!CLIV_PIDIENDO) {
+    CLIV_PIDIENDO = api('getClientes').then(r => {
+      CLIV_PIDIENDO = null;
+      if (!r || !r.ok) {
+        showToast((r && r.error) || 'No pude actualizar los clientes', 'error');
+        return null;
+      }
+      const lista = r.data || [];
+
+      // Las listas que alimentan los buscadores se actualizan siempre:
+      // son las que tenian el problema.
+      CLIV_TODOS    = lista;
+      CLIV_TODOS_TS = Date.now();
+
+      if (typeof COT_STATE !== 'undefined' && COT_STATE) {
+        COT_STATE.clientes = lista.filter(c => c.nombre)
+          .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+      }
+
+      // El desplegable de la factura se arma del arreglo y no lo relee
+      // solo. Con CLIV_TODOS ya fresco, esto lo redibuja.
+      if (typeof famClientesCargar === 'function') famClientesCargar();
+
+      // La tabla de Clientes se toca SOLO si es la que estas mirando.
+      // Si no, un refresco de fondo disparado desde una factura te
+      // borraria la busqueda o el filtro que tuvieras puesto.
+      if (document.querySelector('#panel-clientes.active')) {
+        CLIENTES = lista;
+        if (typeof CLIV_INIT !== 'undefined' && CLIV_INIT) renderClientes();
+      }
+      return lista;
+    }, () => { CLIV_PIDIENDO = null; return null; });
+  }
+  return CLIV_PIDIENDO.then(lista => { if (cb) cb(lista); return lista; });
 }
 
 function clivPaisActivo() {
@@ -8319,7 +8392,7 @@ function saveCliente() {
     if (!r.ok) { showToast(r.error, 'error'); return; }
     closeModal('modalCliente');
     document.getElementById('modalCliente').dataset.editId = '';
-    api('getClientes').then(r2 => { if (r2.ok) { CLIENTES = r2.data; renderClientes(); } });
+    clientesRefrescar();     // deja al dia Clientes, Facturas y Cotizaciones
     showToast('Cliente guardado', 'success');
   });
 }
@@ -8381,9 +8454,7 @@ function refrescarPanel(btn) {
     warehouse:    () => loadWHItems(),
     inventario:   () => loadAllData(),
     pricebook:    () => loadAllData(),
-    clientes:     () => api('getClientes').then(r => {
-                    if (r.ok) { CLIENTES = r.data; renderClientes(); }
-                  })
+    clientes:     () => clientesRefrescar()
   };
 
   const f = cargadores[id];
@@ -9849,7 +9920,7 @@ function confirmarImportCSV() {
     if (!r.ok) { showToast(r.error, 'error'); return; }
     closeModal('modalImportCSV');
     showToast('' + r.data.added + ' importados · ' + r.data.skipped + ' ya existían', 'success');
-    api('getClientes').then(r2 => { if (r2.ok) { CLIENTES = r2.data; renderClientes(); } });
+    clientesRefrescar();
   });
 }
 
@@ -9889,8 +9960,10 @@ function eliminarClientesSeleccionados() {
   api('eliminarClientesBulk', { ids: [...clientSelected] }).then(r => {
     if (!r.ok) { showToast(r.error, 'error'); return; }
     showToast('' + r.data.eliminados + ' clientes eliminados', 'success');
-    CLIENTES = CLIENTES.filter(c => !clientSelected.has(c.id));
+    // Antes solo se filtraba CLIENTES, asi que los borrados seguian
+    // ofreciendose en la factura y en la cotizacion.
     deseleccionarTodosClientes();
+    clientesRefrescar();
   });
 }
 
