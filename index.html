@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v10.1 | 2026-08-29 ARG - Version de telefono: cobranza, WhatsApp por cliente y envio de resumenes (todo dentro de un @media, la de escritorio no se toca); resumen por correo con las cajas y bandas de la app; ningun pedido puede colgar la pantalla; Facturas AME no se vacia sola -->
+<!-- AMELIFE EMS Technologies - Web App v10.2 | 2026-08-29 ARG - La app SIEMPRE avisa lo que esta haciendo (ninguna accion queda muda); version de telefono con cobranza, WhatsApp por cliente y resumenes; resumen agrupado por cliente con su total en correo y WhatsApp; ningun pedido puede colgar la pantalla -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3582,6 +3582,23 @@ const ETIQUETAS_ACCION = {
   getProformaPDF:            'Generando proforma',
   emailCotizacion:           'Enviando el email',
   resumenPendientesAME:      'Enviando el resumen',
+
+  // Facturas AME: es donde se trabaja a diario, así que van con
+  // nombre propio en vez del rótulo genérico.
+  getFacturasAME:            'Cargando las facturas',
+  saveFacturaAME:            'Guardando la factura',
+  deleteFacturaAME:          'Borrando la factura',
+  registrarPagoFacturaAME:   'Registrando el pago',
+  pagarFacturaAME:           'Registrando el pago',
+  borrarPagoFacturaAME:      'Borrando el pago',
+  recordatorioFacturaAME:    'Enviando el recordatorio',
+  resumenDeudaAME:           'Enviando el estado de cuenta',
+  graciasPagoAME:            'Enviando el agradecimiento',
+  importarFacturaAME:        'Leyendo la factura',
+  getNotas:                  'Cargando los datos',
+  saveNota:                  'Guardando la nota',
+  getTrackingsFull:          'Cargando trackings',
+  saveTrackingFull:          'Guardando el tracking',
   cotizarConIA:              'La IA está armando la cotización',
   actualizarEstadoCotizacion:'Cambiando el estado',
   addCliente:                'Creando cliente',
@@ -3618,6 +3635,25 @@ const ETIQUETAS_ACCION = {
 
 let _actSeq = 0;
 
+/**
+ * El rótulo para una acción que no tiene uno escrito a mano.
+ *
+ * Se deduce del nombre: las del backend se llaman todas igual
+ * —getAlgo, saveAlgo, deleteAlgo—, así que el verbo sale solo. No
+ * pretende ser exacto: lo que importa es que la pantalla diga que
+ * está haciendo algo. La etiqueta puntual, cuando existe, gana,
+ * porque dice más ("La IA está armando la cotización").
+ */
+function rotuloAccion(action) {
+  const a = String(action || '');
+  if (/^(get|listar|buscar|search|cargar)/i.test(a))     return 'Cargando';
+  if (/^(delete|borrar|eliminar)/i.test(a))              return 'Borrando';
+  if (/(email|enviar|recordatorio|resumen|gracias|avisar)/i.test(a)) return 'Enviando';
+  if (/^(validate|cerrarSesion)/i.test(a))               return 'Verificando';
+  if (/^(save|add|update|crear|guardar|editar|set|asignar|marcar|registrar|pagar|ajustar|importar|confirmar|recibir|migrar|setup|reparar|limpiar|completar)/i.test(a)) return 'Guardando';
+  return 'Trabajando';
+}
+
 function actIniciar(texto) {
   const cont = document.getElementById('actividad');
   if (!cont) return null;
@@ -3653,9 +3689,17 @@ function actTerminar(id, ok) {
  *   pantalla trabada sin salida.
  */
 async function api(action, params = {}, silencioso = false, topeMs = 0) {
-  // Sólo las acciones con etiqueta muestran indicador. El resto —refrescos
-  // de fondo, pings— pasa en silencio para no llenar la pantalla de avisos.
-  const tarea = (!silencioso && ETIQUETAS_ACCION[action]) ? actIniciar(ETIQUETAS_ACCION[action]) : null;
+  // SIEMPRE se avisa lo que está haciendo, salvo que quien llama pida
+  // silencio a propósito (la precarga de fondo, que es la única).
+  //
+  // Antes sólo avisaban las acciones que tenían etiqueta escrita a
+  // mano, y las que no —guardar una factura, entre otras— no mostraban
+  // NADA: apretabas Guardar, la pantalla quedaba igual y no había forma
+  // de saber si el clic había entrado. Cada acción nueva nacía muda
+  // hasta que alguien se acordara de agregarle el renglón.
+  const tarea = silencioso
+    ? null
+    : actIniciar(ETIQUETAS_ACCION[action] || rotuloAccion(action));
   let reloj = null;
   try {
     const formData = new FormData();
