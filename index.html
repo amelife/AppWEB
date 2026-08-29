@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.4 | 2026-08-29 ARG - Bancos: las fotos de las apps se leen solas y cada cuenta se reconoce por su numero (sin elegir nada); resumenes con el total de todas las cuentas y el disponible solo de IFB; grafico con dos ejes para que se vea la suba real -->
+<!-- AMELIFE EMS Technologies - Web App v11.5 | 2026-08-29 ARG - Bancos: un renglon por banco bajo la fecha, con su fecha y si vino del statement o de una foto; las fotos se leen solas sin elegir cuenta; resumenes con el total de todas las cuentas -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -11218,13 +11218,13 @@ function bancosPintarBancos(r) {
 }
 
 /**
- * La banda de arriba: a qué fecha corresponden los números.
+ * La banda de arriba: a qué fecha está cada banco y de dónde salió.
  *
- * Se muestra la fecha MÁS VIEJA de las últimas de cada cuenta, no la
- * más nueva. Si Safra está al 31 de julio y las IFB al 29 de agosto,
- * el total no es "de agosto": es una mezcla, y la parte más atrasada
- * es la que manda. Decir agosto sería decir que el número está más
- * fresco de lo que está.
+ * UN RENGLÓN POR BANCO, no una frase.
+ *   Antes decía "OCR · Statement PDF — pero SNBNY está al 31 de julio,
+ *   SSL está al 31 de julio": había que leerla entera para entender
+ *   que Safra estaba atrasado. Ahora cada banco dice su fecha y su
+ *   origen, y se ve de un vistazo cuál quedó viejo.
  */
 function bancosPintarAhora(r) {
   const caja = document.getElementById('bancosAhoraFecha');
@@ -11239,21 +11239,53 @@ function bancosPintarAhora(r) {
   }
 
   const fechas = conDato.map(d => d.ultimaFecha).sort();
-  const vieja  = fechas[0], nueva = fechas[fechas.length - 1];
-
+  const nueva = fechas[fechas.length - 1];
   caja.textContent = bancosFechaLinda(nueva);
 
-  // Qué cuentas quedaron atrás, para que no pase inadvertido.
-  const atrasadas = conDato.filter(d => d.ultimaFecha < nueva);
-  const fuentes   = [...new Set(conDato.map(d => d.ultimaFuente).filter(f => f))];
+  // Agrupar por banco y quedarse con la fecha más nueva de cada uno.
+  const porBanco = {};
+  conDato.forEach(d => {
+    const b = porBanco[d.banco] = porBanco[d.banco] || { banco: d.banco, cuentas: [] };
+    b.cuentas.push(d);
+  });
 
-  let txt = fuentes.length ? fuentes.join(' · ') : 'sin origen';
-  if (atrasadas.length) {
-    txt += ' — pero ' + atrasadas.map(d => d.cuenta + ' está al ' + bancosFechaLinda(d.ultimaFecha)).join(', ');
-  }
+  const html = Object.keys(porBanco).map(nombre => {
+    const b = porBanco[nombre];
+    const suyas = b.cuentas.slice().sort((x, y) => x.ultimaFecha.localeCompare(y.ultimaFecha));
+    const masNueva = suyas[suyas.length - 1];
+    const atrasadas = suyas.filter(c => c.ultimaFecha !== masNueva.ultimaFecha);
+    const alDia = masNueva.ultimaFecha === nueva;
+
+    return '<div style="display:flex;align-items:baseline;gap:8px;padding:2px 0">' +
+      '<span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:' +
+        (alDia ? 'var(--green)' : '#D9A441') + '"></span>' +
+      '<b style="color:var(--text);min-width:52px">' + cotEsc(nombre) + '</b>' +
+      '<span>actualizado el <b style="color:var(--text)">' +
+        cotEsc(bancosFechaLinda(masNueva.ultimaFecha)) + '</b>' +
+        ' · ' + cotEsc(bancosOrigen(masNueva.ultimaFuente)) +
+        (atrasadas.length
+          ? ' <span style="color:var(--warning)">— ' +
+            atrasadas.map(c => cotEsc(c.cuenta) + ' al ' + cotEsc(bancosFechaLinda(c.ultimaFecha))).join(', ') +
+            '</span>'
+          : '') +
+      '</span></div>';
+  }).join('');
+
   const faltan = (r.detalle || []).length - conDato.length;
-  if (faltan) txt += ' · ' + faltan + (faltan === 1 ? ' cuenta sin datos' : ' cuentas sin datos');
-  pie.textContent = txt;
+  pie.innerHTML = html + (faltan
+    ? '<div style="padding-top:4px;color:var(--warning)">' + faltan +
+      (faltan === 1 ? ' cuenta sin datos' : ' cuentas sin datos') + '</div>'
+    : '');
+}
+
+/** De dónde salió el saldo, dicho en criollo. */
+function bancosOrigen(f) {
+  const t = String(f || '').toLowerCase();
+  if (/statement/.test(t)) return 'del statement';
+  if (/captura/.test(t))   return 'de una foto';
+  if (/ocr/.test(t))       return 'de una foto';
+  if (/manual/.test(t))    return 'cargado a mano';
+  return f ? String(f) : 'sin origen';
 }
 
 /** 2026-08-29 → 29 de agosto de 2026 */
