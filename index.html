@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.7 | 2026-08-28 ARG - CC con los correos de la casa como casillas (amelife ya tildado, ezzy a un clic) en los cinco envios; atraso en meses; cotizacion instantanea -->
+<!-- AMELIFE EMS Technologies - Web App v9.8 | 2026-08-29 ARG - Facturas AME no se vacia sola (respuesta vacia teniendo datos se descarta y se reintenta); Clientes con un solo campo Nombre/Empresa y el modal abre en blanco al crear; boton Actualizar en la barra superior -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1695,6 +1695,7 @@
       <div class="topbar-right">
         <span class="topbar-date" id="topbarDate"></span>
         <div class="notif-btn" title="Notificaciones"><i class="i3d i3d-notificacion"></i></div>
+        <div class="notif-btn" title="Actualizar esta pantalla" onclick="refrescarPanel(this)"><i class="i3d i3d-actualizar"></i></div>
         <div class="notif-btn" title="Configuración" onclick="abrirConfig()"><i class="i3d i3d-config"></i></div>
         <div id="themeBtn" onclick="cycleTheme()" title="Cambiar tema"></div>
         <div id="tnUsuario">
@@ -1812,7 +1813,7 @@
                   <b>Agregar Ítem</b>
                   <span>Al inventario</span>
                 </div>
-                <div class="qa-btn" onclick="showPanel('clientes',null); openModal('modalCliente')">
+                <div class="qa-btn" onclick="showPanel('clientes',null); nuevoCliente()">
                   <div class="qa-icon"><i class="i3d i3d-clientes"></i></div>
                   <b>Nuevo Cliente</b>
                   <span>Autoguardado</span>
@@ -2031,7 +2032,7 @@
           </div>
           <button class="btn btn-outline" onclick="abrirImportCSV()"><i class="i3d i3d-facturas"></i> Importar CSV</button>
           <button class="btn btn-outline" onclick="toggleClientSelect()" id="btnSelectMode">☑ Seleccionar</button>
-          <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
+          <button class="btn btn-primary" onclick="nuevoCliente()">+ Nuevo cliente</button>
         </div>
 
         <div class="cliv-pie">
@@ -2518,8 +2519,14 @@
       <button class="modal-close" onclick="closeModal('modalCliente')">✕</button>
     </div>
     <div class="modal-grid">
-      <div class="field"><label>Nombre</label><input type="text" id="cliNombre" class="en-mayus" placeholder="NOMBRE DE LA EMPRESA" oninput="aMayus(this)" /></div>
-      <div class="field"><label>Empresa / Institución</label><input type="text" id="cliEmpresa" class="en-mayus" placeholder="NOMBRE DE LA ORGANIZACIÓN" oninput="aMayus(this)" /></div>
+      <!-- UN SOLO CAMPO, NO DOS.
+           La planilla tiene Nombre y Empresa, pero en 277 de 285 fichas
+           decian exactamente lo mismo, y la proforma imprime
+           `empresa || nombre`: dos campos para un solo dato era la forma
+           de que la razon social le saliera mal al cliente.
+           La columna Empresa sigue existiendo -la leen la proforma y las
+           ordenes- pero se guarda espejando a Nombre. Ver 34_LimpiarEmpresa.gs. -->
+      <div class="field" style="grid-column:1/-1"><label>Nombre / Empresa</label><input type="text" id="cliNombre" class="en-mayus" placeholder="NOMBRE DE LA EMPRESA O DE LA PERSONA" oninput="aMayus(this)" /></div>
       <div class="field"><label>Email</label><input type="email" id="cliEmail" placeholder="email@cliente.com" /></div>
       <div class="field"><label>Teléfono / WhatsApp</label><input type="text" id="cliTel" placeholder="+1 305 XXX XXXX" /></div>
       <!-- Campo con lista: escribís dos letras y filtra, pero también
@@ -5972,17 +5979,59 @@ function famSincronizarCliente(data) {
 }
 
 // ── Carga y filtros ───────────────────────────────────────
+/**
+ * Cuantas veces seguidas se reintento por venir vacia. Se vuelve a
+ * false apenas llega una respuesta creible.
+ */
+var FAM_REINTENTO = false;
+
+/**
+ * Trae las facturas AME, blindada contra los tropiezos del viaje.
+ *
+ * DOS COSAS QUE ANTES DEJABAN LA TABLA EN CERO
+ *
+ *  1. UN ERROR NO BORRA LO QUE YA ESTABA. Si la tabla ya tenia
+ *     facturas dibujadas y el pedido falla, se dejan y se avisa. El
+ *     cartel "No se pudieron cargar" queda solo para la primera
+ *     carga, cuando no hay nada que conservar.
+ *
+ *  2. UNA RESPUESTA VACIA TENIENDO DATOS ES SOSPECHOSA. Nadie borra
+ *     todas las facturas entre dos clics: es el viaje que volvio mal.
+ *     Se conserva lo que habia y se reintenta una vez. Si la segunda
+ *     tambien viene vacia, se acepta: puede ser que de verdad no
+ *     quede ninguna.
+ *
+ * Es el mismo criterio de `conCache`, que es lo que blinda a las
+ * demas tablas. Facturas AME era la unica que no lo tenia.
+ */
 function famCargar(forzar) {
   if (FAM_STATE.cargado && !forzar) { famFiltrar(); return; }
-  const tb = document.getElementById('famBody');
-  if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr>';
+  const tb    = document.getElementById('famBody');
+  const tenia = !!(FAM_STATE.lista && FAM_STATE.lista.length);
+
+  // Con datos en pantalla no se pone "Cargando...": el refresco pasa
+  // por atras y la tabla no parpadea en blanco.
+  if (tb && !tenia) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando\u2026</td></tr>';
+
   api('getFacturasAME').then(r => {
     if (!r || !r.ok) {
       showToast((r && r.error) || 'No pude cargar las facturas', 'error');
+      if (tenia) { famFiltrar(); return; }          // se deja lo que habia
       if (tb) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">No se pudieron cargar</td></tr>';
       return;
     }
-    FAM_STATE.lista = r.data || [];
+
+    const lista = r.data || [];
+
+    if (!lista.length && tenia && !FAM_REINTENTO) {
+      FAM_REINTENTO = true;
+      setTimeout(function() { FAM_REINTENTO = false; famCargar(true); }, 1200);
+      famFiltrar();                                 // se queda lo de antes
+      return;
+    }
+    FAM_REINTENTO = false;
+
+    FAM_STATE.lista   = lista;
     FAM_STATE.cargado = true;
     famFiltrar();
   });
@@ -8238,9 +8287,13 @@ function filterClientes() {
 }
 
 function saveCliente() {
+  const nombre = document.getElementById('cliNombre').value.trim();
   const data = {
-    nombre:  document.getElementById('cliNombre').value.trim(),
-    empresa: document.getElementById('cliEmpresa').value.trim(),
+    nombre:  nombre,
+    // Empresa ya no se pide: se guarda igual que Nombre. La columna
+    // sigue en la planilla porque la leen la proforma y las ordenes,
+    // pero deja de ser un dato que se pueda contradecir con el otro.
+    empresa: nombre,
     email:   document.getElementById('cliEmail').value.trim(),
     tel:     document.getElementById('cliTel').value.trim(),
     pais:    document.getElementById('cliPais').value,
@@ -8271,14 +8324,91 @@ function saveCliente() {
   });
 }
 
+/** El encabezado del modal dice si estas creando o editando. */
+function cliModalTitulo(txt) {
+  const t = document.querySelector('#modalCliente .modal-title');
+  if (t) t.innerHTML = '<i class="i3d i3d-clientes"></i> ' + txt;
+}
+
+/**
+ * Abre el modal de cliente EN BLANCO.
+ *
+ * POR QUE NO ALCANZA CON openModal
+ *   El modal se reusa para crear y para editar, y lo que distingue un
+ *   caso del otro es `dataset.editId`. Como solo se limpiaba al
+ *   guardar con exito, si abrias una ficha y cerrabas con Cancelar,
+ *   el proximo "+ Nuevo cliente" salia con el editId de la anterior:
+ *   guardar no creaba nada, pisaba ese cliente. Ademas quedaban los
+ *   datos viejos escritos en los campos.
+ */
+function nuevoCliente() {
+  ['cliNombre','cliEmail','cliTel','cliPais','cliCiudad',
+   'cliNotas','cliRuc','cliDirFiscal'].forEach(id => {
+    const e = document.getElementById(id);
+    if (e) e.value = '';
+  });
+  const m = document.getElementById('modalCliente');
+  if (m) m.dataset.editId = '';
+  cliModalTitulo('Nuevo cliente');
+  openModal('modalCliente');
+}
+
+/**
+ * Vuelve a pedir los datos de la pantalla que estas mirando.
+ *
+ * NO TOCA LA SESION. Es lo que antes se conseguia con F5, que ademas
+ * de recargar te devolvia al login y te hacia perder lo que tuvieras
+ * abierto a medio cargar.
+ *
+ * Cada modulo ya sabe recargarse solo: aca unicamente se elige a quien
+ * llamar segun el panel activo. Antes se vacia la cache, porque si no
+ * el pedido vuelve con el mismo listado que ya estabas viendo -que es
+ * justo lo que se quiere evitar al apretar Actualizar-.
+ */
+function refrescarPanel(btn) {
+  const act = document.querySelector('.panel.active');
+  const id  = act ? act.id.replace('panel-', '') : '';
+
+  if (typeof cacheInvalidar === 'function') cacheInvalidar();
+
+  const cargadores = {
+    dashboard:    () => loadDashboard(),
+    cotizaciones: () => cotCargar(true),
+    ordenes:      () => ocCargar(true),
+    trackings:    () => trkCargar(true),
+    facturasame:  () => famCargar(true),
+    datos:        () => notCargar(true),
+    warehouse:    () => loadWHItems(),
+    inventario:   () => loadAllData(),
+    pricebook:    () => loadAllData(),
+    clientes:     () => api('getClientes').then(r => {
+                    if (r.ok) { CLIENTES = r.data; renderClientes(); }
+                  })
+  };
+
+  const f = cargadores[id];
+  if (typeof f !== 'function') {
+    showToast('Esta pantalla no tiene datos para actualizar', 'info');
+    return;
+  }
+
+  // El icono gira mientras dura el pedido: sin eso, en una pantalla que
+  // ya tiene datos el clic no se nota y se termina apretando de nuevo.
+  if (btn) {
+    btn.classList.add('girando');
+    setTimeout(() => btn.classList.remove('girando'), 1200);
+  }
+  f();
+}
+
 function openEditCliente(id) {
   // Ojo: si venís de una búsqueda, el cliente NO está en CLIENTES —
   // los resultados del Sheet son objetos aparte. Buscarlo sólo ahí
   // hacía que el botón no abriera nada.
   const c = clivObjs(id)[0];
   if (!c) { showToast('No encontré ese cliente', 'error'); return; }
+  cliModalTitulo('Editar cliente');
   document.getElementById('cliNombre').value  = c.nombre;
-  document.getElementById('cliEmpresa').value = c.empresa;
   document.getElementById('cliEmail').value   = c.email;
   document.getElementById('cliTel').value     = c.tel;
   document.getElementById('cliPais').value    = c.pais;
@@ -12536,6 +12666,9 @@ function cotIAQuitarAdjunto(i) {
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* El icono del boton Actualizar mientras se pide de nuevo */
+.notif-btn.girando .i3d { animation: spin 0.9s linear infinite; }
 </style>
 
 </body>
