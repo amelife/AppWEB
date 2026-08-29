@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.6 | 2026-08-29 ARG - Bancos: una sola forma de cargar (statements y fotos, todo automatico por numero de cuenta); fuera los modales con desplegable de cuenta; un renglon por banco con su fecha y origen -->
+<!-- AMELIFE EMS Technologies - Web App v11.8 | 2026-08-29 ARG - Bancos: se arrastran los archivos al modal; fecha de actualizacion clara en cada cuenta; el desglose por cuenta ahora si se muestra; la tabla de cuentas dice Si/No en vez de iconos confusos -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3032,12 +3032,16 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
       abajo ves qu&eacute; entendi&oacute;: <b>no se guarda nada</b> hasta que aprietes Guardar.
     </p>
 
-    <div class="cfg-fila" style="margin:10px 0 16px">
-      <button class="btn btn-primary" onclick="document.getElementById('stmFile').click()">
-        <i class="i3d i3d-adjunto"></i> Elegir archivos</button>
+    <div id="stmZona" onclick="document.getElementById('stmFile').click()"
+         style="border:2px dashed var(--green);border-radius:10px;padding:26px 20px;text-align:center;
+                background:var(--card2);cursor:pointer;transition:all .2s;margin:10px 0 12px">
+      <div style="font-size:30px;margin-bottom:4px"><i class="i3d i3d-adjunto"></i></div>
+      <div style="color:var(--text);font-weight:600">Arrastr&aacute; los archivos ac&aacute; o toc&aacute; para elegirlos</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:5px">
+        Statements en PDF y fotos de las apps &middot; se pueden soltar varios juntos</div>
       <input type="file" id="stmFile" accept=".pdf,image/*" multiple style="display:none" onchange="stmElegir(event)">
-      <span id="stmProgreso" style="margin-left:12px;color:var(--muted);font-size:13px"></span>
     </div>
+    <div id="stmProgreso" style="color:var(--muted);font-size:13px;margin-bottom:12px"></div>
 
     <div id="stmResultado"></div>
 
@@ -7271,8 +7275,48 @@ async function bcoResEnviar() {
 
 var STM_COLA = { pendientes: [], total: 0, filas: [] };
 
+/**
+ * Deja la caja lista para recibir archivos arrastrados.
+ *
+ * Se engancha una sola vez: el modal se abre y se cierra muchas veces
+ * y volver a suscribir en cada apertura apilaría un handler por vez,
+ * así que un mismo archivo se leería varias veces.
+ *
+ * `dragover` tiene que cancelar el evento sí o sí: sin eso el
+ * navegador abre el PDF en una pestaña en vez de entregárnoslo.
+ */
+var STM_ZONA_LISTA = false;
+
+function stmZonaEnganchar() {
+  const z = document.getElementById('stmZona');
+  if (!z || STM_ZONA_LISTA) return;
+  STM_ZONA_LISTA = true;
+
+  const prender = e => {
+    e.preventDefault(); e.stopPropagation();
+    z.style.background = 'var(--green-glow)';
+    z.style.borderColor = 'var(--green)';
+  };
+  const apagar = e => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    z.style.background = 'var(--card2)';
+    z.style.borderColor = 'var(--green)';
+  };
+
+  ['dragenter', 'dragover'].forEach(ev => z.addEventListener(ev, prender));
+  ['dragleave', 'dragend'].forEach(ev => z.addEventListener(ev, apagar));
+
+  z.addEventListener('drop', e => {
+    e.preventDefault(); e.stopPropagation();
+    apagar();
+    const files = [].slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+    if (files.length) stmProcesar(files);
+  });
+}
+
 function stmAbrir() {
   STM_COLA = { pendientes: [], total: 0, filas: [] };
+  stmZonaEnganchar();
   document.getElementById('stmResultado').innerHTML = '';
   document.getElementById('stmProgreso').textContent = '';
   document.getElementById('stmBtnGuardar').style.display = 'none';
@@ -7282,12 +7326,21 @@ function stmAbrir() {
 function stmElegir(ev) {
   var files = [].slice.call(ev.target.files || []);
   ev.target.value = '';
-  if (!files.length) return;
+  stmProcesar(files);
+}
+
+/** Arrancar la cola. Da igual si vinieron del botón o arrastrados. */
+function stmProcesar(files) {
+  files = (files || []).filter(function(f) {
+    return /pdf$/i.test(f.type) || /^image\//.test(f.type) || /\.pdf$/i.test(f.name);
+  });
+  if (!files.length) { showToast('Eso no es un PDF ni una imagen', 'error'); return; }
 
   STM_COLA.pendientes = files;
   STM_COLA.total = files.length;
   STM_COLA.filas = [];
   document.getElementById('stmResultado').innerHTML = '';
+  document.getElementById('stmBtnGuardar').style.display = 'none';
   stmSiguiente();
 }
 
@@ -11273,7 +11326,9 @@ function bancosPintarAhora(r) {
       '<b style="color:var(--text);min-width:52px">' + cotEsc(nombre) + '</b>' +
       '<span>actualizado el <b style="color:var(--text)">' +
         cotEsc(bancosFechaLinda(masNueva.ultimaFecha)) + '</b>' +
-        ' · ' + cotEsc(bancosOrigen(masNueva.ultimaFuente)) +
+        (bancosOrigen(masNueva.ultimaFuente)
+          ? ' · ' + cotEsc(bancosOrigen(masNueva.ultimaFuente))
+          : '') +
         (atrasadas.length
           ? ' <span style="color:var(--warning)">— ' +
             atrasadas.map(c => cotEsc(c.cuenta) + ' al ' + cotEsc(bancosFechaLinda(c.ultimaFecha))).join(', ') +
@@ -11289,14 +11344,16 @@ function bancosPintarAhora(r) {
     : '');
 }
 
-/** De dónde salió el saldo, dicho en criollo. */
+/**
+ * De dónde salió el saldo.
+ *
+ * Sólo se aclara cuando viene de un statement, que es el dato con
+ * respaldo. Lo demás no se nombra: aclarar "de una foto" en cada
+ * renglón ensuciaba la pantalla sin agregar nada — si no dice
+ * statement, es la lectura del día.
+ */
 function bancosOrigen(f) {
-  const t = String(f || '').toLowerCase();
-  if (/statement/.test(t)) return 'del statement';
-  if (/captura/.test(t))   return 'de una foto';
-  if (/ocr/.test(t))       return 'de una foto';
-  if (/manual/.test(t))    return 'cargado a mano';
-  return f ? String(f) : 'sin origen';
+  return /statement/i.test(String(f || '')) ? 'statement' : '';
 }
 
 /** 2026-08-29 → 29 de agosto de 2026 */
@@ -11416,13 +11473,20 @@ function bancosRenderGrid() {
       </div>
       <div style="padding:8px 16px 16px;">
         ${b.cuentas.map(c => {
-          const desglose = (c.ultimoDesglose || []).filter(d => d && d.label);
+          // El desglose venía filtrado por `d.label`, pero los lectores
+          // escriben `etiqueta`: nunca se mostraba ninguno.
+          const desglose = (c.ultimoDesglose || []).filter(d => d && (d.etiqueta || d.label));
+          const vieja = c.ultimaFecha && c.ultimaFecha < (r.detalle || [])
+            .map(x => x.ultimaFecha).filter(Boolean).sort().slice(-1)[0];
           return `
           <div style="padding:10px 0;border-bottom:1px dashed var(--border2);">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div style="min-width:0;flex:1;">
                 <div style="font-size:14px;color:var(--text);font-weight:600;">${c.cuenta}</div>
-                <div style="font-size:11px;color:var(--muted);">${c.titular || ''}${c.ultimaFecha ? ' · Actualizado '+c.ultimaFecha : ' · Sin datos'}</div>
+                <div style="font-size:11px;color:var(--muted);">${c.titular || ''}</div>
+                <div style="font-size:11.5px;margin-top:3px;font-weight:600;color:${c.ultimaFecha ? (vieja ? 'var(--warning)' : 'var(--green)') : 'var(--danger)'};">
+                  ${c.ultimaFecha ? 'al ' + bcoFecha(c.ultimaFecha) + (/statement/i.test(c.ultimaFuente || '') ? ' · statement' : '') : 'sin datos'}
+                </div>
               </div>
               <div style="font-size:15px;font-weight:700;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:10px;">${bancosFmt(c.ultimoSaldo)}</div>
             </div>
@@ -11431,7 +11495,7 @@ function bancosRenderGrid() {
                 <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Desglose (informativo)</div>
                 ${desglose.map(d => `
                   <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--muted);">
-                    <span>${d.label}</span>
+                    <span>${d.etiqueta || d.label}</span>
                     <span style="font-weight:600;color:var(--text);">${bancosFmt(d.monto||0)}</span>
                   </div>
                 `).join('')}
@@ -12006,9 +12070,15 @@ async function bancosRenderGestion() {
       <td>${b.titular||''}</td>
       <td>${b.tipo||''}</td>
       <td>${b.moneda||'USD'}</td>
-      <td style="text-align:center;">${b.activo ? '<i class="i3d i3d-ok"></i>' : '<i class="i3d i3d-error"></i>'}</td>
+      <!-- Antes esta columna dibujaba un icono i3d que no se veía, y al
+           lado el botón mostraba 🚫 cuando la cuenta estaba ACTIVA
+           —porque el botón sirve para desactivarla—. Leído de corrido
+           parecía que la cuenta estaba bloqueada. Ahora el estado se
+           escribe con todas las letras y el botón dice qué hace. -->
+      <td style="text-align:center;font-weight:700;color:${b.activo ? 'var(--green)' : 'var(--muted)'};">
+        ${b.activo ? 'Sí' : 'No'}</td>
       <td style="text-align:center;">
-        <button class="tbl-action" onclick="bancosToggleActivo('${b.id}', ${!b.activo})" title="${b.activo?'Desactivar':'Activar'}">${b.activo?'🚫':'✔️'}</button>
+        <button class="tbl-txt" onclick="bancosToggleActivo('${b.id}', ${!b.activo})">${b.activo?'Desactivar':'Activar'}</button>
         <button class="tbl-txt peligro" onclick="bancosEliminarCuenta('${b.id}')" title="Eliminar">Borrar</button>
       </td>
     </tr>
