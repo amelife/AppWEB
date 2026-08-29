@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.0 | 2026-08-29 ARG - Bancos rehecho: Disponible vs Invertido, carga de statements PDF de a varios, grafico por cuenta y por mes; historico real 2024-2026 desde los statements; version de telefono; la app siempre avisa que esta haciendo -->
+<!-- AMELIFE EMS Technologies - Web App v11.1 | 2026-08-29 ARG - Bancos: grafico de 3 lineas (IFB, Safra, todo junto) y SOLO con statements; disponible separado por banco; banda grande de ultima actualizacion; resumen de saldos por correo y WhatsApp; carga de statements de a varios -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2418,6 +2418,7 @@
         <div id="bancosContent" style="display:none;">
           <div class="panel-actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
             <button class="btn btn-primary" onclick="stmAbrir()"><i class="i3d i3d-adjunto"></i> Subir statements</button>
+            <button class="btn btn-outline" onclick="bcoResAbrir()"><i class="i3d i3d-enviar"></i> Enviar resumen</button>
             <button class="btn btn-outline" onclick="bancosAbrirOCR()"><i class="i3d i3d-cotizaciones"></i> Subir Extracto (OCR)</button>
             <button class="btn btn-outline" onclick="bancosAbrirManual()"><i class="i3d i3d-editar"></i> Cargar Manual</button>
             <button class="btn btn-outline" onclick="bancosAbrirGestion()"><i class="i3d i3d-config"></i> Gestionar Cuentas</button>
@@ -2425,20 +2426,26 @@
             <button class="btn btn-outline" onclick="lockBancos()" style="margin-left:auto;"><i class="i3d i3d-candado"></i> Bloquear</button>
           </div>
 
+          <!-- LA FOTO DE HOY.
+               Va arriba y grande porque es el número que se mira al
+               entrar: cuánto hay ahora mismo. Sale del último dato de
+               cada cuenta, venga de un statement o de una captura. -->
+          <div id="bancosAhora" style="background:var(--card);border:1px solid var(--border2);
+               border-left:5px solid var(--green);border-radius:var(--radius);
+               padding:16px 20px;margin-bottom:16px;">
+            <div style="font-family:var(--cond);font-size:12px;font-weight:700;letter-spacing:1.4px;
+                        text-transform:uppercase;color:var(--muted)">Última actualización</div>
+            <div id="bancosAhoraFecha" style="font-size:34px;font-weight:800;letter-spacing:-.02em;
+                 line-height:1.15;margin:2px 0 4px">—</div>
+            <div id="bancosAhoraFuente" style="font-size:13px;color:var(--muted)">Sin datos cargados</div>
+          </div>
+
           <!-- Total consolidado + stats -->
           <div class="stats-grid" style="margin-bottom:16px;">
-            <!-- Disponible e invertido van separados a propósito: sumados
-                 dan un número grande que no dice con cuánto se cuenta. -->
-            <div class="stat-card">
-              <div class="stat-label">Disponible</div>
-              <div class="stat-value" id="bancosDisponible" style="color:var(--green);font-size:28px;">$0.00</div>
-              <div class="stat-sub" id="bancosDispSub">efectivo en las cuentas</div>
-            </div>
-            <div class="stat-card info">
-              <div class="stat-label">Invertido</div>
-              <div class="stat-value" id="bancosInvertido" style="color:var(--info);font-size:28px;">$0.00</div>
-              <div class="stat-sub" id="bancosInvSub">bonos, acciones y fondos</div>
-            </div>
+            <!-- Una caja POR BANCO. Sumar el disponible de los dos daba
+                 un número que no sirve para decidir nada: la plata de
+                 IFB y la de Safra no son intercambiables. -->
+            <div id="bancosCajasBanco" style="display:contents"></div>
             <div class="stat-card">
               <div class="stat-label">Total Consolidado (USD)</div>
               <div class="stat-value" id="bancosTotalUSD" style="color:var(--text);font-size:24px;">$0.00</div>
@@ -2447,11 +2454,6 @@
                 style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--green);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">
                 👁 Ver detalle completo
               </button>
-            </div>
-            <div class="stat-card info">
-              <div class="stat-label">Última actualización</div>
-              <div class="stat-value" id="bancosUltimaFecha" style="color:var(--info);font-size:22px;">—</div>
-              <div class="stat-sub" id="bancosUltimaFuente">Sin cargas</div>
             </div>
           </div>
 
@@ -2466,10 +2468,6 @@
 
           <!-- Grid de cuentas agrupadas por banco -->
           <div id="bancosGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px;"></div>
-
-          <!-- Qué cuentas entran en el gráfico. Van casillas y no un
-               desplegable porque lo normal es comparar dos o tres. -->
-          <div id="bancosCuentasSel" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;"></div>
 
           <!-- Gráfico de evolución -->
           <div class="card">
@@ -2962,6 +2960,48 @@
       <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="closeModal('modalFamResumen')">Cancelar</button>
       <button class="btn btn-primary" id="famResBtn" onclick="famEnviarResumen()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: resumen de la foto de hoy.
+     Es lo que hay AHORA, no la evolución: los gráficos cuentan otra
+     historia y no entran acá. -->
+<div class="modal-overlay" id="modalBcoResumen" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:780px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title"><i class="i3d i3d-bancos"></i> Resumen de saldos</div>
+      <button class="modal-close" onclick="closeModal('modalBcoResumen')">&#10005;</button>
+    </div>
+
+    <div class="cfg-fila" style="margin-bottom:4px">
+      <input type="checkbox" id="bcoResDetalle" checked onchange="bcoResPreview()">
+      <label for="bcoResDetalle">Incluir el desglose de cada cuenta</label>
+    </div>
+
+    <div class="cfg-seccion">As&iacute; se va a ver</div>
+    <div class="msg-prev" id="bcoResPrev"></div>
+
+    <div class="cfg-seccion">Mandarlo por correo</div>
+    <div class="field">
+      <label>Para</label>
+      <input type="email" id="bcoResPara" placeholder="amelife@amelife-911.com">
+    </div>
+    <div class="cc-caja" id="bcoResCcCaja"></div>
+    <div class="field">
+      <label>Asunto</label>
+      <input type="text" id="bcoResAsunto">
+    </div>
+    <div class="field">
+      <label>Nota arriba del cuadro <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+      <textarea id="bcoResNota" rows="3" style="width:100%;padding:12px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.6;outline:none;resize:vertical" oninput="bcoResPreview()"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="bcoResWhatsApp()"><i class="i3d i3d-telefono"></i> Copiar para WhatsApp</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalBcoResumen')">Cancelar</button>
+      <button class="btn btn-primary" id="bcoResBtn" onclick="bcoResEnviar()"><i class="i3d i3d-enviar"></i> Enviar por correo</button>
     </div>
   </div>
 </div>
@@ -6974,6 +7014,241 @@ async function famPendEnviar() {
 }
 
 // ============================================
+//  RESUMEN DE SALDOS · por correo y por WhatsApp
+//
+//  Es la FOTO DE HOY, no la evolución. El gráfico cuenta cómo se llegó
+//  hasta acá; esto dice cuánto hay ahora y en qué cuenta está. Son dos
+//  preguntas distintas y mezclarlas en un mensaje no ayuda a ninguna.
+// ============================================
+
+function bcoResDatos() {
+  const r = BANCOS_STATE.resumen || {};
+  const det = (r.detalle || []).filter(d => d.ultimaFecha);
+
+  const fechas = det.map(d => d.ultimaFecha).sort();
+  const bancos = (r.porBanco || []).map(b => ({
+    banco: b.banco,
+    disponible: b.disponible || 0,
+    invertido:  b.invertido  || 0,
+    resta:      b.resta      || 0,
+    total:      b.totalUSD   || 0,
+    cuentas: (b.cuentas || []).filter(c => c.ultimaFecha).map(c => ({
+      cuenta: c.cuenta,
+      saldo:  c.ultimoSaldo,
+      fecha:  c.ultimaFecha,
+      fuente: c.ultimaFuente || '',
+      disponible: (c.clases ? c.clases.liquido - c.clases.resta : 0),
+      invertido:  (c.clases ? c.clases.invertido : 0),
+      desglose:   c.ultimoDesglose || []
+    }))
+  })).filter(b => b.cuentas.length);
+
+  return {
+    bancos: bancos,
+    disponible: r.disponible || 0,
+    invertido:  r.invertido  || 0,
+    resta:      r.resta      || 0,
+    total:      r.totalUSD   || 0,
+    alDia:   fechas.length ? fechas[fechas.length - 1] : '',
+    masVieja: fechas.length ? fechas[0] : '',
+    fuentes: r.fuentes || []
+  };
+}
+
+/** 2026-07-31 → 31/07/2026, que es como se leen las fechas acá. */
+function bcoFecha(f) {
+  const m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(f || '—');
+}
+
+/** El monto de una línea del desglose, se llame como se llame. */
+function bcoMonto(l) {
+  const v = (l.monto !== undefined) ? l.monto
+          : (l.saldo !== undefined) ? l.saldo : l.saldoSugerido;
+  return Math.abs(Number(v) || 0);
+}
+
+function bcoResHTML(d, nota) {
+  const conDetalle = document.getElementById('bcoResDetalle');
+  const verDesglose = !conDetalle || conDetalle.checked;
+  const BD = 'border-bottom:1px solid #E8ECF0';
+
+  const caja = (rot, monto, color, ancho, pie) =>
+    '<td width="' + ancho + '" valign="top" style="padding:0 8px 8px 0">' +
+      '<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;' +
+        'border:1px solid #E8ECF0;border-left:4px solid ' + color + '">' +
+        '<tr><td style="padding:10px 13px">' +
+          '<div style="font-size:10.5px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;' +
+            'color:#7A8590;padding-bottom:5px">' + cotEsc(rot) + '</div>' +
+          '<div style="font-size:19px;font-weight:bold;color:' + color + ';white-space:nowrap">US$ ' +
+            bancosFmt(monto).replace('$', '') + '</div>' +
+          (pie ? '<div style="font-size:11.5px;color:#7A8590;padding-top:3px">' + cotEsc(pie) + '</div>' : '') +
+        '</td></tr></table></td>';
+
+  // Una caja de disponible por banco: es el número con el que se decide.
+  let cajas = '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+    d.bancos.map(b => caja('Disponible · ' + b.banco, b.disponible, '#3B8A28',
+      Math.floor(100 / Math.max(d.bancos.length, 1)) + '%',
+      b.invertido > 0 ? 'invertido US$ ' + bancosFmt(b.invertido).replace('$', '') : '')).join('') +
+    '</tr></table>' +
+    '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+      caja('Disponible total', d.disponible, '#3B8A28', '33%', '') +
+      caja('Invertido', d.invertido, '#2E75B6', '33%', 'bonos, acciones y fondos') +
+      caja('Todo junto', d.total, '#1C2A3D', '33%', '') +
+    '</tr></table>';
+
+  const filas = d.bancos.map(b =>
+    '<tr><td colspan="4" style="background:#1C2A3D;padding:8px 11px">' +
+      '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+        '<td style="color:#ffffff;font-weight:bold;font-size:12.5px">' + cotEsc(b.banco) + '</td>' +
+        '<td align="right" style="color:#8FD16A;font-weight:bold;font-size:12.5px;white-space:nowrap">' +
+          'US$ ' + bancosFmt(b.total).replace('$', '') + '</td>' +
+      '</tr></table></td></tr>' +
+    b.cuentas.map(c =>
+      '<tr>' +
+        '<td style="padding:6px 11px;' + BD + '">' + cotEsc(c.cuenta) +
+          (verDesglose && c.desglose.length
+            ? '<div style="font-size:11px;color:#7A8590;padding-top:2px">' +
+              c.desglose.map(l => cotEsc(l.etiqueta) + ' ' + bancosFmt(bcoMonto(l)).replace('$', '')).join(' · ') +
+              '</div>'
+            : '') + '</td>' +
+        '<td style="padding:6px 11px;' + BD + ';text-align:right;white-space:nowrap;font-weight:bold">US$ ' +
+          bancosFmt(c.saldo).replace('$', '') + '</td>' +
+        '<td style="padding:6px 11px;' + BD + ';text-align:right;white-space:nowrap;color:#3B8A28">' +
+          (c.disponible ? bancosFmt(c.disponible).replace('$', '') : '—') + '</td>' +
+        '<td style="padding:6px 11px;' + BD + ';white-space:nowrap;color:#7A8590;font-size:11.5px">' +
+          cotEsc(bcoFecha(c.fecha)) + '</td>' +
+      '</tr>').join('')
+  ).join('');
+
+  const txtNota = String(nota || '').trim();
+  const mezcla = d.masVieja && d.masVieja !== d.alDia;
+
+  return '' +
+    '<p style="margin:0 0 4px;font-size:13px;color:#7A8590">Saldos al <b style="color:#1C2A3D">' +
+      cotEsc(bcoFecha(d.alDia) || '—') + '</b>' +
+      (mezcla ? ' <span style="color:#C4534D">· hay cuentas al ' + cotEsc(bcoFecha(d.masVieja)) + '</span>' : '') +
+      (d.fuentes.length ? ' · ' + cotEsc(d.fuentes.join(' · ')) : '') + '</p>' +
+    (txtNota ? '<p style="margin:8px 0 14px;font-size:13px">' +
+      cotEsc(txtNota).replace(/\n/g, '<br>') + '</p>' : '<div style="height:10px"></div>') +
+    cajas +
+    '<p style="margin:18px 0 8px;font-weight:bold;font-size:13px">Cuenta por cuenta</p>' +
+    '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;width:100%">' +
+      '<tr style="background:#F0F2F5">' +
+        '<th style="padding:6px 11px;text-align:left;color:#7A8590;font-size:10.5px;letter-spacing:1px">CUENTA</th>' +
+        '<th style="padding:6px 11px;text-align:right;color:#7A8590;font-size:10.5px;letter-spacing:1px">SALDO</th>' +
+        '<th style="padding:6px 11px;text-align:right;color:#7A8590;font-size:10.5px;letter-spacing:1px">DISPONIBLE</th>' +
+        '<th style="padding:6px 11px;text-align:left;color:#7A8590;font-size:10.5px;letter-spacing:1px">AL</th>' +
+      '</tr>' + filas +
+    '</table>';
+}
+
+function bcoResTexto(d, nota) {
+  const conDetalle = document.getElementById('bcoResDetalle');
+  const verDesglose = !conDetalle || conDetalle.checked;
+  const m = n => bancosFmt(n).replace('$', '');
+  const L = ['*AME LIFE 911 · Saldos*', 'Al ' + bcoFecha(d.alDia)];
+
+  if (d.masVieja && d.masVieja !== d.alDia) L.push('(hay cuentas al ' + bcoFecha(d.masVieja) + ')');
+
+  const txtNota = String(nota || '').trim();
+  if (txtNota) { L.push(''); L.push(txtNota); }
+
+  L.push('');
+  d.bancos.forEach(b => {
+    L.push('*Disponible ' + b.banco + ':* US$ ' + m(b.disponible) +
+      (b.invertido > 0 ? '  ·  invertido US$ ' + m(b.invertido) : ''));
+  });
+  L.push('');
+  L.push('*Disponible total:* US$ ' + m(d.disponible));
+  L.push('*Invertido:* US$ ' + m(d.invertido));
+  L.push('*Todo junto:* US$ ' + m(d.total));
+
+  L.push('');
+  L.push('*Cuenta por cuenta*');
+  d.bancos.forEach(b => {
+    L.push('');
+    L.push('*' + b.banco + '* · US$ ' + m(b.total));
+    b.cuentas.forEach(c => {
+      L.push('• ' + c.cuenta + ' · US$ ' + m(c.saldo) + ' · al ' + bcoFecha(c.fecha));
+      if (verDesglose && c.desglose.length) {
+        L.push('   ' + c.desglose.map(l => l.etiqueta + ' ' + m(bcoMonto(l))).join(' · '));
+      }
+    });
+  });
+  return L.join('\n');
+}
+
+function bcoResAbrir() {
+  if (!BANCOS_STATE.resumen) { showToast('Todavía no hay saldos cargados', 'error'); return; }
+  document.getElementById('bcoResNota').value = '';
+  document.getElementById('bcoResPara').value = (CC_PRESETS[0] && CC_PRESETS[0].mail) || '';
+  ccLimpiar('bcoRes');
+
+  const dest = document.getElementById('bcoResPara').value.trim().toLowerCase();
+  CC_PRESETS.forEach((pre, i) => {
+    const c = document.getElementById('bcoResPre' + i);
+    if (c && String(pre.mail).toLowerCase() === dest) c.checked = false;
+  });
+
+  bcoResPreview();
+  openModal('modalBcoResumen');
+}
+
+function bcoResPreview() {
+  const d = bcoResDatos();
+  const caja = document.getElementById('bcoResPrev');
+  if (caja) caja.innerHTML = bcoResHTML(d, document.getElementById('bcoResNota').value);
+
+  const asunto = document.getElementById('bcoResAsunto');
+  if (asunto && (!asunto.value || asunto.dataset.auto !== '0')) {
+    asunto.value = 'Saldos al ' + bcoFecha(d.alDia) + ' · disponible US$ ' + bancosFmt(d.disponible).replace('$', '');
+    asunto.dataset.auto = '1';
+    asunto.oninput = () => { asunto.dataset.auto = '0'; };
+  }
+}
+
+function bcoResWhatsApp() {
+  const d = bcoResDatos();
+  const txt = bcoResTexto(d, document.getElementById('bcoResNota').value);
+  copiarAlPortapapeles(txt, 'Copiado · pegalo en WhatsApp');
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
+async function bcoResEnviar() {
+  const para = document.getElementById('bcoResPara').value.trim();
+  if (!para) { showToast('Poné a quién mandárselo', 'error'); return; }
+
+  const d = bcoResDatos();
+  const nota = document.getElementById('bcoResNota').value;
+  const btn = document.getElementById('bcoResBtn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  let r = null;
+  try {
+    const copia = ccValores('bcoRes');
+    // Se reusa el enviador del resumen de facturas: recibe el HTML ya
+    // armado y lo manda, no sabe ni le importa de qué es.
+    r = await api('resumenPendientesAME', {
+      para: para, cc: copia.cc, cco: copia.cco,
+      asunto: document.getElementById('bcoResAsunto').value.trim(),
+      html:   bcoResHTML(d, nota),
+      texto:  bcoResTexto(d, nota)
+    }, false, 120000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="i3d i3d-enviar"></i> Enviar por correo';
+  }
+
+  if (!r || !r.ok) {
+    showToast((r && r.error) || 'No se pudo enviar', r && r.timeout ? 'info' : 'error');
+    return;
+  }
+  closeModal('modalBcoResumen');
+  showToast('Resumen enviado a ' + r.data.enviado_a, 'success');
+}
+
+// ============================================
 //  CARGA DE STATEMENTS
 //
 //  De a uno y en fila, igual que la cola de facturas en PDF: cada
@@ -10887,39 +11162,104 @@ function bancosRenderTotal() {
   if (!r) {
     document.getElementById('bancosTotalUSD').textContent = '$0.00';
     document.getElementById('bancosTotalSub').textContent = '—';
-    document.getElementById('bancosUltimaFecha').textContent = '—';
-    document.getElementById('bancosUltimaFuente').textContent = 'Sin cargas';
+    bancosPintarAhora({ detalle: [] });
     return;
   }
-  document.getElementById('bancosTotalUSD').textContent  = bancosFmt(r.totalUSD);
-  document.getElementById('bancosDisponible').textContent = bancosFmt(r.disponible || 0);
-  document.getElementById('bancosInvertido').textContent  = bancosFmt(r.invertido || 0);
-
-  // Las LCs no son plata: se avisa cuánto se descontó por ellas.
-  const sub = document.getElementById('bancosDispSub');
-  if (sub) {
-    sub.textContent = (r.resta > 0)
-      ? 'efectivo · ya descontadas LCs por ' + bancosFmt(r.resta)
-      : 'efectivo en las cuentas';
-  }
+  document.getElementById('bancosTotalUSD').textContent = bancosFmt(r.totalUSD);
+  bancosPintarBancos(r);
   const cuentasConSaldo = (r.detalle || []).filter(d => d.ultimoSaldo > 0).length;
   const totalCuentas    = (r.detalle || []).length;
   document.getElementById('bancosTotalSub').textContent =
     cuentasConSaldo + '/' + totalCuentas + ' cuentas con saldo · ' + (r.porBanco||[]).length + ' bancos';
 
-  // Última fecha cargada
-  const fechas = (r.detalle || []).map(d => d.ultimaFecha).filter(f => f);
-  const maxFecha = fechas.length ? fechas.sort().slice(-1)[0] : '—';
-  document.getElementById('bancosUltimaFecha').textContent = maxFecha;
-
-  const fuentes = (r.detalle || []).filter(d => d.ultimaFecha === maxFecha).map(d => d.ultimaFuente);
-  const fuentesUnicas = [...new Set(fuentes.filter(f => f))];
-  document.getElementById('bancosUltimaFuente').textContent = fuentesUnicas.length ? fuentesUnicas.join(' · ') : '—';
+  bancosPintarAhora(r);
 
   // Refrescar detalle si está abierto
   if (document.getElementById('bancosDetallePanel').style.display !== 'none') {
     bancosRenderDetalle();
   }
+}
+
+/**
+ * Una caja por banco, con lo disponible arriba.
+ *
+ * El disponible es el número con el que se decide si se puede pagar
+ * algo, y sólo sirve por banco: los 120 mil de IFB y los 114 mil de
+ * Safra no se pueden juntar para pagar 200. Sumarlos daba un número
+ * grande y sin uso.
+ *
+ * Lo invertido va abajo, chico y por banco también, porque no es
+ * plata con la que se cuente esta semana.
+ */
+function bancosPintarBancos(r) {
+  const caja = document.getElementById('bancosCajasBanco');
+  if (!caja) return;
+
+  const bancos = (r.porBanco || []).slice()
+    .sort((a, b) => (b.disponible || 0) - (a.disponible || 0));
+
+  if (!bancos.length) { caja.innerHTML = ''; return; }
+
+  caja.innerHTML = bancos.map(b => {
+    const cuentas = (b.cuentas || []).length;
+    const inv = b.invertido || 0;
+    return '<div class="stat-card">' +
+      '<div class="stat-label">Disponible · ' + cotEsc(b.banco) + '</div>' +
+      '<div class="stat-value" style="color:var(--green);font-size:26px">' +
+        bancosFmt(b.disponible || 0) + '</div>' +
+      '<div class="stat-sub">' +
+        cuentas + (cuentas === 1 ? ' cuenta' : ' cuentas') +
+        (b.resta > 0 ? ' · ya restadas LCs por ' + bancosFmt(b.resta) : '') +
+        (inv > 0 ? '<br><span style="color:var(--info)">invertido ' + bancosFmt(inv) + '</span>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/**
+ * La banda de arriba: a qué fecha corresponden los números.
+ *
+ * Se muestra la fecha MÁS VIEJA de las últimas de cada cuenta, no la
+ * más nueva. Si Safra está al 31 de julio y las IFB al 29 de agosto,
+ * el total no es "de agosto": es una mezcla, y la parte más atrasada
+ * es la que manda. Decir agosto sería decir que el número está más
+ * fresco de lo que está.
+ */
+function bancosPintarAhora(r) {
+  const caja = document.getElementById('bancosAhoraFecha');
+  const pie  = document.getElementById('bancosAhoraFuente');
+  if (!caja) return;
+
+  const conDato = (r.detalle || []).filter(d => d.ultimaFecha);
+  if (!conDato.length) {
+    caja.textContent = '—';
+    pie.textContent = 'Todavía no cargaste ningún saldo';
+    return;
+  }
+
+  const fechas = conDato.map(d => d.ultimaFecha).sort();
+  const vieja  = fechas[0], nueva = fechas[fechas.length - 1];
+
+  caja.textContent = bancosFechaLinda(nueva);
+
+  // Qué cuentas quedaron atrás, para que no pase inadvertido.
+  const atrasadas = conDato.filter(d => d.ultimaFecha < nueva);
+  const fuentes   = [...new Set(conDato.map(d => d.ultimaFuente).filter(f => f))];
+
+  let txt = fuentes.length ? fuentes.join(' · ') : 'sin origen';
+  if (atrasadas.length) {
+    txt += ' — pero ' + atrasadas.map(d => d.cuenta + ' está al ' + bancosFechaLinda(d.ultimaFecha)).join(', ');
+  }
+  const faltan = (r.detalle || []).length - conDato.length;
+  if (faltan) txt += ' · ' + faltan + (faltan === 1 ? ' cuenta sin datos' : ' cuentas sin datos');
+  pie.textContent = txt;
+}
+
+/** 2026-08-29 → 29 de agosto de 2026 */
+function bancosFechaLinda(f) {
+  const m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(f || '—');
+  return Number(m[3]) + ' de ' + FAM_MES_LARGO[Number(m[2]) - 1] + ' de ' + m[1];
 }
 
 function bancosToggleDetalle() {
@@ -11095,33 +11435,16 @@ function bancosLlenarSelectsCuentas() {
 
 var BANCOS_COLORES = ['#3B8A28', '#2E75B6', '#D9A441', '#C4534D', '#7A5AA8', '#2AA198'];
 
-/** Las casillas de cuentas. Se dibujan una vez y se recuerdan. */
-function bancosPintarCuentas(series) {
-  const caja = document.getElementById('bancosCuentasSel');
-  if (!caja || caja.dataset.listo === '1') return;
-
-  caja.innerHTML = series.map((s, i) =>
-    '<label style="display:flex;align-items:center;gap:6px;cursor:pointer">' +
-      '<input type="checkbox" checked value="' + s.bancoId + '" onchange="bancosCargarEvolucion()">' +
-      '<span style="width:11px;height:11px;border-radius:3px;display:inline-block;background:' +
-        BANCOS_COLORES[i % BANCOS_COLORES.length] + '"></span>' +
-      cotEsc(s.label) +
-    '</label>').join('') +
-    '<button class="btn btn-outline" style="padding:2px 10px;font-size:12px" onclick="bancosTodasCuentas()">Todas</button>';
-  caja.dataset.listo = '1';
-}
-
-function bancosTodasCuentas() {
-  document.querySelectorAll('#bancosCuentasSel input[type=checkbox]').forEach(c => { c.checked = true; });
-  bancosCargarEvolucion();
-}
-
-function bancosCuentasElegidas() {
-  const c = [...document.querySelectorAll('#bancosCuentasSel input[type=checkbox]')];
-  if (!c.length) return null;                 // todavía no se dibujaron: entran todas
-  return c.filter(x => x.checked).map(x => x.value);
-}
-
+/**
+ * Tres líneas y nada más: IFB, Safra y la suma.
+ *
+ * POR QUÉ NO UNA LÍNEA POR CUENTA
+ *   Con cuatro cuentas más el total eran cinco líneas, y dos de ellas
+ *   —las de IFB— viven en otro orden de magnitud: al lado de los tres
+ *   millones de Safra quedaban pegadas al piso, sin poder ver si
+ *   subían o bajaban. Juntando por banco se compara lo que de verdad
+ *   se compara: cuánto hay en cada uno y cuánto entre los dos.
+ */
 async function bancosCargarEvolucion() {
   const selMeses = document.getElementById('bancosRangoEvol');
   const meses = selMeses ? (Number(selMeses.value) || 24) : 24;
@@ -11133,50 +11456,55 @@ async function bancosCargarEvolucion() {
   const canvas = document.getElementById('bancosChart');
   if (!canvas) return;
 
-  bancosPintarCuentas(d.series || []);
-
-  const elegidas = bancosCuentasElegidas();
-  const series = (d.series || []).filter(s => !elegidas || elegidas.indexOf(s.bancoId) > -1);
-
   // Qué se está mirando: el saldo entero, sólo lo disponible o sólo lo
   // invertido. Es el mismo eje de tiempo, cambia el número.
-  const campo = (document.getElementById('bancosQueMiro') || {}).value || 'data';
-  const rotulo = { data:'saldo', disponible:'disponible', invertido:'invertido' }[campo];
+  const campo  = (document.getElementById('bancosQueMiro') || {}).value || 'data';
+  const rotulo = { data:'saldo total', disponible:'lo disponible', invertido:'lo invertido' }[campo];
 
-  const datasets = series.map((s, i) => ({
-    label: s.label,
-    data: s[campo] || s.data,
-    borderColor: BANCOS_COLORES[i % BANCOS_COLORES.length],
+  const fechas = d.fechas || [];
+  const series = d.series || [];
+
+  // Se suman las cuentas de cada banco, mes a mes.
+  const bancos = [];
+  series.forEach(s => { if (bancos.indexOf(s.banco) === -1) bancos.push(s.banco); });
+
+  const sumar = lista => fechas.map((_, k) => {
+    let hay = false, t = 0;
+    lista.forEach(s => {
+      const v = (s[campo] || s.data)[k];
+      if (v !== null && v !== undefined) { hay = true; t += v; }
+    });
+    return hay ? t : null;      // sin un solo dato, la línea no arranca
+  });
+
+  const COLOR = { 'Safra': '#2E75B6', 'IFB': '#3B8A28' };
+  const datasets = bancos.map(b => ({
+    label: b,
+    data: sumar(series.filter(s => s.banco === b)),
+    borderColor: COLOR[b] || '#D9A441',
     backgroundColor: 'transparent',
-    borderWidth: 2, tension: 0.25, pointRadius: 3, spanGaps: true
+    borderWidth: 2.5, tension: 0.25, pointRadius: 3, spanGaps: true
   }));
 
-  // El total sólo tiene sentido con más de una cuenta a la vista.
-  if (series.length > 1) {
-    datasets.push({
-      label: 'Total',
-      data: (d.fechas || []).map((_, k) =>
-        series.reduce((a, s) => a + ((s[campo] || s.data)[k] || 0), 0)),
-      borderColor: '#8892A0', borderDash: [5, 4], borderWidth: 2,
-      backgroundColor: 'transparent', tension: 0.25, pointRadius: 0, spanGaps: true
-    });
-  }
+  datasets.push({
+    label: 'Todo junto',
+    data: sumar(series),
+    borderColor: '#8892A0', borderDash: [6, 4], borderWidth: 2,
+    backgroundColor: 'transparent', tension: 0.25, pointRadius: 2, spanGaps: true
+  });
 
   const info = document.getElementById('bancosChartInfo');
-  if (info) {
-    info.textContent = (d.fechas || []).length + ' meses · ' + series.length +
-      (series.length === 1 ? ' cuenta' : ' cuentas') + ' · mirando el ' + rotulo;
-  }
+  if (info) info.textContent = fechas.length + ' meses · mirando ' + rotulo;
 
   if (BANCOS_STATE.chart) BANCOS_STATE.chart.destroy();
   BANCOS_STATE.chart = new Chart(canvas.getContext('2d'), {
     type: 'line',
-    data: { labels: d.fechas || [], datasets: datasets },
+    data: { labels: fechas, datasets: datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { boxWidth: 12, font: { size: 11 } } },
+        legend: { labels: { boxWidth: 14, font: { size: 12 } } },
         tooltip: {
           callbacks: {
             label: ctx => ctx.dataset.label + ': US$ ' +
@@ -11184,9 +11512,7 @@ async function bancosCargarEvolucion() {
           }
         }
       },
-      scales: {
-        y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } }
-      }
+      scales: { y: { ticks: { callback: v => '$' + (v / 1000).toFixed(0) + 'k' } } }
     }
   });
 }
