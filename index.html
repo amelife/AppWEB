@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v9.9 | 2026-08-29 ARG - Resumen de lo pendiente por correo y WhatsApp desde Facturas AME; Facturas AME no se vacia sola; un cliente nuevo aparece al toque en la factura y en la cotizacion; Clientes con un solo campo Nombre/Empresa y modal en blanco al crear; boton Actualizar en la barra -->
+<!-- AMELIFE EMS Technologies - Web App v10.1 | 2026-08-29 ARG - Version de telefono: cobranza, WhatsApp por cliente y envio de resumenes (todo dentro de un @media, la de escritorio no se toca); resumen por correo con las cajas y bandas de la app; ningun pedido puede colgar la pantalla; Facturas AME no se vacia sola -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1704,6 +1704,10 @@
         <button id="tnSalir" onclick="doLogout()">Salir</button>
       </div>
     </div>
+
+    <!-- Pantalla de telefono. Convive con la de escritorio: cual se ve
+         lo decide el @media, no el JavaScript. -->
+    <div id="movil"></div>
 
     <div id="content">
 
@@ -3641,14 +3645,27 @@ function actTerminar(id, ok) {
 // El token de sesión viaja fuera de params, en la raíz del payload.
 // Si el backend responde SESION_INVALIDA se vuelve al login;
 // si responde PIN_REQUERIDO se rebloquea el módulo Bancos.
-async function api(action, params = {}, silencioso = false) {
+/**
+ * @param {Number} topeMs  Corta el pedido si el servidor no contesta.
+ *   Va en CERO por defecto —sin tope— porque hay acciones que tardan
+ *   de verdad (leer un PDF, la IA armando una cotización) y cortarlas
+ *   sería peor. Se pone sólo donde una espera infinita deja la
+ *   pantalla trabada sin salida.
+ */
+async function api(action, params = {}, silencioso = false, topeMs = 0) {
   // Sólo las acciones con etiqueta muestran indicador. El resto —refrescos
   // de fondo, pings— pasa en silencio para no llenar la pantalla de avisos.
   const tarea = (!silencioso && ETIQUETAS_ACCION[action]) ? actIniciar(ETIQUETAS_ACCION[action]) : null;
+  let reloj = null;
   try {
     const formData = new FormData();
     formData.append('payload', JSON.stringify({ action, params, token: SESSION_TOKEN }));
-    const res  = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+
+    const ctrl = (topeMs && typeof AbortController !== 'undefined') ? new AbortController() : null;
+    if (ctrl) reloj = setTimeout(() => ctrl.abort(), topeMs);
+
+    const res  = await fetch(SCRIPT_URL, { method: 'POST', body: formData,
+                                           signal: ctrl ? ctrl.signal : undefined });
     const text = await res.text();
     const json = JSON.parse(text);
 
@@ -3669,7 +3686,17 @@ async function api(action, params = {}, silencioso = false) {
     return json;
   } catch(e) {
     actTerminar(tarea, false);
+    // Si se cortó por tiempo, el servidor pudo haber hecho el trabajo
+    // igual —mandar el correo, guardar la fila— y nunca llegamos a
+    // enterarnos. Decir "no se pudo" sería mentir y llevaría a
+    // repetirlo dos veces.
+    if (e && e.name === 'AbortError') {
+      return { ok: false, timeout: true,
+               error: 'El servidor tardó demasiado en contestar. Puede que la acción se haya hecho igual: revisá antes de repetirla.' };
+    }
     return { ok: false, error: 'Error de red: ' + e.message };
+  } finally {
+    if (reloj) clearTimeout(reloj);
   }
 }
 
@@ -3779,6 +3806,10 @@ async function doLogin() {
   // Un solo intervalo aunque se entre y salga varias veces
   if (!window._clockTimer) window._clockTimer = setInterval(updateClock, 60000);
   loadAllData();
+
+  // En el telefono se entra directo a la cobranza: es a lo unico que
+  // se entra desde el celular.
+  if (esMovil()) movilCargar();
 
   // Si el Dashboard no está habilitado para este rol, arrancar donde sí puede
   // trabajar y explicar por qué el resto del menú no responde.
@@ -6059,7 +6090,9 @@ function famCargar(forzar) {
   // por atras y la tabla no parpadea en blanco.
   if (tb && !tenia) tb.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted)">Cargando\u2026</td></tr>';
 
-  api('getFacturasAME').then(r => {
+  // Devuelve la promesa: quien la llamó necesita saber CUÁNDO terminó
+  // (el botón Actualizar gira hasta que vuelve) y CÓMO le fue.
+  return api('getFacturasAME').then(r => {
     if (!r || !r.ok) {
       showToast((r && r.error) || 'No pude cargar las facturas', 'error');
       if (tenia) { famFiltrar(); return; }          // se deja lo que habia
@@ -6080,6 +6113,7 @@ function famCargar(forzar) {
     FAM_STATE.lista   = lista;
     FAM_STATE.cargado = true;
     famFiltrar();
+    return r;
   });
 }
 
@@ -6545,7 +6579,8 @@ function famPendDatos(soloVencidas) {
   // seis renglones diciendo "US$ 0.00" tapan los dos que importan.
   FAM_TRAMOS.forEach((t, i) => {
     if (!cubos[i].length) return;
-    cajas.push({ k: t.k, monto: sum(cubos[i]), n: cubos[i].length, tipo: '' });
+    cajas.push({ k: t.k, monto: sum(cubos[i]), n: cubos[i].length,
+                 tipo: t.pronto ? 'pronto' : '' });
   });
   if (sinFecha.length) {
     cajas.push({ k: 'Sin fecha de pago', monto: sum(sinFecha), n: sinFecha.length, tipo: '' });
@@ -6577,9 +6612,24 @@ function famPendDatos(soloVencidas) {
       };
     });
 
+  // Agrupadas por cliente. `filas` ya viene ordenada por vencimiento,
+  // asi que cada grupo aparece en el lugar de su factura mas vieja: el
+  // cliente al que hay que llamar primero queda arriba.
+  const grupos = [];
+  const porCliente = {};
+  filas.forEach(f => {
+    if (!porCliente[f.cliente]) {
+      porCliente[f.cliente] = { cliente: f.cliente, facturas: [], total: 0 };
+      grupos.push(porCliente[f.cliente]);
+    }
+    porCliente[f.cliente].facturas.push(f);
+    porCliente[f.cliente].total += f.saldo;
+  });
+
   return {
     cajas: cajas,
     filas: filas,
+    grupos: grupos,
     total: sum(base),
     n:     base.length,
     soloVencidas: !!soloVencidas,
@@ -6587,59 +6637,116 @@ function famPendDatos(soloVencidas) {
   };
 }
 
-/** El cuadro y las cajas en HTML. Es lo que se ve y lo que se manda. */
+/**
+ * El resumen en HTML: las cajas de arriba y el cuadro de abajo.
+ *
+ * Se dibuja igual que la pantalla de Facturas AME a propósito —las
+ * mismas cajas con su riel de color, la misma banda oscura por
+ * cliente— así el correo se lee sin tener que traducir nada.
+ *
+ * Todo va con tablas y estilos en la propia etiqueta porque es un
+ * correo: Gmail borra las hojas de estilo y no entiende flex ni grid.
+ */
 function famPendHTML(d, nota) {
-  const cajas = d.cajas.map(c =>
-    '<tr>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC">' + cotEsc(c.k) + '</td>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap' +
-        (c.tipo === 'mal' ? ';color:#C00000;font-weight:bold' : '') +
-        (c.tipo === 'total' ? ';font-weight:bold' : '') + '">US$ ' + famFmt(c.monto) + '</td>' +
-      '<td style="padding:6px 10px;border-bottom:1px solid #E1E7EC;color:#5D6E67;white-space:nowrap">' +
-        c.n + (c.n === 1 ? ' factura' : ' facturas') + '</td>' +
-    '</tr>').join('');
+  // Los colores son los del tema claro de la app (--green, la roja de
+  // "mal" y la ámbar de "pronto"), puestos a mano: acá no hay
+  // variables CSS que valgan.
+  const caja = (c, ancho) => {
+    const t = c.tipo;
+    const borde = t === 'total'  ? '#3B8A28'
+                : t === 'mal'    ? '#C4534D'
+                : t === 'pronto' ? '#D9A441' : '#DDE3E9';
+    const color = t === 'mal'    ? '#C4534D'
+                : t === 'pronto' ? '#B07C1E' : '#1C2A3D';
+    const tam   = t === 'total' ? '21px' : t === 'mal' ? '19px' : '16px';
 
-  const filas = d.filas.map(f =>
-    '<tr>' +
-      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC">' + cotEsc(f.cliente) + '</td>' +
-      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC"><b>' + cotEsc(f.numero) + '</b></td>' +
-      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;text-align:right;white-space:nowrap">' +
-        cotEsc(f.moneda) + ' ' + famFmt(f.saldo) + '</td>' +
-      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC;white-space:nowrap">' + cotEsc(f.vence) + '</td>' +
-      '<td style="padding:6px 9px;border-bottom:1px solid #E1E7EC' +
-        (f.vencida ? ';color:#C00000;font-weight:bold' : ';color:#5D6E67') + '">' + cotEsc(f.cuando) + '</td>' +
-    '</tr>').join('');
+    return '<td width="' + ancho + '" valign="top" style="padding:0 8px 8px 0">' +
+      '<table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;' +
+        'border:1px solid #E8ECF0;border-left:' + (t === 'total' ? '4px' : '3px') +
+        ' solid ' + borde + '">' +
+        '<tr><td style="padding:10px 13px">' +
+          '<div style="font-size:10.5px;font-weight:bold;letter-spacing:1px;' +
+            'text-transform:uppercase;color:#7A8590;padding-bottom:5px">' + cotEsc(c.k) + '</div>' +
+          '<div style="font-size:' + tam + ';font-weight:bold;color:' + color +
+            ';padding-bottom:3px;white-space:nowrap">US$ ' + famFmt(c.monto) + '</div>' +
+          '<div style="font-size:11.5px;color:#7A8590">' +
+            c.n + (c.n === 1 ? ' factura' : ' facturas') +
+            (t === 'total' ? '<br>incluye lo vencido' : '') + '</div>' +
+        '</td></tr>' +
+      '</table></td>';
+  };
+
+  // Total y Vencido arriba, grandes. Los tramos abajo, de a tres.
+  let cajas = '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+    d.cajas.slice(0, 2).map(c => caja(c, '50%')).join('') + '</tr></table>';
+
+  const tramos = d.cajas.slice(2);
+  for (let i = 0; i < tramos.length; i += 3) {
+    const fila = tramos.slice(i, i + 3);
+    let huecos = '';
+    for (let h = fila.length; h < 3; h++) huecos += '<td width="33%"></td>';
+    cajas += '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+      fila.map(c => caja(c, '33%')).join('') + huecos + '</tr></table>';
+  }
+
+  // ── El cuadro, con la banda oscura por cliente ──
+  const BD = 'border-bottom:1px solid #E8ECF0';
+  const filas = d.grupos.map(g =>
+    '<tr><td colspan="4" style="background:#1C2A3D;padding:8px 11px">' +
+      '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
+        '<td style="color:#ffffff;font-weight:bold;font-size:12.5px;letter-spacing:.3px">' +
+          cotEsc(g.cliente) +
+          (g.facturas.length > 1
+            ? '<span style="color:#9FB0C4;font-weight:normal;font-size:11.5px"> · ' +
+              g.facturas.length + ' facturas</span>'
+            : '') +
+        '</td>' +
+        (g.facturas.length > 1
+          ? '<td align="right" style="color:#8FD16A;font-weight:bold;font-size:12.5px;' +
+            'white-space:nowrap">debe US$ ' + famFmt(g.total) + '</td>'
+          : '') +
+      '</tr></table>' +
+    '</td></tr>' +
+    g.facturas.map(f =>
+      '<tr>' +
+        '<td style="padding:6px 11px;' + BD + '"><b>' + cotEsc(f.numero) + '</b></td>' +
+        '<td style="padding:6px 11px;' + BD + ';text-align:right;white-space:nowrap">' +
+          cotEsc(f.moneda) + ' ' + famFmt(f.saldo) + '</td>' +
+        '<td style="padding:6px 11px;' + BD + ';white-space:nowrap">' + cotEsc(f.vence) + '</td>' +
+        '<td style="padding:6px 11px;' + BD +
+          (f.vencida ? ';color:#C4534D;font-weight:bold' : ';color:#7A8590') + '">' +
+          cotEsc(f.cuando) + '</td>' +
+      '</tr>').join('')
+  ).join('');
 
   const txtNota = String(nota || '').trim();
 
   return '' +
-    '<p style="margin:0 0 14px">Cuentas por cobrar al <b>' + cotEsc(d.fecha) + '</b>.</p>' +
-    (txtNota ? '<p style="margin:0 0 14px">' + cotEsc(txtNota).replace(/\n/g, '<br>') + '</p>' : '') +
+    '<p style="margin:0 0 4px;font-size:13px;color:#7A8590">Cuentas por cobrar al <b style="color:#1C2A3D">' +
+      cotEsc(d.fecha) + '</b></p>' +
+    (txtNota ? '<p style="margin:8px 0 14px;font-size:13px">' +
+      cotEsc(txtNota).replace(/\n/g, '<br>') + '</p>' : '<div style="height:10px"></div>') +
 
-    '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13px;width:100%;margin-bottom:18px">' +
-      '<tr style="background:#1C2A3D;color:#fff">' +
-        '<th style="padding:7px 10px;text-align:left" colspan="3">Cuándo entra la plata</th>' +
-      '</tr>' + cajas +
-    '</table>' +
+    cajas +
 
-    '<p style="margin:0 0 8px;font-weight:bold">' +
+    '<p style="margin:18px 0 8px;font-weight:bold;font-size:13px">' +
       (d.soloVencidas ? 'Facturas vencidas' : 'Detalle de lo pendiente') +
-      ' · ' + d.n + (d.n === 1 ? ' factura' : ' facturas') + '</p>' +
+      ' <span style="font-weight:normal;color:#7A8590">· ' + d.n +
+      (d.n === 1 ? ' factura' : ' facturas') + '</span></p>' +
 
     (d.filas.length
       ? '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;width:100%">' +
-          '<tr style="background:#1C2A3D;color:#fff">' +
-            '<th style="padding:6px 9px;text-align:left">Cliente</th>' +
-            '<th style="padding:6px 9px;text-align:left">Factura</th>' +
-            '<th style="padding:6px 9px;text-align:right">Monto</th>' +
-            '<th style="padding:6px 9px;text-align:left">Vencimiento</th>' +
-            '<th style="padding:6px 9px;text-align:left">Estado</th>' +
+          '<tr style="background:#F0F2F5">' +
+            '<th style="padding:6px 11px;text-align:left;color:#7A8590;font-size:10.5px;letter-spacing:1px">FACTURA</th>' +
+            '<th style="padding:6px 11px;text-align:right;color:#7A8590;font-size:10.5px;letter-spacing:1px">MONTO</th>' +
+            '<th style="padding:6px 11px;text-align:left;color:#7A8590;font-size:10.5px;letter-spacing:1px">VENCIMIENTO</th>' +
+            '<th style="padding:6px 11px;text-align:left;color:#7A8590;font-size:10.5px;letter-spacing:1px">ESTADO</th>' +
           '</tr>' + filas +
-          '<tr><td colspan="2" style="padding:8px 9px;text-align:right;font-weight:bold">TOTAL</td>' +
-          '<td style="padding:8px 9px;text-align:right;font-weight:bold;white-space:nowrap">US$ ' + famFmt(d.total) + '</td>' +
-          '<td colspan="2"></td></tr>' +
+          '<tr><td style="padding:10px 11px;font-weight:bold">TOTAL</td>' +
+          '<td style="padding:10px 11px;text-align:right;font-weight:bold;white-space:nowrap;font-size:14px">US$ ' +
+            famFmt(d.total) + '</td><td colspan="2"></td></tr>' +
         '</table>'
-      : '<p style="color:#5D6E67">No hay facturas para listar.</p>');
+      : '<p style="color:#7A8590">No hay facturas para listar.</p>');
 }
 
 /** El mismo resumen en texto plano, con el negrita de WhatsApp. */
@@ -6660,13 +6767,19 @@ function famPendTexto(d, nota) {
   L.push('');
   L.push('*' + (d.soloVencidas ? 'Facturas vencidas' : 'Detalle de lo pendiente') + '*');
 
-  // En texto plano un cuadro de cinco columnas no se lee: se agrupa
-  // por cliente, que es como se sale a reclamar.
-  let ultimo = null;
-  d.filas.forEach(f => {
-    if (f.cliente !== ultimo) { L.push(''); L.push('*' + f.cliente + '*'); ultimo = f.cliente; }
-    L.push('• ' + f.numero + ' · ' + f.moneda + ' ' + famFmt(f.saldo) +
-           (f.sinFecha ? '' : ' · vence ' + f.vence) + ' · ' + f.cuando);
+  // En texto plano un cuadro de cinco columnas no se lee: va agrupado
+  // por cliente, que ademas es como se sale a reclamar. El que debe
+  // mas de una lleva su total en el encabezado.
+  d.grupos.forEach(g => {
+    L.push('');
+    L.push('*' + g.cliente + '*' +
+      (g.facturas.length > 1
+        ? ' · ' + g.facturas.length + ' facturas · debe US$ ' + famFmt(g.total)
+        : ''));
+    g.facturas.forEach(f => {
+      L.push('• ' + f.numero + ' · ' + f.moneda + ' ' + famFmt(f.saldo) +
+             (f.sinFecha ? '' : ' · vence ' + f.vence) + ' · ' + f.cuando);
+    });
   });
 
   L.push('');
@@ -6730,25 +6843,189 @@ async function famPendEnviar() {
   const btn = document.getElementById('famPendBtn');
   btn.disabled = true; btn.textContent = 'Enviando…';
 
-  const copia = ccValores('famPend');
-  const r = await api('resumenPendientesAME', {
-    para:   para,
-    cc:     copia.cc,
-    cco:    copia.cco,
-    asunto: document.getElementById('famPendAsunto').value.trim(),
-    // Va el HTML ya armado: es el mismo que estas viendo en la vista
-    // previa, asi no hay forma de que el correo diga otra cosa.
-    html:   famPendHTML(d, nota),
-    texto:  famPendTexto(d, nota)
-  });
+  // El botón vuelve a la normalidad pase lo que pase. Antes, si el
+  // pedido no contestaba —o si algo tiraba una excepción— quedaba en
+  // "Enviando…" para siempre y había que recargar la página.
+  let r = null;
+  try {
+    const copia = ccValores('famPend');
+    r = await api('resumenPendientesAME', {
+      para:   para,
+      cc:     copia.cc,
+      cco:    copia.cco,
+      asunto: document.getElementById('famPendAsunto').value.trim(),
+      // Va el HTML ya armado: es el mismo que estás viendo en la vista
+      // previa, así no hay forma de que el correo diga otra cosa.
+      html:   famPendHTML(d, nota),
+      texto:  famPendTexto(d, nota)
+    }, false, 120000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="i3d i3d-enviar"></i> Enviar por correo';
+  }
 
-  btn.disabled = false;
-  btn.innerHTML = '<i class="i3d i3d-enviar"></i> Enviar por correo';
-  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
+  if (!r || !r.ok) {
+    showToast((r && r.error) || 'No se pudo enviar', r && r.timeout ? 'info' : 'error');
+    return;
+  }
 
   closeModal('modalFamPend');
   showToast('Resumen enviado a ' + r.data.enviado_a, 'success');
 }
+
+// ============================================
+//  VERSION DE TELEFONO
+//
+//  Lo minimo para cobrar desde el celular: cuanto falta entrar, quien
+//  debe, y mandar el WhatsApp. Cargar facturas, cotizar o mirar los
+//  bancos se sigue haciendo en la computadora — no porque no se
+//  pueda, sino porque en una pantalla de 360px esas cosas se hacen
+//  mal y se cometen errores.
+//
+//  No duplica ninguna cuenta: los numeros salen de famPendDatos(), el
+//  mismo que alimenta el resumen por correo y las cajas de arriba.
+// ============================================
+
+var MV_GRUPOS = [];        // los grupos dibujados, para los botones
+
+function esMovil() {
+  return !!(window.matchMedia && window.matchMedia('(max-width:720px)').matches);
+}
+
+/** Pide las facturas y redibuja. Es lo unico que va al servidor. */
+function movilCargar(btn) {
+  if (btn) btn.classList.add('girando');
+  const c = document.getElementById('movil');
+  if (c && !FAM_STATE.lista.length) c.innerHTML = '<div class="mv-vacio">Cargando…</div>';
+
+  return Promise.resolve(famCargar(true)).then(
+    () => movilPintar(),
+    () => { if (c) c.innerHTML = '<div class="mv-vacio">No se pudieron cargar las facturas.</div>'; }
+  ).then(() => { if (btn) btn.classList.remove('girando'); });
+}
+
+function movilPintar() {
+  const c = document.getElementById('movil');
+  if (!c) return;
+
+  const d = famPendDatos(false);
+  MV_GRUPOS = d.grupos;
+
+  // El logo se toma del que ya esta en la barra lateral en vez de
+  // repetir el base64: son 1,5 MB y no vale la pena duplicarlos.
+  const logo = document.querySelector('#sidebar img');
+  const cab =
+    '<div class="mv-top">' +
+      (logo ? '<img src="' + logo.getAttribute('src') + '" alt="amelife">' : '') +
+      '<div class="mv-top-d">' + cotEsc(d.fecha) +
+        ((currentUser && currentUser.nombre) ? '<br>' + cotEsc(currentUser.nombre) : '') + '</div>' +
+      '<div class="mv-ico" title="Actualizar" onclick="movilCargar(this)"><i class="i3d i3d-actualizar"></i></div>' +
+      '<div class="mv-ico" title="Salir" onclick="doLogout()"><i class="i3d i3d-candado"></i></div>' +
+    '</div>';
+
+  if (!d.grupos.length) {
+    c.innerHTML = cab + '<div class="mv-vacio">No hay nada pendiente de cobro.</div>';
+    return;
+  }
+
+  const caja = (x, clase) =>
+    '<div class="mv-caja ' + clase + '">' +
+      '<span class="mv-caja-k">' + cotEsc(x.k) + '</span>' +
+      '<span class="mv-caja-v">US$ ' + famFmt(x.monto) + '</span>' +
+      '<span class="mv-caja-n">' + x.n + (x.n === 1 ? ' factura' : ' facturas') + '</span>' +
+    '</div>';
+
+  const tramos = d.cajas.slice(2);
+
+  // Cada cliente es una tarjeta con sus facturas y un solo boton. El
+  // indice va en el onclick en vez del nombre: asi un cliente con
+  // comillas o un & en el nombre no puede romper el HTML.
+  const clientes = d.grupos.map((g, i) => {
+    const vencidas = g.facturas.filter(f => f.vencida).length;
+    return '<div class="mv-cli">' +
+      '<div class="mv-cli-n">' + cotEsc(g.cliente) + '</div>' +
+      '<div class="mv-cli-d">' +
+        '<span class="mv-cli-v' + (vencidas ? ' mal' : '') + '">US$ ' + famFmt(g.total) + '</span>' +
+        '<span class="mv-cli-c">' + g.facturas.length +
+          (g.facturas.length === 1 ? ' factura' : ' facturas') +
+          (vencidas ? ' · ' + vencidas + (vencidas === 1 ? ' vencida' : ' vencidas') : '') +
+        '</span>' +
+      '</div>' +
+      g.facturas.map(f =>
+        '<div class="mv-f">' +
+          '<span class="mv-f-n">' + cotEsc(f.numero) + '</span>' +
+          '<span class="mv-f-v' + (f.vencida ? ' mal' : '') + '">' +
+            famFmt(f.saldo) + ' · ' + cotEsc(f.cuando) + '</span>' +
+        '</div>').join('') +
+      '<button class="btn btn-outline" onclick="movilWaCliente(' + i + ')">' +
+        '<i class="i3d i3d-telefono"></i> WhatsApp a este cliente</button>' +
+    '</div>';
+  }).join('');
+
+  c.innerHTML = cab +
+    caja(d.cajas[0], '') +
+    caja(d.cajas[1], 'mal') +
+    (tramos.length
+      ? '<div class="mv-tramos">' +
+          tramos.map(t => caja(t, 'chica' + (t.tipo === 'pronto' ? ' pronto' : ''))).join('') +
+        '</div>'
+      : '') +
+    '<div class="mv-acc">' +
+      '<button class="btn btn-primary" onclick="famPendWhatsApp()">' +
+        '<i class="i3d i3d-telefono"></i> Resumen por WhatsApp</button>' +
+      '<button class="btn btn-outline" onclick="famPendAbrir()">' +
+        '<i class="i3d i3d-correo"></i> Resumen por correo</button>' +
+    '</div>' +
+    '<div class="mv-tit">Quién debe · ' + d.grupos.length +
+      (d.grupos.length === 1 ? ' cliente' : ' clientes') + '</div>' +
+    clientes;
+}
+
+/**
+ * El estado de cuenta de un cliente, en texto de WhatsApp.
+ *
+ * Se copia siempre —para poder pegarlo en el chat que uno quiera— y
+ * ademas se abre WhatsApp. Con el telefono cargado en la ficha, va
+ * directo a ese chat.
+ */
+function movilWaCliente(i) {
+  const g = MV_GRUPOS[i];
+  if (!g) return;
+
+  const clave = String(g.cliente || '').trim().toUpperCase();
+  const suyas = FAM_STATE.lista.filter(f =>
+    famAbierta(f) && String(f.cliente || '').trim().toUpperCase() === clave);
+  if (!suyas.length) { showToast('Ese cliente no tiene facturas abiertas', 'error'); return; }
+
+  suyas.sort((a, b) => String(a.vence || '9999').localeCompare(String(b.vence || '9999')));
+
+  const L = ['*' + g.cliente + '*',
+             'Estado de cuenta al ' + famFecha(new Date().toISOString().slice(0, 10)), ''];
+  suyas.forEach(f => {
+    const dias = famDias(f.vence);
+    const cuando = famVencida(f) ? ('vencida hace ' + famAtraso(dias, f.vence))
+                 : dias === null ? 'sin fecha de pago'
+                 : dias === 0    ? 'vence hoy'
+                 : 'vence en ' + dias + (dias === 1 ? ' día' : ' días');
+    L.push('• ' + f.numero + ' · ' + (f.moneda || 'USD') + ' ' + famFmt(famSaldo(f)) +
+           (dias === null ? '' : ' · ' + famFecha(f.vence)) + ' · ' + cuando);
+  });
+  L.push('');
+  L.push('*Total adeudado: US$ ' + famFmt(g.total) + '*');
+
+  const txt = L.join('\n');
+  const tel = soloTelefono(suyas.map(f => f.telefono).filter(Boolean)[0]);
+  copiarAlPortapapeles(txt, tel ? 'Copiado · se abre el chat' : 'Copiado · pegalo en WhatsApp');
+  window.open('https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(txt), '_blank');
+}
+
+// Si se entra desde la computadora y despues se achica la ventana —o
+// se gira el telefono— la pantalla chica aparece pero vacia, y se ve
+// rota. Se dibuja recien ahi, no antes.
+window.addEventListener('resize', function() {
+  const c = document.getElementById('movil');
+  if (esMovil() && SESSION_TOKEN && c && !c.innerHTML.trim()) movilCargar();
+});
 
 // ── Subir el PDF ──────────────────────────────────────────
 /**
@@ -7543,7 +7820,7 @@ function notCargar(forzar) {
   if (NOT_STATE.cargado && !forzar) { notRender(); return; }
   const g = document.getElementById('notGrid');
   if (g) g.innerHTML = '<div class="not-vacia">Cargando…</div>';
-  api('getNotas').then(r => {
+  return api('getNotas').then(r => {
     if (!r || !r.ok) {
       showToast((r && r.error) || 'No pude cargar las notas', 'error');
       if (g) g.innerHTML = '<div class="not-vacia">No se pudieron cargar</div>';
@@ -8762,13 +9039,28 @@ function refrescarPanel(btn) {
     return;
   }
 
-  // El icono gira mientras dura el pedido: sin eso, en una pantalla que
-  // ya tiene datos el clic no se nota y se termina apretando de nuevo.
-  if (btn) {
-    btn.classList.add('girando');
-    setTimeout(() => btn.classList.remove('girando'), 1200);
-  }
-  f();
+  // POR QUE HACE FALTA AVISAR
+  //   Refrescar una pantalla que ya tiene los datos bien es, por
+  //   definicion, invisible: vuelve lo mismo y se redibuja igual.
+  //   Encima ninguna de estas acciones tiene etiqueta en
+  //   ETIQUETAS_ACCION, asi que el indicador de actividad tampoco
+  //   aparece. Sin un aviso al final, el boton se siente roto.
+  //
+  //   El icono gira hasta que VUELVE el pedido, no un rato fijo: Apps
+  //   Script tarda ~1,4 s y con un temporizador corto dejaba de girar
+  //   antes de que llegaran los datos.
+  if (btn) btn.classList.add('girando');
+
+  Promise.resolve(f()).then(
+    r => {
+      // Si el cargador ya avisó que falló, no se lo contradice con un
+      // "listo" arriba del error.
+      if (!(r && r.ok === false)) showToast('Pantalla actualizada', 'success');
+    },
+    () => showToast('No pude actualizar', 'error')
+  ).then(() => {
+    if (btn) btn.classList.remove('girando');
+  });
 }
 
 function openEditCliente(id) {
@@ -9658,7 +9950,7 @@ function toggleTrkItem(chk, id, pn) {
 function loadWHItems() {
   document.getElementById('whBody').innerHTML =
     '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--muted)"><i class="i3d i3d-cargando"></i> Cargando...</td></tr>';
-  Promise.all([api('getItemsSinWH'), api('getInventario')]).then(([rWH, rInv]) => {
+  return Promise.all([api('getItemsSinWH'), api('getInventario')]).then(([rWH, rInv]) => {
     if (rWH.ok)  { whItems = rWH.data; renderWHItems(); }
     if (rInv.ok) {
       const sinWH = rInv.data.filter(i => !i.wh || i.wh==='' || i.wh==='—').length;
@@ -13041,6 +13333,106 @@ function cotIAQuitarAdjunto(i) {
 
 /* El icono del boton Actualizar mientras se pide de nuevo */
 .notif-btn.girando .i3d { animation: spin 0.9s linear infinite; }
+
+/* ============================================================
+   VERSION DE TELEFONO
+   Es una pantalla APARTE, no la de escritorio encogida. En el
+   telefono nadie carga una factura ni arma una cotizacion: se mira
+   cuanto falta cobrar y se manda un WhatsApp. Eso hay aca, y nada
+   mas.
+   Salvo la primera linea, todo vive adentro del @media: en la
+   computadora este bloque directamente no existe y no puede romper
+   nada de lo que ya andaba.
+   ============================================================ */
+#movil { display:none; }
+
+@media (max-width:720px) {
+  /* El armazon de escritorio se apaga entero */
+  #sidebar, .topbar, #content { display:none !important; }
+  /* #main viene con overflow:hidden y alto de pantalla: en el telefono
+     eso recorta la lista de clientes a la primera pantalla. */
+  #app.visible { display:block; height:auto; overflow-y:auto; }
+  #main { display:block; overflow:visible; }
+  #movil { display:block; padding:12px 12px 40px; }
+
+  .mv-top { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .mv-top img { height:34px; }
+  .mv-top-d { flex:1; font-size:12px; color:var(--muted); }
+  .mv-ico {
+    width:40px; height:40px; border-radius:var(--radius); flex-shrink:0;
+    background:transparent; border:1px solid var(--ink-line); color:var(--ink-muted);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .mv-ico .i3d { background-color:transparent; border:0; }
+  .mv-ico.girando .i3d { animation: spin 0.9s linear infinite; }
+
+  /* Las cajas, una arriba de otra y con el mismo riel de color */
+  .mv-caja {
+    background:var(--card); border:1px solid var(--border2);
+    border-left:4px solid var(--green); border-radius:var(--radius);
+    padding:11px 14px; margin-bottom:8px;
+  }
+  .mv-caja.mal { border-left-color:#C4534D; }
+  .mv-caja.mal .mv-caja-v { color:#C4534D; }
+  .mv-caja.pronto { border-left-color:#D9A441; }
+  .mv-caja.pronto .mv-caja-v { color:#B07C1E; }
+  .mv-caja.chica { border-left-color:var(--border2); padding:8px 12px; }
+  .mv-caja-k {
+    font-family:var(--cond); font-size:11px; font-weight:700; letter-spacing:1.1px;
+    text-transform:uppercase; color:var(--muted);
+  }
+  .mv-caja-v { font-size:22px; font-weight:800; letter-spacing:-.02em; display:block; }
+  .mv-caja.chica .mv-caja-v { font-size:16px; }
+  .mv-caja-n { font-size:12px; color:var(--muted); }
+
+  .mv-tramos { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+  .mv-tramos .mv-caja { margin-bottom:0; }
+
+  /* Los botones grandes: en un telefono se aprietan con el pulgar */
+  .mv-acc { display:grid; gap:8px; margin-bottom:18px; }
+  .mv-acc .btn { width:100%; justify-content:center; padding:15px; font-size:15px; }
+
+  .mv-tit {
+    font-family:var(--cond); font-size:12px; font-weight:700; letter-spacing:1.2px;
+    text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+  }
+
+  /* Un cliente = una tarjeta. El boton de WhatsApp entra siempre. */
+  .mv-cli {
+    background:var(--card); border:1px solid var(--border2);
+    border-radius:var(--radius); padding:12px 13px; margin-bottom:9px;
+  }
+  .mv-cli-n { font-weight:800; font-size:14px; line-height:1.25; }
+  .mv-cli-d { display:flex; align-items:baseline; gap:8px; margin:5px 0 9px; }
+  .mv-cli-v { font-size:18px; font-weight:800; }
+  .mv-cli-v.mal { color:#C4534D; }
+  .mv-cli-c { font-size:12px; color:var(--muted); }
+  .mv-f {
+    display:flex; justify-content:space-between; gap:8px;
+    font-size:12.5px; padding:5px 0; border-top:1px solid var(--border2);
+  }
+  .mv-f-n { font-weight:700; }
+  .mv-f-v { color:var(--muted); text-align:right; }
+  .mv-f-v.mal { color:#C4534D; font-weight:700; }
+  .mv-cli .btn { width:100%; justify-content:center; margin-top:10px; padding:11px; }
+
+  .mv-vacio { text-align:center; padding:40px 10px; color:var(--muted); }
+
+  /* Los modales, a pantalla completa: en 360px de ancho un modal
+     centrado con margenes no deja lugar para escribir. */
+  .modal-overlay { padding:0; }
+  .modal {
+    max-width:100% !important; width:100% !important;
+    max-height:100% !important; height:100%; border-radius:0;
+    overflow-y:auto;
+  }
+  .modal-grid { grid-template-columns:1fr !important; }
+  .modal-footer { flex-wrap:wrap; gap:8px; }
+  .modal-footer .btn { flex:1 1 45%; justify-content:center; }
+
+  /* El login tambien entra */
+  .login-box { width:100%; max-width:100%; margin:0 12px; padding:26px 20px; }
+}
 </style>
 
 </body>
