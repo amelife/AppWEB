@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v10.2 | 2026-08-29 ARG - La app SIEMPRE avisa lo que esta haciendo (ninguna accion queda muda); version de telefono con cobranza, WhatsApp por cliente y resumenes; resumen agrupado por cliente con su total en correo y WhatsApp; ningun pedido puede colgar la pantalla -->
+<!-- AMELIFE EMS Technologies - Web App v10.3 | 2026-08-29 ARG - El resumen agrupa clientes con la misma clave que la pantalla (un espacio o una mayuscula de mas ya no parte al cliente en dos); la app siempre avisa lo que esta haciendo; version de telefono; ningun pedido puede colgar la pantalla -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -6662,12 +6662,18 @@ function famPendDatos(soloVencidas) {
   const grupos = [];
   const porCliente = {};
   filas.forEach(f => {
-    if (!porCliente[f.cliente]) {
-      porCliente[f.cliente] = { cliente: f.cliente, facturas: [], total: 0 };
-      grupos.push(porCliente[f.cliente]);
+    // LA CLAVE VA NORMALIZADA, igual que en la pantalla (famAgrupar):
+    // sin espacios de sobra y en mayúsculas. Agrupando por el texto
+    // crudo, "ARALMEX CORP " y "Aralmex Corp" caían en grupos
+    // distintos: la pantalla mostraba UN cliente y el resumen lo
+    // partía en dos bloques, cada uno con su propio total.
+    const k = String(f.cliente || '—').trim().toUpperCase();
+    if (!porCliente[k]) {
+      porCliente[k] = { cliente: f.cliente, facturas: [], total: 0 };
+      grupos.push(porCliente[k]);
     }
-    porCliente[f.cliente].facturas.push(f);
-    porCliente[f.cliente].total += f.saldo;
+    porCliente[k].facturas.push(f);
+    porCliente[k].total += f.saldo;
   });
 
   return {
