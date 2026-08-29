@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v11.8 | 2026-08-29 ARG - Bancos: se arrastran los archivos al modal; fecha de actualizacion clara en cada cuenta; el desglose por cuenta ahora si se muestra; la tabla de cuentas dice Si/No en vez de iconos confusos -->
+<!-- AMELIFE EMS Technologies - Web App v12.1 | 2026-08-29 ARG - Resumen de saldos: titulo AMELIFE SALDOS y el total de cada banco mas el general; Bancos con el total primero y la fecha de actualizacion en cada caja -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2453,19 +2453,25 @@
 
           <!-- Total consolidado + stats -->
           <div class="stats-grid" style="margin-bottom:16px;">
-            <!-- Una caja POR BANCO. Sumar el disponible de los dos daba
-                 un número que no sirve para decidir nada: la plata de
-                 IFB y la de Safra no son intercambiables. -->
-            <div id="bancosCajasBanco" style="display:contents"></div>
-            <div class="stat-card">
-              <div class="stat-label">Total Consolidado (USD)</div>
-              <div class="stat-value" id="bancosTotalUSD" style="color:var(--text);font-size:24px;">$0.00</div>
-              <div class="stat-sub" id="bancosTotalSub">—</div>
+            <!-- EL TOTAL VA PRIMERO: es el número que se busca al entrar.
+                 El rótulo nombra los bancos que entran en la suma —no
+                 dice "consolidado" a secas— porque lo primero que uno se
+                 pregunta frente a un total es qué incluye. -->
+            <div class="stat-card" style="border-left:4px solid var(--green)">
+              <div class="stat-label" id="bancosTotalRotulo">Total · todas las cuentas</div>
+              <div class="stat-value" id="bancosTotalUSD" style="color:var(--text);font-size:36px;">$0.00</div>
+              <div id="bancosTotalFecha" style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px"></div>
+              <div class="stat-sub" id="bancosTotalSub" style="font-size:13px;margin-top:4px">—</div>
               <button onclick="bancosToggleDetalle()" id="bancosBtnDetalle"
                 style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--green);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">
                 👁 Ver detalle completo
               </button>
             </div>
+
+            <!-- Después, una caja POR BANCO. Sumar el disponible de los dos
+                 daba un número que no sirve para decidir nada: la plata de
+                 IFB y la de Safra no son intercambiables. -->
+            <div id="bancosCajasBanco" style="display:contents"></div>
           </div>
 
           <!-- Panel expandible con detalle completo -->
@@ -7108,16 +7114,17 @@ function bcoResHTML(d, nota) {
           (pie ? '<div style="font-size:11.5px;color:#7A8590;padding-top:3px">' + cotEsc(pie) + '</div>' : '') +
         '</td></tr></table></td>';
 
-  // ARRIBA VAN TRES NÚMEROS Y NADA MÁS.
-  //   El único "disponible" que significa algo es el de IFB: es la
-  //   plata con la que se paga. En Safra casi todo está invertido y su
-  //   disponible suelto no se usa para nada, así que mezclarlos en un
-  //   "disponible total" daba un número que no sirve para decidir.
-  //   De Safra interesa cuánto hay en total, y de todo junto también.
+  // ARRIBA, EL TOTAL DE CADA BANCO Y EL GENERAL.
+  //   No se mezclan disponibles: la plata de IFB y la de Safra no son
+  //   intercambiables, así que un "disponible total" no sirve para
+  //   decidir nada. Lo que se compara es cuánto hay en cada banco.
+  const ancho = Math.floor(100 / (d.bancos.length + 1)) + '%';
   const cajas = '<table width="100%" cellpadding="0" cellspacing="0"><tr>' +
-    caja('Disponible · IFB', d.dispIFB, '#3B8A28', '33%', 'las dos cuentas juntas') +
-    caja('Total · Safra', d.totalSafra, '#2E75B6', '33%', 'banco + brokerage') +
-    caja('Total general', d.total, '#1C2A3D', '33%', 'todas las cuentas') +
+    d.bancos.map((b, k) =>
+      caja('Total · ' + b.banco.toUpperCase(), b.total,
+           k === 0 ? '#3B8A28' : '#2E75B6', ancho,
+           b.cuentas.length + (b.cuentas.length === 1 ? ' cuenta' : ' cuentas'))).join('') +
+    caja('Total general', d.total, '#1C2A3D', ancho, 'todas las cuentas') +
     '</tr></table>';
 
   const filas = d.bancos.map(b =>
@@ -7146,6 +7153,8 @@ function bcoResHTML(d, nota) {
   const mezcla = d.masVieja && d.masVieja !== d.alDia;
 
   return '' +
+    '<p style="margin:0 0 10px;font-size:17px;font-weight:bold;color:#1C2A3D;' +
+      'letter-spacing:.5px">AMELIFE SALDOS</p>' +
     '<p style="margin:0 0 4px;font-size:13px;color:#7A8590">Saldos al <b style="color:#1C2A3D">' +
       cotEsc(bcoFecha(d.alDia) || '—') + '</b>' +
       (mezcla ? ' <span style="color:#C4534D">· hay cuentas al ' + cotEsc(bcoFecha(d.masVieja)) + '</span>' : '') +
@@ -7166,16 +7175,19 @@ function bcoResTexto(d, nota) {
   const conDetalle = document.getElementById('bcoResDetalle');
   const verDesglose = !conDetalle || conDetalle.checked;
   const m = n => bancosFmt(n).replace('$', '');
-  const L = ['*AME LIFE 911 · Saldos*', 'Al ' + bcoFecha(d.alDia)];
+  const L = ['*AMELIFE SALDOS*', 'Al ' + bcoFecha(d.alDia)];
 
   if (d.masVieja && d.masVieja !== d.alDia) L.push('(hay cuentas al ' + bcoFecha(d.masVieja) + ')');
 
   const txtNota = String(nota || '').trim();
   if (txtNota) { L.push(''); L.push(txtNota); }
 
+  // Un renglón por banco y después el general. Se arma de la lista de
+  // bancos, así que si mañana hay un tercero entra solo.
   L.push('');
-  L.push('*Disponible IFB:* US$ ' + m(d.dispIFB));
-  L.push('*Total Safra:* US$ ' + m(d.totalSafra));
+  d.bancos.forEach(b => {
+    L.push('*Total ' + b.banco.toUpperCase() + ':* US$ ' + m(b.total));
+  });
   L.push('*TOTAL GENERAL:* US$ ' + m(d.total));
 
   d.bancos.forEach(b => {
@@ -11231,6 +11243,25 @@ function bancosRenderTotal() {
     return;
   }
   document.getElementById('bancosTotalUSD').textContent = bancosFmt(r.totalUSD);
+
+  // El total vale por la fecha más vieja: si una cuenta quedó en julio,
+  // el consolidado no es de hoy por más que las otras sí lo sean.
+  const fTot = (r.detalle || []).map(d => d.ultimaFecha).filter(Boolean).sort();
+  const elTot = document.getElementById('bancosTotalFecha');
+  if (elTot) elTot.textContent = fTot.length ? 'al ' + bcoFecha(fTot[0]) : '';
+
+  // El rótulo nombra los bancos que se están sumando, en el orden en
+  // que aparecen las cajas de al lado.
+  const rot = document.getElementById('bancosTotalRotulo');
+  if (rot) {
+    const nombres = (r.porBanco || []).slice()
+      .sort((a, b) => (b.disponible || 0) - (a.disponible || 0))
+      .map(b => b.banco);
+    rot.textContent = nombres.length
+      ? 'Total · ' + nombres.join(' + ')
+      : 'Total · todas las cuentas';
+  }
+
   bancosPintarBancos(r);
   const cuentasConSaldo = (r.detalle || []).filter(d => d.ultimoSaldo > 0).length;
   const totalCuentas    = (r.detalle || []).length;
@@ -11265,15 +11296,24 @@ function bancosPintarBancos(r) {
 
   if (!bancos.length) { caja.innerHTML = ''; return; }
 
+  // La fecha del banco es la MÁS VIEJA de sus cuentas: si una está
+  // atrasada, el número del banco no es de hoy.
+  const fechaDe = b => {
+    const f = (b.cuentas || []).map(c => c.ultimaFecha).filter(Boolean).sort();
+    return f.length ? f[0] : '';
+  };
+
   caja.innerHTML = bancos.map(b => {
-    const cuentas = (b.cuentas || []).length;
     const inv = b.invertido || 0;
+    const fe  = fechaDe(b);
     return '<div class="stat-card">' +
       '<div class="stat-label">Disponible · ' + cotEsc(b.banco) + '</div>' +
-      '<div class="stat-value" style="color:var(--green);font-size:26px">' +
+      '<div class="stat-value" style="color:var(--green);font-size:30px">' +
         bancosFmt(b.disponible || 0) + '</div>' +
-      '<div class="stat-sub">' +
-        cuentas + (cuentas === 1 ? ' cuenta' : ' cuentas') +
+      '<div style="font-size:14px;font-weight:700;color:var(--text);margin-top:2px">al ' +
+        cotEsc(bcoFecha(fe)) + '</div>' +
+      '<div class="stat-sub" style="font-size:13px;margin-top:4px">' +
+        (b.cuentas || []).length + ' cuentas' +
         (b.resta > 0 ? ' · ya restadas LCs por ' + bancosFmt(b.resta) : '') +
         (inv > 0 ? '<br><span style="color:var(--info)">invertido ' + bancosFmt(inv) + '</span>' : '') +
       '</div>' +
@@ -11303,45 +11343,35 @@ function bancosPintarAhora(r) {
   }
 
   const fechas = conDato.map(d => d.ultimaFecha).sort();
-  const nueva = fechas[fechas.length - 1];
+  const nueva = fechas[fechas.length - 1], vieja = fechas[0];
   caja.textContent = bancosFechaLinda(nueva);
 
-  // Agrupar por banco y quedarse con la fecha más nueva de cada uno.
-  const porBanco = {};
-  conDato.forEach(d => {
-    const b = porBanco[d.banco] = porBanco[d.banco] || { banco: d.banco, cuentas: [] };
-    b.cuentas.push(d);
-  });
-
-  const html = Object.keys(porBanco).map(nombre => {
-    const b = porBanco[nombre];
-    const suyas = b.cuentas.slice().sort((x, y) => x.ultimaFecha.localeCompare(y.ultimaFecha));
-    const masNueva = suyas[suyas.length - 1];
-    const atrasadas = suyas.filter(c => c.ultimaFecha !== masNueva.ultimaFecha);
-    const alDia = masNueva.ultimaFecha === nueva;
-
-    return '<div style="display:flex;align-items:baseline;gap:8px;padding:2px 0">' +
-      '<span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:' +
-        (alDia ? 'var(--green)' : '#D9A441') + '"></span>' +
-      '<b style="color:var(--text);min-width:52px">' + cotEsc(nombre) + '</b>' +
-      '<span>actualizado el <b style="color:var(--text)">' +
-        cotEsc(bancosFechaLinda(masNueva.ultimaFecha)) + '</b>' +
-        (bancosOrigen(masNueva.ultimaFuente)
-          ? ' · ' + cotEsc(bancosOrigen(masNueva.ultimaFuente))
-          : '') +
-        (atrasadas.length
-          ? ' <span style="color:var(--warning)">— ' +
-            atrasadas.map(c => cotEsc(c.cuenta) + ' al ' + cotEsc(bancosFechaLinda(c.ultimaFecha))).join(', ') +
-            '</span>'
-          : '') +
-      '</span></div>';
-  }).join('');
-
+  // ACÁ NO SE REPITE LO QUE YA ESTÁ ABAJO.
+  //   Antes esta banda listaba banco por banco con su fecha, y las
+  //   mismas fechas volvían a aparecer en las tarjetas y otra vez en
+  //   cada cuenta: el mismo dato tres veces. Un resumen que repite el
+  //   detalle deja de ser un resumen.
+  //   Sólo queda lo que no se ve en ningún otro lado: si hay cuentas
+  //   atrasadas, cuáles y de cuándo.
+  const atrasadas = conDato.filter(d => d.ultimaFecha !== nueva);
   const faltan = (r.detalle || []).length - conDato.length;
-  pie.innerHTML = html + (faltan
-    ? '<div style="padding-top:4px;color:var(--warning)">' + faltan +
-      (faltan === 1 ? ' cuenta sin datos' : ' cuentas sin datos') + '</div>'
-    : '');
+
+  if (!atrasadas.length && !faltan) {
+    pie.innerHTML = '<span style="color:var(--green);font-weight:600">' +
+      'Todas las cuentas al día</span>';
+    return;
+  }
+
+  let txt = '';
+  if (atrasadas.length) {
+    txt = '<span style="color:var(--warning);font-weight:600">Atrasadas:</span> ' +
+      atrasadas.map(d => cotEsc(d.cuenta) + ' al ' + cotEsc(bcoFecha(d.ultimaFecha))).join(' · ');
+  }
+  if (faltan) {
+    txt += (txt ? ' · ' : '') + '<span style="color:var(--danger);font-weight:600">' +
+      faltan + (faltan === 1 ? ' cuenta sin datos' : ' cuentas sin datos') + '</span>';
+  }
+  pie.innerHTML = txt;
 }
 
 /**
@@ -11468,8 +11498,14 @@ function bancosRenderGrid() {
   grid.innerHTML = r.porBanco.map(b => `
     <div class="card">
       <div class="card-header">
-        <div class="card-title"><i class="i3d i3d-bancos"></i> ${b.banco}</div>
-        <span class="pn" style="color:var(--green);font-size:18px;font-weight:800;">${bancosFmt(b.totalUSD)}</span>
+        <div>
+          <div class="card-title"><i class="i3d i3d-bancos"></i> ${b.banco}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--muted);margin-top:2px;">
+            ${(() => { const f = b.cuentas.map(c => c.ultimaFecha).filter(Boolean).sort();
+                       return f.length ? 'al ' + bcoFecha(f[0]) : 'sin datos'; })()}
+          </div>
+        </div>
+        <span class="pn" style="color:var(--green);font-size:21px;font-weight:800;">${bancosFmt(b.totalUSD)}</span>
       </div>
       <div style="padding:8px 16px 16px;">
         ${b.cuentas.map(c => {
@@ -11479,24 +11515,27 @@ function bancosRenderGrid() {
           const vieja = c.ultimaFecha && c.ultimaFecha < (r.detalle || [])
             .map(x => x.ultimaFecha).filter(Boolean).sort().slice(-1)[0];
           return `
-          <div style="padding:10px 0;border-bottom:1px dashed var(--border2);">
+          <div style="padding:14px 0;border-bottom:1px dashed var(--border2);">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div style="min-width:0;flex:1;">
-                <div style="font-size:14px;color:var(--text);font-weight:600;">${c.cuenta}</div>
-                <div style="font-size:11px;color:var(--muted);">${c.titular || ''}</div>
-                <div style="font-size:11.5px;margin-top:3px;font-weight:600;color:${c.ultimaFecha ? (vieja ? 'var(--warning)' : 'var(--green)') : 'var(--danger)'};">
-                  ${c.ultimaFecha ? 'al ' + bcoFecha(c.ultimaFecha) + (/statement/i.test(c.ultimaFuente || '') ? ' · statement' : '') : 'sin datos'}
-                </div>
+                <div style="font-size:16px;color:var(--text);font-weight:700;">${c.cuenta}</div>
+                <div style="font-size:13px;color:var(--muted);margin-top:1px;">${c.titular || ''}</div>
+                ${/* La fecha por cuenta sólo aparece si difiere de la del
+                      banco, que ya está en el encabezado. Repetir la misma
+                      fecha en cada renglón era ruido. */''}
+                ${(c.ultimaFecha && vieja) || !c.ultimaFecha ? `
+                  <div style="font-size:13px;margin-top:3px;font-weight:700;color:${c.ultimaFecha ? 'var(--warning)' : 'var(--danger)'};">
+                    ${c.ultimaFecha ? 'al ' + bcoFecha(c.ultimaFecha) : 'sin datos'}
+                  </div>` : ''}
               </div>
-              <div style="font-size:15px;font-weight:700;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:10px;">${bancosFmt(c.ultimoSaldo)}</div>
+              <div style="font-size:19px;font-weight:800;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:12px;white-space:nowrap;">${bancosFmt(c.ultimoSaldo)}</div>
             </div>
             ${desglose.length > 0 ? `
-              <div style="margin-top:8px;padding:8px 10px;background:var(--card2);border-radius:6px;border-left:3px solid var(--info);">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Desglose (informativo)</div>
+              <div style="margin-top:10px;padding:10px 12px;background:var(--card2);border-radius:6px;border-left:3px solid var(--info);">
                 ${desglose.map(d => `
-                  <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--muted);">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;color:var(--muted);">
                     <span>${d.etiqueta || d.label}</span>
-                    <span style="font-weight:600;color:var(--text);">${bancosFmt(d.monto||0)}</span>
+                    <span style="font-weight:700;color:var(--text);">${bancosFmt(d.monto||0)}</span>
                   </div>
                 `).join('')}
               </div>
