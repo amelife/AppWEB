@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.2 | 2026-08-29 ARG - Dashboard rehecho: ultimas 5 cotizaciones con recordatorio por WhatsApp, saldos de bancos solo para German y Ezequiel, trackings sin arribar con link de rastreo, cobranza de Facturas AME a 15 dias, sin accesos rapidos; Datos Importantes en dos columnas -->
+<!-- AMELIFE EMS Technologies - Web App v12.5 | 2026-08-29 ARG - Fuera Importar Factura y Cotizaciones por estado; las cotizaciones se recuerdan con boton grande y separado; notas en dos columnas y con la fecha sin hora -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1649,10 +1649,6 @@
         <span class="nav-ico i3d i3d-datos"></span>
         <span>Datos Importantes</span>
       </div>
-      <div class="nav-item" onclick="showPanel('facturas',this)">
-        <span class="nav-ico i3d i3d-facturas"></span>
-        <span>Importar Factura</span>
-      </div>
       </div></div>
     </div>
 
@@ -1760,7 +1756,6 @@
                  los vencidos son también los que no llegaron, así que el
                  mismo envío aparecía repetido. Acá van todos juntos,
                  ordenados por cuándo llegan, con los atrasados en rojo. -->
-            <div class="card" id="dashTracksVencidosCard" data-bloque="vencidos" style="display:none;"></div>
             <div class="card" data-bloque="porllegar" style="border-left:3px solid var(--info);">
               <div class="card-header">
                 <div class="card-title"><i class="i3d i3d-trackings"></i> Trackings sin arribar</div>
@@ -1795,14 +1790,6 @@
                   onclick="showPanel('facturasame',document.querySelector('[onclick*=\'facturasame\']'))">Ver todas →</span>
               </div>
               <div id="dashFacturasContent" style="padding:14px 16px;"></div>
-            </div>
-
-            <!-- Resumen por estado de cotizaciones -->
-            <div class="card" data-bloque="estados">
-              <div class="card-header">
-                <div class="card-title"><i class="i3d i3d-dashboard"></i> Cotizaciones por estado</div>
-              </div>
-              <div id="dashCotsEstadosList" style="padding:10px 16px 16px;"></div>
             </div>
 
             <!-- Finanzas rápidas (último total consolidado bancos) -->
@@ -2186,60 +2173,6 @@
       </div>
 
       <!-- ===== IMPORTAR FACTURA ZOLL ===== -->
-      <div class="panel" id="panel-facturas">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-          <div>
-            <div id="dropZone" style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:48px 24px;text-align:center;cursor:pointer;transition:all var(--transition);background:var(--card)"
-              onclick="document.getElementById('pdfInput').click()"
-              ondragover="dropOver(event)" ondragleave="dropLeave(event)" ondrop="dropFile(event)">
-              <div style="font-size:48px;margin-bottom:12px"><i class="i3d i3d-cotizaciones"></i></div>
-              <div style="font-size:16px;font-weight:700;margin-bottom:6px">Arrastrar factura ZOLL aquí</div>
-              <div style="font-size:13px;color:var(--muted);margin-bottom:16px">o hacé clic para seleccionar</div>
-              <div style="font-size:11px;color:var(--muted)">Formato: PDF · Facturas ZOLL Medical</div>
-              <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="handlePDFSelect(event)">
-            </div>
-            <div class="card" style="margin-top:14px">
-              <div class="card-header"><div class="card-title"><i class="i3d i3d-trackings"></i> Tracking asociado (opcional)</div></div>
-              <div class="field" style="margin-bottom:0">
-                <label>Número de tracking</label>
-                <input type="text" id="facturaTracking" placeholder="Ej: 774899513289" style="width:100%;padding:10px 14px;background:var(--field);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:'Outfit',sans-serif;font-size:14px;outline:none">
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title" id="facturaTitle"><i class="i3d i3d-pricebook"></i> Ítems de la factura</div>
-              <span id="facturaBadge" style="display:none" class="badge badge-green"></span>
-            </div>
-            <div id="facturaLoading" style="display:none;text-align:center;padding:40px;color:var(--muted)">
-              <div style="font-size:32px;margin-bottom:10px"><i class="i3d i3d-cargando"></i></div>
-              <div>Procesando PDF con OCR...</div>
-              <div style="font-size:12px;margin-top:6px">Puede tardar 10-20 segundos</div>
-            </div>
-            <div id="facturaItemsWrap" style="overflow-y:auto;max-height:320px">
-              <div id="facturaEmpty" style="text-align:center;padding:40px;color:var(--muted)">
-                <div style="font-size:36px;margin-bottom:10px;opacity:0.4">📂</div>
-                <div>Subí una factura para ver los ítems</div>
-              </div>
-              <table class="data-table" id="facturaTable" style="display:none">
-                <thead><tr>
-                  <th><input type="checkbox" id="chkAll" onchange="toggleAllFactura(this)"></th>
-                  <th>PN</th><th>Descripción</th><th>Proveedor</th><th>Cant</th><th>Precio Costo</th><th>Seriales</th>
-                </tr></thead>
-                <tbody id="facturaBody"></tbody>
-              </table>
-            </div>
-            <div id="facturaActions" style="display:none;margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
-              <button class="btn btn-outline" onclick="resetFactura()">✕ Cancelar</button>
-              <button class="btn btn-primary" onclick="confirmarImportacion()"><i class="i3d i3d-ok"></i> Importar al inventario</button>
-            </div>
-          </div>
-        </div>
-        <div class="card" style="margin-top:20px">
-          <div class="card-header"><div class="card-title"><i class="i3d i3d-historial"></i> Últimas importaciones</div></div>
-          <div id="historialFacturas" style="font-size:13px;color:var(--muted);padding:20px;text-align:center">Sin importaciones registradas</div>
-        </div>
-      </div>
 
       <!-- ===== TRACKINGS ===== -->
       <div class="panel" id="panel-trackings">
@@ -4799,11 +4732,9 @@ async function ocConfirmarRecibir() {
 // ============================================
 var DASH_BLOQUES = [
   { id: 'resumen',     nombre: 'Tarjetas de resumen' },
-  { id: 'vencidos',    nombre: 'Trackings vencidos' },
-  { id: 'porllegar',   nombre: 'Trackings por llegar' },
+  { id: 'porllegar',   nombre: 'Trackings sin arribar' },
   { id: 'stockbajo',   nombre: 'Stock bajo' },
   { id: 'seguimiento', nombre: 'Cotizaciones para dar seguimiento' },
-  { id: 'estados',     nombre: 'Cotizaciones por estado' },
   { id: 'bancos',      nombre: 'Saldos de bancos' },
   { id: 'facturas',    nombre: 'Facturas AME · cobranza' }
 ];
@@ -5502,7 +5433,7 @@ function showPanel(id, el) {
   const titles = {
     dashboard:'Dashboard', inventario:'Inventario', pricebook:'Precios ZOLL',
     clientes:'Clientes', cotizaciones:'Cotizaciones', ordenes:'Órdenes de Compra',
-    trackings:'Trackings', warehouse:'Warehouse', facturas:'Importar Factura',
+    trackings:'Trackings', warehouse:'Warehouse',
     datos:'Datos Importantes', facturasame:'Facturas AME',
     subdist:'Subdistribuidores',
     goldway:'Goldway Inventory', bancos:'Bancos'
@@ -8430,7 +8361,9 @@ function notRender() {
       '<div class="not-cab" onclick="notSel(\'' + n.id + '\')">' +
         '<span class="not-chev">▶</span>' +
         '<span class="not-tit">' + cotEsc(n.titulo || 'Sin título') + '</span>' +
-        '<span class="not-fec">' + cotEsc(String(n.fecha || '').slice(0, 16).replace('T', ' ')) + '</span>' +
+        // Sólo la fecha: a nadie le importa a qué hora se anotó un dato
+        // bancario, y la hora ocupaba lugar en un renglón ya apretado.
+        '<span class="not-fec">' + cotEsc(bcoFecha(String(n.fecha || '').slice(0, 10))) + '</span>' +
         '<span class="not-acc">' +
           '<span class="not-acc-rot">Copiar</span>' +
           '<button class="btn btn-primary" title="Con los asteriscos, como los lee WhatsApp" onclick="event.stopPropagation();notCopiarWA(\'' + n.id + '\')">WhatsApp</button>' +
@@ -10612,11 +10545,6 @@ function processPDF(file) {
       }
       facturaItems = r.data.items;
       renderFacturaItems();
-      // Navegar al panel de facturas si no estamos ahí
-      const panel = document.getElementById('panel-facturas');
-      if (panel && !panel.classList.contains('active')) {
-        showPanel('facturas', document.querySelector('[onclick*="facturas"]'));
-      }
       showToast('' + r.data.total + ' ítems detectados — revisá y confirmá', 'success');
     });
   };
@@ -12217,12 +12145,9 @@ function dashRender() {
     (s.tracksVencidosCount ? ` · 🚨 ${s.tracksVencidosCount} vencidos` : '');
 
   // ── Trackings sin arribar
-  //   El bloque de "vencidos" quedó vacío y oculto: los atrasados son
-  //   también trackings sin arribar, y tenerlos en dos listas hacía
-  //   que el mismo envío apareciera dos veces en la misma pantalla.
-  const vencCard = document.getElementById('dashTracksVencidosCard');
-  if (vencCard) vencCard.style.display = 'none';
-
+  //   El bloque de "vencidos" se fue: los atrasados son también
+  //   trackings sin arribar, y tenerlos en dos listas hacía que el
+  //   mismo envío apareciera dos veces en la misma pantalla.
   const sinArribar = d.tracksNoArribados || [];
   const trkList = document.getElementById('dashTracksPorLlegarList');
   document.getElementById('dashTracksPorLlegarCountLabel').textContent =
@@ -12281,8 +12206,8 @@ function dashRender() {
 
   // ── Cotizaciones para seguimiento
   // ── Cotizaciones para dar seguimiento
-  //   Se muestran las últimas cinco SIEMPRE, aunque ninguna haya
-  //   cumplido los días para reclamar: el bloque vacío no decía nada y
+  //   Se muestran las últimas cinco SIEMPRE, aunque a ninguna le toque
+  //   todavía el recordatorio: el bloque vacío no decía nada y
   //   obligaba a ir hasta Cotizaciones para ver en qué estaba cada una.
   //   Las que ya pasaron el plazo van marcadas.
   const ultimas  = d.ultimasCots || [];
@@ -12290,8 +12215,10 @@ function dashRender() {
   (d.cotsSeguimiento || []).forEach(c => { paraSeg[c.id] = true; });
   DASH_COTS = ultimas;
 
+  // A un cliente no se le "reclama" una cotización —eso es para una
+  // factura impaga—: se le recuerda que la tiene.
   document.getElementById('dashCotsSeguimientoCountLabel').textContent =
-    (d.cotsSeguimiento || []).length + ' para reclamar';
+    (d.cotsSeguimiento || []).length + ' para recordar';
 
   const cotsList = document.getElementById('dashCotsSeguimientoList');
   if (ultimas.length) {
@@ -12306,39 +12233,21 @@ function dashRender() {
             <span style="display:block;font-size:12.5px;color:var(--muted);">
               ${dashFmt(c.total)} · ${cotEsc(c.estado || '')}${c.diasEnviada !== null ? ' · hace ' + c.diasEnviada + 'd' : ''}</span>
           </span>
-          ${toca ? '<span style="font-size:11px;font-weight:700;color:var(--warning);white-space:nowrap;">RECLAMAR</span>' : ''}
+          ${toca ? '<span style="font-size:11px;font-weight:700;color:var(--warning);white-space:nowrap;">A RECORDAR</span>' : ''}
         </label>`;
     }).join('') + `
-      <div style="padding:12px 0 2px;display:flex;align-items:center;gap:10px;">
-        <a href="#" id="dashSegLink" onclick="dashSegRecordar();return false;"
-           style="font-weight:700;color:var(--muted);pointer-events:none;font-size:13.5px;">
-          Recordar las seleccionadas</a>
-        <span id="dashSegCount" style="font-size:12.5px;color:var(--muted);"></span>
+      <!-- El botón iba pegado al último renglón y parecía parte de esa
+           cotización. Va separado por una línea y con aire propio. -->
+      <div style="margin-top:14px;padding-top:14px;border-top:2px solid var(--border2);">
+        <button id="dashSegLink" class="btn btn-primary" onclick="dashSegRecordar()" disabled
+                style="width:100%;justify-content:center;padding:13px;font-size:15px;">
+          <i class="i3d i3d-telefono"></i> Recordar las seleccionadas</button>
+        <div id="dashSegCount" style="font-size:13px;color:var(--muted);text-align:center;margin-top:7px;"></div>
       </div>`;
+    dashSegContar();          // deja el botón apagado y el texto puesto
   } else {
     cotsList.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;"><em>Todavía no hay cotizaciones</em></div>';
   }
-
-  // ── Resumen por estado de cotizaciones
-  const estadosDiv = document.getElementById('dashCotsEstadosList');
-  const estados = d.cotsPorEstado || {};
-  const totalCots = DASHBOARD_ESTADOS_COT.reduce((s,e) => s + (estados[e]||0), 0);
-  estadosDiv.innerHTML = DASHBOARD_ESTADOS_COT.map(e => {
-    const cnt = estados[e] || 0;
-    const pct = totalCots > 0 ? Math.round(cnt/totalCots*100) : 0;
-    const color = DASHBOARD_ESTADOS_COLOR[e] || 'var(--muted)';
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-          <span style="color:var(--text);font-weight:600;">${e}</span>
-          <span style="color:var(--muted);">${cnt} · ${pct}%</span>
-        </div>
-        <div style="height:6px;background:var(--card2);border-radius:4px;overflow:hidden;">
-          <div style="height:100%;width:${pct}%;background:${color};transition:width 0.3s;"></div>
-        </div>
-      </div>
-    `;
-  }).join('') + (totalCots === 0 ? '<div style="color:var(--muted);font-size:12px;text-align:center;padding:6px;"><em>Sin cotizaciones todavía</em></div>' : '');
 
   // ── Bancos · AMELIFE SALDOS
   //   El servidor sólo manda `finanzas` a los roles habilitados, así
@@ -12430,10 +12339,15 @@ function dashSegContar() {
   const cnt  = document.getElementById('dashSegCount');
   if (!link) return;
 
-  // El link arranca apagado: sin nada tildado no hay a quién recordarle.
-  link.style.pointerEvents = n ? 'auto' : 'none';
-  link.style.color = n ? 'var(--green)' : 'var(--muted)';
-  if (cnt) cnt.textContent = n ? (n === 1 ? '1 elegida' : n + ' elegidas') : 'elegí una o varias';
+  // Arranca apagado: sin nada tildado no hay a quién recordarle.
+  link.disabled = !n;
+  link.style.opacity = n ? '1' : '.5';
+  link.style.cursor  = n ? 'pointer' : 'not-allowed';
+  if (cnt) {
+    cnt.textContent = n
+      ? (n === 1 ? '1 cotización elegida' : n + ' cotizaciones elegidas')
+      : 'Tildá una o varias para armar el mensaje';
+  }
 }
 
 /**
