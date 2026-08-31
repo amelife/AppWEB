@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.5 | 2026-08-29 ARG - Fuera Importar Factura y Cotizaciones por estado; las cotizaciones se recuerdan con boton grande y separado; notas en dos columnas y con la fecha sin hora -->
+<!-- AMELIFE EMS Technologies - Web App v12.6 | 2026-08-31 ARG - Bancos: se puede corregir a mano el saldo y el desglose de cada cuenta, y queda avisado como actualizacion manual -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2895,6 +2895,43 @@
       <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="closeModal('modalFamResumen')">Cancelar</button>
       <button class="btn btn-primary" id="famResBtn" onclick="famEnviarResumen()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: corregir un saldo a mano -->
+<div class="modal-overlay" id="modalBcoEditar" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:620px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title"><i class="i3d i3d-editar"></i> <span id="bcoEdTitulo">Editar saldo</span></div>
+      <button class="modal-close" onclick="closeModal('modalBcoEditar')">&#10005;</button>
+    </div>
+
+    <p class="cfg-ayuda">Lo que cargues ac&aacute; queda marcado como <b>actualizaci&oacute;n manual</b>:
+      es el &uacute;nico saldo que no sale de un statement ni de una foto, as&iacute; que conviene poder
+      distinguirlo despu&eacute;s.</p>
+
+    <div class="modal-grid">
+      <div class="field"><label>Fecha del saldo</label>
+        <input type="date" id="bcoEdFecha"></div>
+      <div class="field"><label>Saldo de la cuenta</label>
+        <input type="number" step="0.01" id="bcoEdSaldo" oninput="bcoEdCuadra()"></div>
+    </div>
+
+    <div class="cfg-seccion">Desglose</div>
+    <p class="cfg-ayuda">Las l&iacute;neas que dicen <b>LC</b> o <b>Acceptances</b> se restan; las de
+      bonos, acciones y fondos cuentan como invertido. El resto suma como disponible.</p>
+    <div id="bcoEdLineas"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin:10px 0 4px;flex-wrap:wrap">
+      <button class="btn btn-outline" style="padding:6px 12px;font-size:13px" onclick="bcoEdAgregar()">+ Agregar l&iacute;nea</button>
+      <button class="btn btn-outline" style="padding:6px 12px;font-size:13px" onclick="bcoEdIgualar()">Usar la suma como saldo</button>
+      <span id="bcoEdCuadre" style="font-size:13px;font-weight:600"></span>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalBcoEditar')">Cancelar</button>
+      <span style="flex:1"></span>
+      <button class="btn btn-primary" id="bcoEdBtn" onclick="bcoEdGuardar()">Guardar</button>
     </div>
   </div>
 </div>
@@ -6949,6 +6986,127 @@ async function famPendEnviar() {
 
   closeModal('modalFamPend');
   showToast('Resumen enviado a ' + r.data.enviado_a, 'success');
+}
+
+// ============================================
+//  CORREGIR UN SALDO A MANO
+//
+//  Es la salida cuando el statement todavía no salió o la foto no se
+//  pudo leer. Queda guardado con fuente 'Manual', y eso importa por
+//  dos motivos: la pantalla lo avisa en la cuenta, y el gráfico —que
+//  sólo toma statements— lo deja afuera de la historia.
+// ============================================
+
+var BCO_ED = { cuenta: null, lineas: [] };
+
+function bcoEdAbrir(id) {
+  const r = BANCOS_STATE.resumen;
+  const c = ((r && r.detalle) || []).filter(x => x.id === id)[0];
+  if (!c) { showToast('No encontré esa cuenta', 'error'); return; }
+
+  BCO_ED.cuenta = c;
+  BCO_ED.lineas = (c.ultimoDesglose || []).map(l => ({
+    etiqueta: l.etiqueta || l.label || '',
+    monto:    Math.abs(Number(l.monto != null ? l.monto : l.saldo) || 0)
+  }));
+
+  document.getElementById('bcoEdTitulo').textContent = c.banco + ' · ' + c.cuenta;
+  document.getElementById('bcoEdSaldo').value = Number(c.ultimoSaldo || 0);
+  // Se propone HOY, no la fecha del saldo viejo: si estás corrigiendo
+  // es porque tenés un número nuevo.
+  document.getElementById('bcoEdFecha').value = new Date().toISOString().slice(0, 10);
+
+  bcoEdPintar();
+  openModal('modalBcoEditar');
+}
+
+function bcoEdPintar() {
+  const caja = document.getElementById('bcoEdLineas');
+  if (!BCO_ED.lineas.length) {
+    caja.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:6px 0">' +
+      'Esta cuenta no tiene desglose. Podés dejarla así o agregar líneas.</div>';
+  } else {
+    caja.innerHTML = BCO_ED.lineas.map((l, i) =>
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:7px">' +
+        '<input type="text" value="' + cotEsc(l.etiqueta) + '" placeholder="Concepto"' +
+          ' oninput="BCO_ED.lineas[' + i + '].etiqueta=this.value"' +
+          ' style="flex:1;padding:8px 10px;background:var(--field);border:1px solid var(--border2);' +
+          'border-radius:var(--radius);color:var(--text)">' +
+        '<input type="number" step="0.01" value="' + l.monto + '"' +
+          ' oninput="BCO_ED.lineas[' + i + '].monto=Number(this.value)||0;bcoEdCuadra()"' +
+          ' style="width:150px;padding:8px 10px;background:var(--field);border:1px solid var(--border2);' +
+          'border-radius:var(--radius);color:var(--text);text-align:right">' +
+        '<button class="tbl-txt peligro" onclick="bcoEdBorrar(' + i + ')" style="font-size:12px">Quitar</button>' +
+      '</div>').join('');
+  }
+  bcoEdCuadra();
+}
+
+function bcoEdAgregar() { BCO_ED.lineas.push({ etiqueta: '', monto: 0 }); bcoEdPintar(); }
+function bcoEdBorrar(i) { BCO_ED.lineas.splice(i, 1); bcoEdPintar(); }
+
+/** Cuánto suman las líneas, con las LC restando. */
+function bcoEdSuma() {
+  return BCO_ED.lineas.reduce((t, l) =>
+    t + (/\blcs?\b|acceptan/i.test(l.etiqueta) ? -l.monto : l.monto), 0);
+}
+
+/**
+ * Avisa si el desglose no da el saldo.
+ *
+ * No corrige nada solo: puede haber un desglose parcial a propósito.
+ * Pero un desglose que no cierra casi siempre es un número mal tipeado,
+ * y verlo antes de guardar evita tener que buscarlo después.
+ */
+function bcoEdCuadra() {
+  const el = document.getElementById('bcoEdCuadre');
+  if (!el) return;
+  if (!BCO_ED.lineas.length) { el.textContent = ''; return; }
+
+  const suma  = bcoEdSuma();
+  const saldo = Number(document.getElementById('bcoEdSaldo').value) || 0;
+  const dif   = Math.round((suma - saldo) * 100) / 100;
+
+  el.textContent = 'El desglose suma ' + bancosFmt(suma) +
+    (Math.abs(dif) < 0.02 ? ' · cuadra' : ' · difiere en ' + bancosFmt(Math.abs(dif)));
+  el.style.color = Math.abs(dif) < 0.02 ? 'var(--green)' : 'var(--warning)';
+}
+
+function bcoEdIgualar() {
+  document.getElementById('bcoEdSaldo').value = Math.round(bcoEdSuma() * 100) / 100;
+  bcoEdCuadra();
+}
+
+async function bcoEdGuardar() {
+  const c = BCO_ED.cuenta;
+  if (!c) return;
+
+  const fecha = document.getElementById('bcoEdFecha').value;
+  const saldo = Number(document.getElementById('bcoEdSaldo').value);
+  if (!fecha) { showToast('Poné la fecha del saldo', 'error'); return; }
+  if (isNaN(saldo)) { showToast('El saldo tiene que ser un número', 'error'); return; }
+
+  const lineas = BCO_ED.lineas
+    .filter(l => String(l.etiqueta).trim() && l.monto)
+    .map(l => ({ etiqueta: String(l.etiqueta).trim(), monto: Math.abs(l.monto) }));
+
+  const btn = document.getElementById('bcoEdBtn');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  let r = null;
+  try {
+    r = await api('guardarSnapshot', {
+      bancoId: c.id, fecha: fecha, saldo: saldo,
+      fuente: 'Manual', desglose: lineas,
+      notas: 'Cargado a mano desde la pantalla de Bancos'
+    });
+  } finally {
+    btn.disabled = false; btn.textContent = 'Guardar';
+  }
+
+  if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo guardar', 'error'); return; }
+  closeModal('modalBcoEditar');
+  showToast(c.cuenta + ' actualizada a mano', 'success');
+  bancosRefresh();
 }
 
 // ============================================
@@ -11290,13 +11448,17 @@ function bancosPintarAhora(r) {
 /**
  * De dónde salió el saldo.
  *
- * Sólo se aclara cuando viene de un statement, que es el dato con
- * respaldo. Lo demás no se nombra: aclarar "de una foto" en cada
- * renglón ensuciaba la pantalla sin agregar nada — si no dice
- * statement, es la lectura del día.
+ * Se nombran los dos casos en que importa: el statement, que es el
+ * dato con respaldo, y la carga a mano, que es el único que no vino
+ * de un documento y conviene poder identificar después. La lectura de
+ * una foto no se nombra: es lo habitual y aclararlo en cada renglón
+ * ensuciaba sin agregar nada.
  */
 function bancosOrigen(f) {
-  return /statement/i.test(String(f || '')) ? 'statement' : '';
+  const t = String(f || '');
+  if (/statement/i.test(t)) return 'statement';
+  if (/manual/i.test(t))    return 'carga manual';
+  return '';
 }
 
 /** 2026-08-29 → 29 de agosto de 2026 */
@@ -11436,12 +11598,29 @@ function bancosRenderGrid() {
                 ${/* La fecha por cuenta sólo aparece si difiere de la del
                       banco, que ya está en el encabezado. Repetir la misma
                       fecha en cada renglón era ruido. */''}
-                ${(c.ultimaFecha && vieja) || !c.ultimaFecha ? `
-                  <div style="font-size:13px;margin-top:3px;font-weight:700;color:${c.ultimaFecha ? 'var(--warning)' : 'var(--danger)'};">
-                    ${c.ultimaFecha ? 'al ' + bcoFecha(c.ultimaFecha) : 'sin datos'}
-                  </div>` : ''}
+                ${(() => {
+                  const org = bancosOrigen(c.ultimaFuente);
+                  const manual = /manual/i.test(String(c.ultimaFuente || ''));
+                  // La fecha se repite sólo si esta cuenta está más
+                  // atrasada que su banco. La carga a mano, en cambio,
+                  // se avisa SIEMPRE: es el único saldo que nadie puede
+                  // respaldar con un documento.
+                  if (!c.ultimaFecha) {
+                    return '<div style="font-size:13px;margin-top:3px;font-weight:700;color:var(--danger);">sin datos</div>';
+                  }
+                  if (!vieja && !manual) return '';
+                  const color = manual ? 'var(--info)' : 'var(--warning)';
+                  return '<div style="font-size:13px;margin-top:3px;font-weight:700;color:' + color + ';">' +
+                    (vieja ? 'al ' + bcoFecha(c.ultimaFecha) : '') +
+                    (vieja && manual ? ' · ' : '') +
+                    (manual ? 'actualización manual' : '') + '</div>';
+                })()}
               </div>
-              <div style="font-size:19px;font-weight:800;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};margin-left:12px;white-space:nowrap;">${bancosFmt(c.ultimoSaldo)}</div>
+              <div style="text-align:right;margin-left:12px;white-space:nowrap;">
+                <div style="font-size:19px;font-weight:800;color:${c.ultimoSaldo<0?'var(--danger)':'var(--text)'};">${bancosFmt(c.ultimoSaldo)}</div>
+                <button class="tbl-txt" onclick="bcoEdAbrir('${c.id}')"
+                  style="font-size:12px;margin-top:2px;">Editar a mano</button>
+              </div>
             </div>
             ${desglose.length > 0 ? `
               <div style="margin-top:10px;padding:10px 12px;background:var(--card2);border-radius:6px;border-left:3px solid var(--info);">
