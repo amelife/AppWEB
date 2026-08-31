@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.6 | 2026-08-31 ARG - Bancos: se puede corregir a mano el saldo y el desglose de cada cuenta, y queda avisado como actualizacion manual -->
+<!-- AMELIFE EMS Technologies - Web App v12.7 | 2026-08-31 ARG - Facturas AME: las pagadas vienen ocultas y hay un boton para mostrarlas; Bancos con edicion manual del saldo y su desglose -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1910,6 +1910,7 @@
             <option value="Parcial">Parciales</option>
             <option value="Pagada">Pagadas</option>
           </select>
+          <button class="btn btn-outline" id="famBtnPagadas" onclick="famVerPagadas()">Mostrar pagadas</button>
           <button class="btn btn-outline" onclick="famCargar(true)"><i class="i3d i3d-actualizar"></i> Actualizar</button>
           <button class="btn btn-outline" onclick="famPendAbrir()"><i class="i3d i3d-enviar"></i> Enviar resumen</button>
           <button class="btn btn-outline" onclick="famNueva()">+ Cargar a mano</button>
@@ -1933,7 +1934,8 @@
             </tr></thead>
             <tbody id="famBody"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</td></tr></tbody>
           </table>
-          <div class="table-footer"><span id="famCount">—</span></div>
+          <div class="table-footer"><span id="famCount">—</span>
+            <span id="famAvisoPagadas" style="color:var(--muted);margin-left:6px"></span></div>
         </div>
       </div>
 
@@ -6334,15 +6336,52 @@ function famOrdenada(lista) {
 
   return bloques.sort((a, b) => famComparar(a._k, b._k));
 }
+/**
+ * Las facturas cerradas —pagadas y anuladas— vienen ocultas.
+ *
+ * La pantalla es para cobrar: una factura ya cobrada no se hace nada
+ * con ella, y con el tiempo son las que más pesan en la lista. Se ven
+ * apretando "Mostrar pagadas", o eligiendo Pagadas en el desplegable,
+ * que es un pedido explícito y manda sobre el botón.
+ *
+ * Los totales de arriba nunca las contaron: siempre filtraron por
+ * famAbierta().
+ */
+var FAM_VER_PAGADAS = false;
+
+function famVerPagadas() {
+  FAM_VER_PAGADAS = !FAM_VER_PAGADAS;
+  const b = document.getElementById('famBtnPagadas');
+  if (b) b.textContent = FAM_VER_PAGADAS ? 'Ocultar pagadas' : 'Mostrar pagadas';
+  famFiltrar();
+}
+
 function famFiltrar() {
   const q  = (document.getElementById('famBuscar').value || '').toLowerCase().trim();
   const fe = document.getElementById('famFiltroEstado').value;
-  famRender(FAM_STATE.lista.filter(f => {
+
+  // Pedir un estado cerrado en el desplegable gana sobre el botón: si
+  // elegiste "Pagadas" es porque querés verlas.
+  const pidioCerradas = (fe === 'Pagada' || fe === 'Anulada');
+
+  const lista = FAM_STATE.lista.filter(f => {
+    if (!famAbierta(f) && !FAM_VER_PAGADAS && !pidioCerradas) return false;
     if (fe === 'vencidas' && !famVencida(f)) return false;
     if (fe && fe !== 'vencidas' && f.estado !== fe) return false;
     if (!q) return true;
     return (f.numero + ' ' + f.cliente + ' ' + (f.contacto || '')).toLowerCase().indexOf(q) > -1;
-  }));
+  });
+
+  // Cuántas quedaron afuera, para que no parezca que faltan.
+  const ocultas = FAM_STATE.lista.filter(f => !famAbierta(f)).length;
+  const av = document.getElementById('famAvisoPagadas');
+  if (av) {
+    av.textContent = (!FAM_VER_PAGADAS && !pidioCerradas && ocultas)
+      ? '· ' + ocultas + (ocultas === 1 ? ' pagada oculta' : ' pagadas ocultas')
+      : '';
+  }
+
+  famRender(lista);
 }
 
 /** Lo que falta cobrar de una factura. Las viejas no traen saldo. */
