@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.7 | 2026-08-31 ARG - Facturas AME: las pagadas vienen ocultas y hay un boton para mostrarlas; Bancos con edicion manual del saldo y su desglose -->
+<!-- AMELIFE EMS Technologies - Web App v12.8 | 2026-09-04 ARG - Facturas AME: boton Agradecer en cada factura que ya cobro algo (antes solo aparecia al registrar el pago); las pagadas vienen ocultas con boton para mostrarlas -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -6497,6 +6497,13 @@ function famFilaHTML(f, dentroDeGrupo, ultima) {
       '<button class="tbl-txt" onclick="famEditar(\'' + f.id + '\')">Editar</button>' +
       (pagada || anulada ? '' : '<button class="tbl-txt" onclick="famAbrirRecordar(\'' + f.id + '\')">Recordar</button>') +
       (pagada || anulada ? '' : '<button class="tbl-txt" onclick="famAbrirPago(\'' + f.id + '\')">Registrar pago</button>') +
+      // Agradecer se ofrecía SÓLO en el momento de registrar el pago.
+      // Si se cerraba ese modal, o si el pago se había cargado otro
+      // día, no había forma de volver a abrirlo. Ahora la factura que
+      // ya cobró algo lo tiene siempre a mano.
+      (famPagado(f) > 0.005
+        ? '<button class="tbl-txt" onclick="famGraciasDeNuevo(\'' + f.id + '\')">Agradecer</button>'
+        : '') +
       '<button class="tbl-txt peligro" onclick="famBorrar(\'' + f.id + '\',\'' + cotEsc(f.numero) + '\')">Borrar</button>' +
     '</div></td>' +
   '</tr>';
@@ -8259,6 +8266,27 @@ var FAM_GR_WA = [
 ].join('\n');
 
 var FAM_GRACIAS = { factura: null, monto: 0, vars: {}, wa: FAM_GR_WA };
+
+/**
+ * Vuelve a abrir el agradecimiento de una factura ya cobrada.
+ *
+ * Toma el ÚLTIMO pago registrado, que es el que se está por agradecer.
+ * Si la factura no tiene el detalle de pagos cargado —las viejas no lo
+ * traen— se usa lo pagado en total, que para una factura cobrada de
+ * una sola vez es exactamente lo mismo.
+ */
+function famGraciasDeNuevo(id) {
+  const f = FAM_STATE.lista.find(x => x.id === id);
+  if (!f) { showToast('No encontré esa factura', 'error'); return; }
+
+  const pagos = Array.isArray(f.pagos) ? f.pagos : [];
+  const ultimo = pagos.length ? pagos[pagos.length - 1] : null;
+  const monto = ultimo ? (Number(ultimo.monto) || 0) : famPagado(f);
+
+  if (monto <= 0.005) { showToast('Esa factura todavía no tiene pagos', 'error'); return; }
+
+  famAbrirGracias(id, monto, { saldo: famSaldo(f), estado: f.estado });
+}
 
 async function famAbrirGracias(id, monto, resultado) {
   const f = FAM_STATE.lista.find(x => x.id === id);
