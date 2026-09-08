@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.8 | 2026-09-04 ARG - Facturas AME: boton Agradecer en cada factura que ya cobro algo (antes solo aparecia al registrar el pago); las pagadas vienen ocultas con boton para mostrarlas -->
+<!-- AMELIFE EMS Technologies - Web App v12.9 | 2026-09-08 ARG - El documento del cliente ya no dice "factura proforma": es una cotizacion, en el PDF, el correo y el WhatsApp -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -2579,7 +2579,7 @@
 <div class="modal-overlay" id="modalCotEnviar">
   <div class="modal" style="max-width:460px">
     <div class="modal-header">
-      <div class="modal-title">Enviar proforma</div>
+      <div class="modal-title">Enviar cotización</div>
       <button class="modal-close" onclick="closeModal('modalCotEnviar')">✕</button>
     </div>
     <div id="cotEnviarResumen" style="font-size:13px;color:var(--muted);margin-bottom:18px"></div>
@@ -2598,7 +2598,7 @@
       </button>
     </div>
     <div style="margin-top:14px;font-size:11px;color:var(--muted);line-height:1.6">
-      Para WhatsApp: descargá primero la proforma con el botón de proforma. Se abre WhatsApp Web
+      Para WhatsApp: descargá primero el PDF con el botón de arriba. Se abre WhatsApp Web
       con el mensaje escrito y vos adjuntás el PDF con el clip 📎 — WhatsApp no permite
       adjuntar archivos desde un enlace.
     </div>
@@ -2624,7 +2624,7 @@
         Lo que podés hacer
       </div>
       <div><i class="i3d i3d-ia"></i> &nbsp;Armar cotizaciones a mano o con la IA</div>
-      <div><i class="i3d i3d-cotizaciones"></i> &nbsp;Descargar la proforma en PDF</div>
+      <div><i class="i3d i3d-cotizaciones"></i> &nbsp;Descargar la cotización en PDF</div>
       <div><i class="i3d i3d-enviar"></i> &nbsp;Enviarla por email o WhatsApp</div>
       <div><i class="i3d i3d-actualizar"></i> &nbsp;Cambiar el estado y hacer seguimiento</div>
     </div>
@@ -3189,7 +3189,7 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
     <div class="cc-caja" id="cotEmailCcCaja"></div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('modalCotEmail')">Cancelar</button>
-      <button class="btn btn-primary" id="cotEmailBtnEnviar" onclick="cotEmailConfirmar()"><i class="i3d i3d-correo"></i> Enviar proforma</button>
+      <button class="btn btn-primary" id="cotEmailBtnEnviar" onclick="cotEmailConfirmar()"><i class="i3d i3d-correo"></i> Enviar cotización</button>
     </div>
   </div>
 </div>
@@ -13786,14 +13786,14 @@ async function cotIAUsar() {
 async function cotDescargarPDF(id) {
   const win = window.open('', '_blank');
   if (!win) { showToast('Permití las ventanas emergentes para este sitio', 'error'); return; }
-  win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la proforma…</p>');
+  win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la cotización…</p>');
 
   const r = await api('getProformaHTML', { id });
   if (!r.ok) { win.close(); showToast('Error: ' + (r.error || ''), 'error'); return; }
 
   win.document.open();
   win.document.write(r.data.html);
-  win.document.title = (r.data.nombre || 'Proforma').replace(/\.pdf$/, '');
+  win.document.title = (r.data.nombre || 'Cotizacion').replace(/\.pdf$/, '');
   win.document.close();
 
   setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 600);
@@ -14024,7 +14024,7 @@ async function cotEmailConfirmar() {
   });
 
   btn.disabled = false;
-  btn.innerHTML = '<i class="i3d i3d-correo"></i> Enviar proforma';
+  btn.innerHTML = '<i class="i3d i3d-correo"></i> Enviar cotización';
 
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   closeModal('modalCotEmail');
@@ -14038,13 +14038,13 @@ async function cotEnviarPorWhatsApp() {
 
   const seguir = confirm(
     'WhatsApp no permite adjuntar archivos desde un enlace.\n\n' +
-    'Antes de seguir tenés que haber descargado la proforma ' + etiqueta + ' con el botón de proforma.\n\n' +
+    'Antes de seguir tenés que haber descargado la cotización ' + etiqueta + ' con el botón de arriba.\n\n' +
     'Se abre WhatsApp Web con el mensaje escrito: adjuntá el PDF con el clip 📎.\n\n' +
     '¿Ya la descargaste?'
   );
   if (!seguir) {
     closeModal('modalCotEnviar');
-    showToast('Descargala primero con el botón de proforma', 'info');
+    showToast('Descargala primero con el botón de descarga', 'info');
     return;
   }
 
@@ -14088,8 +14088,8 @@ function cotTextoWhatsApp(d) {
   const quien = (d.remitente && d.remitente.nombre) ? `*${d.remitente.nombre}*\n` : '';
 
   return `Hola *${d.cliente || 'Cliente'}*,\n\n` +
-    `Les enviamos la *factura proforma ${d.numero}*, por un total de *US$ ${total}*\n` +
-    `Adjuntamos el PDF con el detalle de la proforma y nuestros datos bancarios para realizar el pago.\n` +
+    `Les enviamos la *cotización ${d.numero}*, por un total de *US$ ${total}*\n` +
+    `Adjuntamos el PDF con el detalle y nuestros datos bancarios para realizar el pago.\n` +
     `Quedamos a disposición ante cualquier consulta o si necesitan información adicional.\n\n` +
     `Saludos cordiales,\n` +
     quien +
@@ -14103,7 +14103,7 @@ function cotBajarBase64(base64, nombre) {
   const url   = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
   const a     = document.createElement('a');
   a.href = url;
-  a.download = nombre || 'proforma.pdf';
+  a.download = nombre || 'cotizacion.pdf';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
