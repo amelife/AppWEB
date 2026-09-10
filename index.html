@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v12.9 | 2026-09-08 ARG - El documento del cliente ya no dice "factura proforma": es una cotizacion, en el PDF, el correo y el WhatsApp -->
+<!-- AMELIFE EMS Technologies - Web App v13.0 | 2026-09-10 ARG - Guardar orden de compra: la fila de items iba con 11 columnas y la hoja tiene 12 (recibido_qty). Editar una orden ya no borra el WH ni lo recibido -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -4511,9 +4511,13 @@ async function ocEditar(id) {
   document.getElementById('ocNumero').value = o.numero || '';
   document.getElementById('ocFecha').value = String(o.fecha || '').slice(0, 10);
   document.getElementById('ocObs').value = o.observaciones || '';
+  // El WH y lo recibido viajan de vuelta aunque el modal no los muestre:
+  // guardar reescribe las líneas enteras, y si no van se pierde lo que
+  // ya se había recibido de esa orden.
   OC_STATE.items = (o.items || []).map(i => ({
     pn: i.pn, desc: i.desc, qty: i.qty, uom: i.uom || 'EA',
-    rep: i.rep || OC_REPS[0], precio: i.precio
+    rep: i.rep || OC_REPS[0], precio: i.precio,
+    wh: i.wh || '', recibido: i.recibido, recibido_qty: i.recibido_qty
   }));
   ocRenderItems();
 }
