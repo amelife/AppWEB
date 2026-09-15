@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v13.0 | 2026-09-10 ARG - Guardar orden de compra: la fila de items iba con 11 columnas y la hoja tiene 12 (recibido_qty). Editar una orden ya no borra el WH ni lo recibido -->
+<!-- AMELIFE EMS Technologies - Web App v13.1 | 2026-09-15 ARG - Guardar OC: la fila de items iba con 11 columnas y la hoja tiene 12. Editar una orden ya no borra el WH ni lo recibido. Importar factura AME: tope de 3 min y los errores del modal ya no quedan mudos -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -7777,14 +7777,28 @@ function famColaSiguiente() {
   const fr = new FileReader();
   fr.onload = () => {
     const b64 = String(fr.result).split(',')[1];
-    api('importarFacturaAME', { base64: b64, fileName: file.name }).then(r => {
+    // Tope de 3 minutos: el OCR de Drive a veces se queda colgado con un
+    // PDF y sin tope la llamada no vuelve NUNCA. El cartelito de "Leyendo
+    // la factura" se quedaba girando para siempre, sin error y sin modal,
+    // y no había forma de saber que el pedido había muerto.
+    api('importarFacturaAME', { base64: b64, fileName: file.name }, false, 180000).then(r => {
       if (!r || !r.ok) {
         showToast('No pude leer ' + file.name + ': ' + ((r && r.error) || 'error'), 'error');
         FAM_COLA.saltadas++;
         famColaSiguiente();          // una que falla no frena a las demás
         return;
       }
-      famAbrirModal(r.data, true);
+      // Si el modal explota al llenarse, el error tiene que verse. Sin
+      // esto, cualquier excepción acá adentro se la come la promesa y la
+      // pantalla queda igual que si no hubieras apretado nada.
+      try {
+        famAbrirModal(r.data, true);
+      } catch (e) {
+        showToast('Leí ' + file.name + ' pero no pude abrir el formulario: ' + e.message, 'error');
+        console.error('famAbrirModal', e, r.data);
+        FAM_COLA.saltadas++;
+        famColaSiguiente();
+      }
     });
   };
   fr.onerror = () => {
