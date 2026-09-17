@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v13.1 | 2026-09-15 ARG - Guardar OC: la fila de items iba con 11 columnas y la hoja tiene 12. Editar una orden ya no borra el WH ni lo recibido. Importar factura AME: tope de 3 min y los errores del modal ya no quedan mudos -->
+<!-- AMELIFE EMS Technologies - Web App v14.0 | 2026-09-17 ARG - Etapa 3: login por Supabase Auth con renovacion de token, y ruteo doble en api() (acciones migradas a Postgres, el resto a Apps Script). ACCIONES_SUPABASE arranca vacio: el unico cambio de esta version es de donde sale la sesion -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3404,6 +3404,106 @@ let CLIENTES       = [];
 let PRICEBOOK_DATA = [];
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw577_aLhl42DkpN7or4ejTC7XyxCCWLGBjXxsLNfQTPNlaRJ2cL3ViOGV0KR_TaRY/exec';
 
+// ============================================================
+//  SUPABASE · Etapa 3 de la migración
+// ============================================================
+//
+// La anon key va escrita acá a propósito: es pública por diseño y la
+// RLS de Postgres es la que decide qué se ve. Con esta clave y sin
+// sesión, `clientes` devuelve [] — probado. La que NUNCA puede estar
+// en el frontend es la service_role, que se saltea toda la RLS.
+const SB_URL  = 'https://xnzlzcgvalujrwlyrhhk.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhuemx6Y2d2YWx1anJ3bHlyaGhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NTg3MzksImV4cCI6MjEwNTIzNDczOX0.kzqZ0xE4PTtNjxl7Tnjpm8QnFrobPcUdE-9c31NAOyA';
+
+var SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
+
+// El formulario pide usuario ('admin'), pero Supabase Auth identifica
+// por email. Este mapa traduce y mantiene el hábito de tipear el
+// usuario corto. Si alguien escribe el email directo, pasa de largo.
+const SB_EMAIL_DE = {
+  admin: 'amelife@amelife-911.com',
+  // ezequiel: '...',   <- cuando estén sus emails
+  // staff1:   '...',
+};
+
+// Acciones que YA viven en Supabase. Arranca vacío: en la Etapa 3 el
+// único cambio es de dónde sale la sesión, y todo lo demás sigue yendo
+// a Apps Script exactamente como antes. En la Etapa 4 se agregan de a
+// un módulo por vez, y cada acción que entra acá deja de viajar a
+// Google. Así se puede migrar de a poco sin quedarse sin app.
+const ACCIONES_SUPABASE = new Set([
+  // 'getClientes', 'buscarClientes', ...
+]);
+
+/** Login contra Supabase Auth. Devuelve el perfil o tira el error. */
+async function sbLogin(email, password) {
+  const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'apikey': SB_ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password })
+  });
+  const d = await r.json();
+  if (!d.access_token) {
+    throw new Error(d.error_description || d.msg || 'Credenciales inválidas');
+  }
+  SB.token   = d.access_token;
+  SB.refresh = d.refresh_token;
+  SB.vence   = Date.now() + (d.expires_in || 3600) * 1000;
+
+  // El rol sale de la tabla perfiles, no del JWT: así se puede cambiar
+  // sin que el usuario tenga que volver a entrar.
+  const pf = await sbGet('perfiles?select=usuario,nombre,rol');
+  if (!pf || !pf.length) {
+    throw new Error('El usuario existe en Auth pero no tiene perfil cargado.');
+  }
+  SB.rol     = pf[0].rol;
+  SB.usuario = pf[0].usuario;
+  return pf[0];
+}
+
+/**
+ * El JWT dura una hora y la jornada dura doce. Se renueva solo, un
+ * minuto antes de vencer, para que nadie se quede afuera a media tarde.
+ */
+async function sbRenovar() {
+  if (!SB.refresh) return false;
+  const r = await fetch(SB_URL + '/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    headers: { 'apikey': SB_ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: SB.refresh })
+  });
+  const d = await r.json();
+  if (!d.access_token) return false;
+  SB.token   = d.access_token;
+  SB.refresh = d.refresh_token || SB.refresh;
+  SB.vence   = Date.now() + (d.expires_in || 3600) * 1000;
+  return true;
+}
+
+/** Una consulta a PostgREST. `path` es lo que va después de /rest/v1/. */
+async function sbGet(path) {
+  if (SB.token && Date.now() > SB.vence - 60000) await sbRenovar();
+  const pedir = () => fetch(SB_URL + '/rest/v1/' + path, {
+    headers: {
+      'apikey': SB_ANON,
+      'Authorization': 'Bearer ' + (SB.token || SB_ANON),
+      'Accept': 'application/json'
+    }
+  });
+  let r = await pedir();
+  // Un 401 con sesión viva casi siempre es el token vencido antes de
+  // lo previsto (reloj corrido, sesión revocada): se renueva y se
+  // reintenta UNA vez, no en loop.
+  if (r.status === 401 && SB.token && await sbRenovar()) r = await pedir();
+  if (!r.ok) throw new Error('Supabase ' + r.status + ': ' + (await r.text()).slice(0, 200));
+  return await r.json();
+}
+
+function sbLogout() {
+  SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
+}
+
+
 // ── Sesión ─────────────────────────────────────────────────
 // Token emitido por el backend en validateUser(). Viaja en cada
 // llamada de api(). Vive sólo en memoria: si se recarga la página
@@ -3757,7 +3857,44 @@ function actTerminar(id, ok) {
  *   sería peor. Se pone sólo donde una espera infinita deja la
  *   pantalla trabada sin salida.
  */
+/**
+ * Ruteo doble: las acciones migradas van a Postgres, el resto sigue a
+ * Apps Script. Es UNA función y ninguna pantalla se enteró del cambio
+ * — por eso la Etapa 3 es la bisagra de toda la migración.
+ */
 async function api(action, params = {}, silencioso = false, topeMs = 0) {
+  if (ACCIONES_SUPABASE.has(action)) {
+    return await apiSupabase(action, params, silencioso);
+  }
+  return await apiAppsScript(action, params, silencioso, topeMs);
+}
+
+/** Traductor de acción -> consulta PostgREST. Se llena en la Etapa 4. */
+async function apiSupabase(action, params, silencioso) {
+  const tarea = silencioso ? null
+    : actIniciar(ETIQUETAS_ACCION[action] || rotuloAccion(action));
+  try {
+    const fn = SUPABASE_HANDLERS[action];
+    if (!fn) throw new Error('La acción ' + action + ' está marcada como ' +
+                             'migrada pero no tiene handler de Supabase.');
+    const data = await fn(params);
+    actTerminar(tarea, true);
+    return { ok: true, data: data };
+  } catch (e) {
+    actTerminar(tarea, false);
+    return { ok: false, error: e.message };
+  }
+}
+
+// action -> función que la resuelve contra Postgres. Cada módulo que se
+// migra en la Etapa 4 agrega sus entradas acá y su nombre a
+// ACCIONES_SUPABASE. Las dos listas tienen que moverse juntas: una
+// acción en ACCIONES_SUPABASE sin handler acá devuelve error explícito
+// en vez de fallar en silencio.
+const SUPABASE_HANDLERS = {
+};
+
+async function apiAppsScript(action, params = {}, silencioso = false, topeMs = 0) {
   // SIEMPRE se avisa lo que está haciendo, salvo que quien llama pida
   // silencio a propósito (la precarga de fondo, que es la única).
   //
@@ -3817,6 +3954,7 @@ async function api(action, params = {}, silencioso = false, topeMs = 0) {
 function forzarLogout(msg) {
   SESSION_TOKEN = null;
   currentUser   = null;
+  sbLogout();
 
   // Frenar el auto-refresh del dashboard (si está corriendo)
   if (typeof DASHBOARD_STATE !== 'undefined' && DASHBOARD_STATE.autoRefreshTimer) {
@@ -3874,25 +4012,45 @@ async function doLogin() {
   btn.disabled    = true;
   errEl.style.display = 'none';
 
+  // ── Un formulario, dos sesiones ──────────────────────────
+  // Mientras la migración está a mitad de camino hacen falta las dos:
+  // Supabase para los datos, Apps Script para los módulos que todavía
+  // no se migraron. Las dos usan la MISMA contraseña (el hash de
+  // AuthControl se actualizó para eso), así que el usuario no se
+  // entera de que son dos.
+  //
+  // Supabase va primero y es la que manda: si falla, no se entra. La
+  // de Apps Script se pide después y, si falla, se avisa pero se deja
+  // pasar — así el día que el Sheet se apague la app sigue entrando.
+  let perfil = null;
+  try {
+    perfil = await sbLogin(SB_EMAIL_DE[user] || user, pass);
+  } catch (e) {
+    btn.textContent = 'Ingresar al sistema →';
+    btn.disabled    = false;
+    errEl.textContent   = e.message;
+    errEl.style.display = 'block';
+    return;
+  }
+
   const res = await api('validateUser', { usuario: user, password: pass });
 
   btn.textContent = 'Ingresar al sistema →';
   btn.disabled    = false;
 
-  if (!res.ok) {
-    errEl.textContent   = res.error || 'Credenciales incorrectas';
-    errEl.style.display = 'block';
-    return;
+  let found;
+  if (res.ok && res.data && res.data.token) {
+    SESSION_TOKEN = res.data.token;
+    found = res.data;
+  } else {
+    // Sin sesión de Apps Script se entra igual, pero los módulos que
+    // todavía viven allá no van a funcionar. Mejor decirlo que dejar
+    // que fallen de a uno sin explicación.
+    found = { usuario: perfil.usuario, nombre: perfil.nombre, rol: perfil.rol };
+    showToast('Entraste con Supabase, pero el backend viejo rechazó la sesión: ' +
+              'los módulos sin migrar no van a andar.', 'error');
   }
 
-  const found = res.data;
-  if (!found || !found.token) {
-    errEl.textContent   = 'El backend no devolvió un token de sesión. Verificá que esté deployado 01_Auth.gs v2.0.';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  SESSION_TOKEN = found.token;
   currentUser = found;
   document.getElementById('userName').textContent = found.nombre;
   const ROTULO_ROL = { admin: 'Admin', finanzas: 'Finanzas', staff: 'Team AME' };
