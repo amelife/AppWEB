@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.7 | 2026-09-18 ARG - Repasadas TODAS las funciones de Apps Script que leian datos migrados: correo de cotizaciones, proforma, aviso de tracking. La importacion de facturas ZOLL queda bloqueada con un mensaje: escribia stock en una hoja que ya no lee nadie -->
+<!-- AMELIFE EMS Technologies - Web App v17.8 | 2026-09-18 ARG - Fix Price Book: la pantalla lee la clave `price` en ingles y yo devolvia `precio`, asi que toda la lista mostraba $NaN -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -4940,9 +4940,11 @@ const SUPABASE_HANDLERS = {
   getPriceBook: async () => {
     const f = await sbGet('pricebook?select=categoria,pn,descrip,precio_lista' +
                           '&order=categoria.asc,pn.asc');
-    // El frontend espera las claves de la hoja: categoria/pn/desc/precio.
+    // OJO con los nombres: la pantalla lee `price`, en INGLÉS, y `desc`.
+    // Devolver `precio` y `descrip` —que son los nombres de la columna en
+    // SQL— dejaba toda la lista en $NaN.
     return f.map(r => ({ categoria: r.categoria, pn: r.pn,
-                         desc: r.descrip, precio: r.precio_lista }));
+                         desc: r.descrip, price: Number(r.precio_lista) || 0 }));
   },
 
   // "Sin WH" incluye el guión: la hoja usa '—' para decir "todavía no".
