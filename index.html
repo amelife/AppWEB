@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v15.2 | 2026-09-18 ARG - Fix recordatorios: el modal se cierra apenas sale el correo (antes una excepcion posterior lo dejaba abierto) y se espera a que el reclamo quede anotado antes de recargar, asi el conteo se actualiza al instante -->
+<!-- AMELIFE EMS Technologies - Web App v15.3 | 2026-09-18 ARG - Restaurar sesion: se entra apenas contesta Supabase (0,3s) y la validacion del token viejo de Apps Script (6s) pasa a segundo plano, que era la pantalla en blanco. El refresh_token rotado se vuelve a guardar -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3504,6 +3504,10 @@ async function sbRenovar() {
   SB.token   = d.access_token;
   SB.refresh = d.refresh_token || SB.refresh;
   SB.vence   = Date.now() + (d.expires_in || 3600) * 1000;
+  // Supabase rota el refresh_token en cada renovación. Si no se guarda
+  // el nuevo, lo del localStorage envejece y la próxima restauración
+  // falla sin motivo aparente.
+  if (currentUser) sesionGuardar(currentUser);
   return true;
 }
 
@@ -3632,23 +3636,33 @@ async function sesionRestaurar() {
 
   SESSION_TOKEN = g.gs || null;
 
-  // La sesión de Apps Script vence a las 12 h del lado del servidor y
-  // no hay forma de renovarla: hay que preguntarle si sigue viva. Si
-  // murió, se entra igual —Supabase anda— pero se avisa, porque los
-  // módulos sin migrar no van a responder.
-  if (SESSION_TOKEN) {
-    RESTAURANDO = true;
-    const chequeo = await api('getConfigApp', {}, true);
-    RESTAURANDO = false;
-    if (chequeo && !chequeo.ok && chequeo.code === 'SESION_INVALIDA') {
-      SESSION_TOKEN = null;
-      sesionOlvidar();
-      if (APPS_SCRIPT_REQUERIDO) return false;
-    }
-  }
-
+  // Se ENTRA YA. Supabase contesta en ~0,3 s y con eso alcanza para
+  // dibujar la app.
   SESION_RESTAURADA = true;
   entrarALaApp(g.user);
+
+  // La sesión de Apps Script vence a las 12 h del lado del servidor y
+  // no hay forma de renovarla: hay que preguntarle si sigue viva. Pero
+  // ESA pregunta cuesta unos 6 segundos, y esperarla antes de dibujar
+  // dejaba la pantalla en blanco todo ese rato. Va por detrás: si el
+  // token murió, se avisa y se manda al login, que es lo mismo que
+  // habría pasado, sólo que sin la espera en blanco.
+  if (SESSION_TOKEN) {
+    (async () => {
+      RESTAURANDO = true;
+      const chequeo = await api('getConfigApp', {}, true);
+      RESTAURANDO = false;
+      if (chequeo && !chequeo.ok && chequeo.code === 'SESION_INVALIDA') {
+        SESSION_TOKEN = null;
+        if (APPS_SCRIPT_REQUERIDO) {
+          forzarLogout('Tu sesión del servidor viejo expiró. Volvé a ingresar.');
+        } else {
+          sesionGuardar(currentUser);
+        }
+      }
+    })();
+  }
+
   return true;
 }
 
@@ -14757,10 +14771,22 @@ function cotIAQuitarAdjunto(i) {
   const arrancar = async () => {
     // El login queda oculto mientras se prueba la sesión: si no,
     // parpadea el formulario durante medio segundo y parece un error.
+    // Un cartel mientras se prueba la sesión: sin esto quedaba la
+    // pantalla en blanco y parece que la app no cargó.
     if (login) login.style.visibility = 'hidden';
+    const cartel = document.createElement('div');
+    cartel.id = 'restaurandoSesion';
+    cartel.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;' +
+      'justify-content:center;gap:12px;background:var(--bg);color:var(--muted);' +
+      'font-family:Outfit,sans-serif;font-size:14px;z-index:9999';
+    cartel.innerHTML = '<div class="act-spin"></div><span>Restaurando tu sesión…</span>';
+    document.body.appendChild(cartel);
+    const sacarCartel = () => { const c = document.getElementById('restaurandoSesion'); if (c) c.remove(); };
+
     let entro = false;
     try { entro = await sesionRestaurar(); }
     catch (e) { console.warn('No se pudo restaurar la sesión:', e); }
+    sacarCartel();
     if (login) login.style.visibility = '';
     if (!entro) {
       const u = document.getElementById('loginUser');
