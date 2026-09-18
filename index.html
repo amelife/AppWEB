@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.4 | 2026-09-18 ARG - Los correos de las ordenes salen de parametros en Postgres: el modal de envio ya no espera 6s a Apps Script, y Alejandra y Marisol dejan de desaparecer cuando esa llamada falla -->
+<!-- AMELIFE EMS Technologies - Web App v17.6 | 2026-09-18 ARG - Ultimas funciones de Apps Script que leian datos migrados: emailCotizacion, el PDF de la proforma y el aviso de llegada de tracking ahora reciben los datos en el pedido -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3814,6 +3814,26 @@ function cotDesdeFila(c) {
   };
 }
 
+/**
+ * La cotización con la ficha del cliente, para lo que sigue en Apps
+ * Script (el PDF de la proforma y el correo al cliente).
+ *
+ * Esas funciones arman el documento pero ya no pueden ir a buscar los
+ * datos: cotizaciones y clientes viven en Postgres.
+ */
+async function cotConCliente(id) {
+  const r = await api('getCotizacion', { id });
+  if (!r.ok) throw new Error(r.error || 'Cotización no encontrada');
+  const cot = r.data;
+  let ficha = null;
+  if (cot.cliente_id) {
+    const c = await sbGet('clientes?select=nombre,empresa,email,ciudad,pais,ruc,' +
+                          'dir_fiscal&id=eq.' + encodeURIComponent(cot.cliente_id));
+    ficha = c[0] || null;
+  }
+  return { cot: cot, clienteFicha: ficha };
+}
+
 /** La fila de inventario con las claves que usa la pantalla. */
 function invDesdeFila(i) {
   const o = Object.assign({}, i, { desc: i.descrip });
@@ -6100,7 +6120,11 @@ async function ocDescargarPDF(id) {
   if (!win) { showToast('Permití las ventanas emergentes para este sitio', 'error'); return; }
   win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la orden…</p>');
 
-  const r = await api('getPOZollHTML', { id });
+  // La orden viaja entera: Apps Script arma el PDF pero ya no puede ir
+  // a buscarla a la planilla, porque vive en Postgres.
+  const rOrden = await api('getOrden', { id });
+  if (!rOrden.ok) { win.close(); showToast(rOrden.error || 'Error', 'error'); return; }
+  const r = await api('getPOZollHTML', { id, orden: rOrden.data });
   if (!r.ok) { win.close(); showToast(r.error || 'Error', 'error'); return; }
 
   win.document.open();
@@ -6171,17 +6195,38 @@ function ocEmailAgregar() {
 async function ocEmailEnviar() {
   if (!OC_EMAIL.elegidos.length) { showToast('Elegí al menos un destinatario', 'error'); return; }
 
-  const btn = document.getElementById('ocEmailBtn');
-  btn.disabled = true;
   const copia = ccValores('ocEmail');
+  const orden = OC_EMAIL.orden;
+
+  // El modal se cierra YA. Mandar el correo con el PDF adjunto tarda
+  // varios segundos del lado de Google, y son todos de ida y vuelta:
+  // tener la pantalla trabada mirando el botón no aporta nada.
+  closeModal('modalOCEmail');
+  showToast('Enviando la orden ' + orden.numero + ' a ' +
+            OC_EMAIL.elegidos.join(', ') + '…', 'info');
+
   const r = await api('emailOrden', {
-    id: OC_EMAIL.orden.id, destinatarios: OC_EMAIL.elegidos,
+    id: orden.id, orden: orden, destinatarios: OC_EMAIL.elegidos,
     cc: copia.cc, cco: copia.cco
   });
-  btn.disabled = false;
 
-  if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
-  closeModal('modalOCEmail');
+  if (!r.ok) {
+    showToast('No se pudo enviar la orden ' + orden.numero + ': ' +
+              (r.error || 'error'), 'error');
+    return;
+  }
+
+  // Apps Script mandó el correo y devolvió qué anotar; la orden vive
+  // acá, así que la escritura es nuestra.
+  try {
+    await sbReq('PATCH', 'ordenes?id=eq.' + encodeURIComponent(orden.id), {
+      enviado_a:  r.data.enviado_a,
+      enviado_el: r.data.enviado_el,
+      estado:     r.data.estado
+    });
+  } catch (e) {
+    showToast('La orden se envió, pero no pude anotarlo: ' + e.message, 'error');
+  }
   showToast('Orden enviada a ' + r.data.enviado);
   ocCargar(true);
 }
@@ -12257,7 +12302,8 @@ async function trkAvisarEnviar() {
 
   const btn = document.getElementById('trkAvisoBtn');
   btn.disabled = true;
-  const r = await api('avisarLlegadaTracking', { id: TRK_STATE.avisando.id, destinatarios });
+  const r = await api('avisarLlegadaTracking', {
+    id: TRK_STATE.avisando.id, tracking: TRK_STATE.avisando, destinatarios });
   btn.disabled = false;
   if (!r.ok) { showToast(r.error || 'No se pudo enviar', 'error'); return; }
   closeModal('modalTrkAviso');
@@ -14729,16 +14775,40 @@ async function cotEnviarEmail(id) {
   if (!confirm('¿Enviar ' + ((c && c.numero) || id) + ' por email al cliente?')) return;
 
   showToast('Enviando...', 'info');
-  let r = await api('emailCotizacion', { cotId: id, toEmail: '' });
+
+  let datos;
+  try { datos = await cotConCliente(id); }
+  catch (e) { showToast(e.message, 'error'); return; }
+  const base = { cotId: id, cot: datos.cot, clienteFicha: datos.clienteFicha };
+
+  let r = await api('emailCotizacion', Object.assign({ toEmail: '' }, base));
 
   // Si el cliente no tiene email cargado, se pide a mano
   if (!r.ok && /email/i.test(r.error || '')) {
     const manual = prompt('El cliente no tiene email cargado. Escribí el destinatario:');
     if (!manual || !manual.trim()) return;
-    r = await api('emailCotizacion', { cotId: id, toEmail: manual.trim() });
+    r = await api('emailCotizacion', Object.assign({ toEmail: manual.trim() }, base));
   }
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
+
+  // Apps Script mandó el correo; el registro lo escribe quien tiene la base.
+  try {
+    await sbReq('PATCH', 'cotizaciones?id=eq.' + encodeURIComponent(id), {
+      enviado_a: r.data.enviado_a, enviado_el: r.data.enviado_el, estado: r.data.estado
+    });
+    // Mandarla es lo que la vuelve "Enviada": queda en el historial.
+    if (datos.cot.estado !== r.data.estado) {
+      await sbReq('POST', 'cotizacion_historial', {
+        cot_id: id, estado_anterior: datos.cot.estado, estado_nuevo: r.data.estado,
+        nota: 'Enviada por email a ' + r.data.enviado,
+        usuario: (currentUser && currentUser.nombre) || ''
+      });
+    }
+  } catch (e) {
+    showToast('La cotización se envió, pero no pude anotarlo: ' + e.message, 'error');
+  }
   showToast('Cotización enviada', 'success');
+  cacheInvalidar('cotizaciones');
 }
 
 // ---------- CONSTRUCTOR ----------
@@ -15415,7 +15485,12 @@ async function cotDescargarPDF(id) {
   if (!win) { showToast('Permití las ventanas emergentes para este sitio', 'error'); return; }
   win.document.write('<p style="font-family:Arial;padding:40px;color:#666">Generando la cotización…</p>');
 
-  const r = await api('getProformaHTML', { id });
+  let datos;
+  try { datos = await cotConCliente(id); }
+  catch (e) { win.close(); showToast(e.message, 'error'); return; }
+
+  const r = await api('getProformaHTML', { id, cot: datos.cot,
+                                           clienteFicha: datos.clienteFicha });
   if (!r.ok) { win.close(); showToast('Error: ' + (r.error || ''), 'error'); return; }
 
   win.document.open();
