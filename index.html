@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.6 | 2026-09-18 ARG - Ultimas funciones de Apps Script que leian datos migrados: emailCotizacion, el PDF de la proforma y el aviso de llegada de tracking ahora reciben los datos en el pedido -->
+<!-- AMELIFE EMS Technologies - Web App v17.7 | 2026-09-18 ARG - Repasadas TODAS las funciones de Apps Script que leian datos migrados: correo de cotizaciones, proforma, aviso de tracking. La importacion de facturas ZOLL queda bloqueada con un mensaje: escribia stock en una hoja que ya no lee nadie -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3459,6 +3459,7 @@ const ACCIONES_SUPABASE = new Set([
   'getFacturasAME', 'saveFacturaAME', 'deleteFacturaAME',
   'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
   // ── Clientes ──────────────────────────────────────────────
+  'confirmarImportacion',
   'getOrdenEmails', 'setOrdenEmails',
   'getNotas', 'saveNota', 'deleteNota',
   'getDashboardData',
@@ -4338,6 +4339,22 @@ const SUPABASE_HANDLERS = {
   // factura_pagos. PostgREST los trae embebidos en el mismo viaje, y
   // se ordenan por id —o sea, por orden de alta— porque el frontend
   // identifica cada pago por su POSICIÓN en el array.
+  // ── Importar factura ZOLL: descontinuada ──────────────────
+  //
+  // Este flujo escribía el stock en la hoja Inventario, que desde la
+  // Etapa 4 ya no lee nadie: confirmar una importación acá haría
+  // desaparecer la mercadería sin ningún error a la vista. Se bloquea
+  // hasta que se borre la pantalla.
+  //
+  // No se pierde nada: el stock entra por "Recibir" de la orden de
+  // compra, que es de donde salía igual. Lo verificamos al decidir
+  // eliminar el módulo.
+  confirmarImportacion: async () => {
+    throw new Error('La importación de facturas ZOLL quedó fuera de servicio. ' +
+                    'El stock entra por el botón Recibir de la orden de compra, ' +
+                    'que actualiza el inventario igual.');
+  },
+
   // ── Correos de las órdenes de compra ──────────────────────
   //
   // Esto vivía en Apps Script y era la causa de dos problemas a la vez:
