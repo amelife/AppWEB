@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.0 | 2026-09-18 ARG - Etapa 4 completa salvo Bancos: Facturas AME, Clientes, Inventario, Price Book, Cotizaciones, Ordenes de compra, Trackings, Dashboard y Notas viven en Postgres. Bancos sigue entero en Apps Script a proposito (su logica financiera no se porta a las apuradas) -->
+<!-- AMELIFE EMS Technologies - Web App v17.3 | 2026-09-18 ARG - Fix de nombres: ordenes (items=cantidad en la lista), trackings (link y demora) e inventario (la columna es descrip en SQL pero la pantalla lee desc) -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3621,14 +3621,41 @@ async function trkGuardarAdjuntos(id, lista) {
   }
 }
 
-/** El tracking de Postgres con la forma que espera el frontend. */
+/** La URL de rastreo del transportista. Sin plantilla, sin link. */
+function trkLink(carrier, numero) {
+  const pl = TRK_CARRIERS[String(carrier || '').trim()];
+  if (!pl || !numero) return '';
+  return pl.replace('{N}', encodeURIComponent(String(numero).trim()));
+}
+
+/** Días entre la ETA y la llegada real. Negativo = llegó antes. */
+function trkDemora(eta, real) {
+  if (!eta || !real) return null;
+  const a = new Date(eta), b = new Date(real);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+/**
+ * El tracking de Postgres con la forma que espera el frontend.
+ *
+ * `link` y `demora` no están en la base: los calculaba el backend y la
+ * pantalla los espera. Sin ellos el botón de rastrear queda muerto y la
+ * columna de demora vacía.
+ */
 function trkDesdeFila(t) {
   return Object.assign({}, t, {
-    orden_ids: t.orden_ids ? String(t.orden_ids).split(',').filter(Boolean) : [],
+    tipo:   t.tipo   || 'Courier',
+    estado: t.estado || 'En preparación',
+    orden_ids: t.orden_ids
+      ? String(t.orden_ids).split(',').map(x => x.trim()).filter(Boolean) : [],
     adjuntos:  Array.isArray(t.adjuntos)  ? t.adjuntos  : [],
     historial: Array.isArray(t.historial) ? t.historial : [],
     bultos: Number(t.bultos) || 0, peso_kg: Number(t.peso_kg) || 0,
-    valor_usd: Number(t.valor_usd) || 0, flete_usd: Number(t.flete_usd) || 0
+    valor_usd: Number(t.valor_usd) || 0, flete_usd: Number(t.flete_usd) || 0,
+    link:   trkLink(t.carrier, t.numero),
+    demora: trkDemora(t.eta, t.llegada_real),
+    ambito: TRK_AMBITOS.indexOf(t.ambito) > -1 ? t.ambito : 'AMELIFE'
   });
 }
 
@@ -3780,6 +3807,13 @@ function cotDesdeFila(c) {
       precio_lista: cotNum(i.precio_lista), precio_final: cotNum(i.precio_final)
     }))
   };
+}
+
+/** La fila de inventario con las claves que usa la pantalla. */
+function invDesdeFila(i) {
+  const o = Object.assign({}, i, { desc: i.descrip });
+  delete o.descrip;
+  return o;
 }
 
 /** El estado de un ítem sale del stock. Mismos cortes que calcEstado(). */
@@ -4551,10 +4585,25 @@ const SUPABASE_HANDLERS = {
   },
 
   // ── Órdenes de compra ─────────────────────────────────────
+  // OJO: getOrdenes y getOrden NO devuelven lo mismo.
+  //   · la LISTA manda `items` = CANTIDAD de líneas, y el resumen en
+  //     `detalle`, que es lo que dibuja la columna ÍTEMS
+  //   · la orden INDIVIDUAL manda `items` = el array de líneas, que es
+  //     lo que carga el modal de edición
+  // Devolver el array en las dos hacía que la columna mostrara
+  // "[object Object]" por cada línea.
   getOrdenes: async () => {
     const o = await sbGet('ordenes?select=*,orden_items(id,linea,pn,descrip,qty,uom,rep,' +
                           'precio,total,wh,recibido,recibido_qty)&order=id.desc');
-    return o.map(ocDesdeFila);
+    return o.map(x => {
+      const f = ocDesdeFila(x);
+      return Object.assign({}, f, {
+        items: f.items.length,
+        detalle: f.items.map(i => ({
+          pn: i.pn, qty: i.qty, desc: i.desc, recibido_qty: i.recibido_qty
+        }))
+      });
+    });
   },
 
   getOrden: async (params) => {
@@ -4800,7 +4849,11 @@ const SUPABASE_HANDLERS = {
   // ── Inventario y Price Book ───────────────────────────────
   // El estado sale del stock, igual que calcEstado() del backend
   // viejo: no es un campo que se elija a mano.
-  getInventario: async () => sbGet('inventario?select=*&order=id.desc'),
+  // La columna en Postgres se llama `descrip` (`desc` es palabra
+  // reservada en SQL) pero TODA la pantalla lee `desc`. Se renombra al
+  // salir: devolver la fila cruda dejaba el inventario sin descripciones.
+  getInventario: async () =>
+    (await sbGet('inventario?select=*&order=id.desc')).map(invDesdeFila),
 
   getPriceBook: async () => {
     const f = await sbGet('pricebook?select=categoria,pn,descrip,precio_lista' +
@@ -4812,7 +4865,8 @@ const SUPABASE_HANDLERS = {
 
   // "Sin WH" incluye el guión: la hoja usa '—' para decir "todavía no".
   getItemsSinWH: async () =>
-    await sbGet('inventario?select=*&or=(wh.is.null,wh.eq.,wh.eq.%E2%80%94)&order=id.desc'),
+    (await sbGet('inventario?select=*&or=(wh.is.null,wh.eq.,wh.eq.%E2%80%94)&order=id.desc'))
+      .map(invDesdeFila),
 
   addItem: async (params) => {
     const d = params.data || params || {};
