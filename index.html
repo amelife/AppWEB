@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.8 | 2026-09-18 ARG - Fix Price Book: la pantalla lee la clave `price` en ingles y yo devolvia `precio`, asi que toda la lista mostraba $NaN -->
+<!-- AMELIFE EMS Technologies - Web App v18.0 | 2026-09-18 ARG - Seccion Folletos: catalogo curado por marca (AMELIFE/ZOLL/SPENCER/OTROS) con miniatura de la tapa, buscador, y alta y baja desde la app. Las miniaturas salen de Drive, sin guardar imagenes -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -1665,6 +1665,10 @@
         <span class="nav-ico i3d i3d-goldway"></span>
         <span>Goldway</span>
       </div>
+      <div class="nav-item" onclick="showPanel('folletos',this)">
+        <span class="nav-ico i3d i3d-pricebook"></span>
+        <span>Folletos</span>
+      </div>
       <div class="nav-item" id="navBancos" onclick="showPanel('bancos',this)">
         <span class="nav-ico i3d i3d-bancos"></span>
         <span>Bancos</span>
@@ -2322,6 +2326,16 @@
       <!-- ============================================ -->
       <!-- PANEL: BANCOS (con PIN)                       -->
       <!-- ============================================ -->
+      <div class="panel" id="panel-folletos">
+        <div class="fol-barra">
+          <div class="fol-marcas" id="folMarcas"></div>
+          <input type="text" id="folBuscar" class="fol-buscar" placeholder="Buscar por producto, modelo o marca…" oninput="folRender()">
+          <button class="btn btn-primary" id="folBtnNuevo" onclick="folAbrirNuevo()">+ Agregar folleto</button>
+        </div>
+        <div id="folGrilla" class="fol-grilla"></div>
+        <div id="folVacio" class="fol-vacio" style="display:none"></div>
+      </div>
+
       <div class="panel" id="panel-bancos">
         <!-- LOCK SCREEN -->
         <div id="bancosLocked" class="bancos-lock">
@@ -3141,6 +3155,67 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
 </div>
 
 <!-- Modal: Recordatorio de pago -->
+<div class="modal-overlay" id="modalFolleto">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3 id="folModalTitulo">Agregar folleto</h3>
+      <button class="modal-close" onclick="closeModal('modalFolleto')">✕</button>
+    </div>
+
+    <div class="field">
+      <label>Título · lo que se ve en la tarjeta</label>
+      <input type="text" id="folTitulo" placeholder="AME-900 · bomba de infusión">
+    </div>
+
+    <div class="modal-grid">
+      <div class="field">
+        <label>Marca</label>
+        <select id="folMarca">
+          <option value="AMELIFE">AMELIFE</option>
+          <option value="ZOLL">ZOLL</option>
+          <option value="SPENCER">SPENCER</option>
+          <option value="OTROS">OTROS</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="folTipo">
+          <option>Folleto</option>
+          <option>Ficha técnica</option>
+          <option>Catálogo</option>
+          <option>Specs</option>
+          <option>Sitio oficial</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-grid">
+      <div class="field">
+        <label>Producto o modelo · para buscarlo</label>
+        <input type="text" id="folProducto" placeholder="AME-900">
+      </div>
+      <div class="field">
+        <label>Idioma</label>
+        <select id="folIdioma"><option>ES</option><option>EN</option><option>ES/EN</option></select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Link · pegá el del Drive o el de la página oficial</label>
+      <input type="text" id="folUrl" placeholder="https://drive.google.com/file/d/…  ·  https://www.zoll.com/…">
+      <div class="fol-ayuda">
+        Si es un archivo de Drive, de ahí sale también la miniatura. Para que se vea
+        desde afuera, tiene que estar en <b>FOLLETOS AMELIFE</b> con el link público.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalFolleto')">Cancelar</button>
+      <button class="btn btn-primary" id="folBtnGuardar" onclick="folGuardar()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalFamRecordar" data-no-cerrar-fuera>
   <div class="modal" style="max-width:560px">
     <div class="modal-header">
@@ -3460,6 +3535,7 @@ const ACCIONES_SUPABASE = new Set([
   'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
   // ── Clientes ──────────────────────────────────────────────
   'confirmarImportacion',
+  'getFolletos', 'saveFolleto', 'deleteFolleto',
   'getOrdenEmails', 'setOrdenEmails',
   'getNotas', 'saveNota', 'deleteNota',
   'getDashboardData',
@@ -4393,6 +4469,34 @@ const SUPABASE_HANDLERS = {
       { clave: 'PO_EMAIL_PRESETS', valor: presets.join(',') }
     ]);
     return { to: to, presets: presets };
+  },
+
+  // ── Folletos ──────────────────────────────────────────────
+  getFolletos: async () =>
+    await sbGet('folletos?select=*&activo=is.true&order=marca.asc,orden.asc,titulo.asc'),
+
+  saveFolleto: async (params) => {
+    const d = params.data || {};
+    if (!String(d.titulo || '').trim()) throw new Error('Ponele un título');
+    if (!d.drive_id && !d.url) throw new Error('Falta el link del folleto');
+    // El id lleva las tres primeras letras de la marca, como los de la
+    // carga inicial: FOL-AME-…, FOL-ZOL-…
+    const id = 'FOL-' + String(d.marca || 'OTR').slice(0, 3).toUpperCase() + '-' +
+               sbId('').replace(/^-/, '');
+    const r = await sbReq('POST', 'folletos', {
+      id: id, marca: d.marca || 'OTROS', titulo: String(d.titulo).trim(),
+      producto: d.producto || null, tipo: d.tipo || 'Folleto',
+      idioma: d.idioma || null, drive_id: d.drive_id || null, url: d.url || null,
+      orden: 100, creado_por: (currentUser && currentUser.usuario) || SB.usuario || ''
+    });
+    return r[0];
+  },
+
+  // Quitar un folleto lo saca de la sección, NO borra el archivo del
+  // Drive: la copia limpia sigue donde está por si hace falta después.
+  deleteFolleto: async (params) => {
+    await sbReq('DELETE', 'folletos?id=eq.' + encodeURIComponent(params.id));
+    return true;
   },
 
   // ── Notas ─────────────────────────────────────────────────
@@ -7108,7 +7212,7 @@ function showPanel(id, el) {
     trackings:'Trackings', warehouse:'Warehouse',
     datos:'Datos Importantes', facturasame:'Facturas AME',
     subdist:'Subdistribuidores',
-    goldway:'Goldway Inventory', bancos:'Bancos'
+    goldway:'Goldway Inventory', bancos:'Bancos', folletos:'Folletos'
   };
 
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -7147,6 +7251,8 @@ function showPanel(id, el) {
   if (id === 'ordenes' && typeof ocCargar === 'function') {
     ocCargar();
   }
+  if (id === 'folletos' && typeof folCargar === 'function') folCargar();
+
   if (id === 'datos' && typeof notCargar === 'function') {
     notCargar();
   }
@@ -10198,6 +10304,181 @@ function famEnviarRecordatorio() {
       showToast('El recordatorio de ' + f.numero + ' pudo haber salido, ' +
                 'pero algo falló después: ' + e.message, 'error');
     });
+}
+
+// ============================================
+//  FOLLETOS
+// ============================================
+//
+// Catálogo curado de literatura comercial. No busca en el Drive: ahí
+// el mismo folleto aparece hasta seis veces, repartido en las carpetas
+// de cada proyecto. Acá hay una fila por folleto y una copia limpia.
+//
+// La miniatura sale del propio Drive —`drive.google.com/thumbnail`
+// devuelve la primera página— así que no hay que generar ni guardar
+// ninguna imagen. Sólo funciona si el archivo es público, que es para
+// lo que está la carpeta FOLLETOS AMELIFE con link abierto.
+
+var FOL_STATE = { lista: [], marca: 'TODAS', cargado: false, editando: null };
+
+const FOL_MARCAS = ['TODAS', 'AMELIFE', 'ZOLL', 'SPENCER', 'OTROS'];
+
+/** El id de Drive, venga como id suelto o dentro de un link pegado. */
+function folDriveId(txt) {
+  const t = String(txt || '').trim();
+  if (!t) return null;
+  const m = t.match(/\/d\/([a-zA-Z0-9_-]{20,})/) ||
+            t.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  if (m) return m[1];
+  // Un id pelado, sin URL alrededor
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(t)) return t;
+  return null;
+}
+
+const folTapa  = (id) => 'https://drive.google.com/thumbnail?id=' + id + '&sz=w400';
+const folAbrir = (f) => f.drive_id
+  ? 'https://drive.google.com/file/d/' + f.drive_id + '/view'
+  : f.url;
+
+async function folCargar(forzar) {
+  if (FOL_STATE.cargado && !forzar) { folRender(); return; }
+  const r = await api('getFolletos');
+  if (!r.ok) { showToast(r.error || 'No pude cargar los folletos', 'error'); return; }
+  FOL_STATE.lista = r.data || [];
+  FOL_STATE.cargado = true;
+  folRender();
+}
+
+function folRender() {
+  // Los filtros de marca llevan el conteo: se ve de una qué hay de cada
+  // proveedor sin tener que entrar a mirar.
+  const cont = document.getElementById('folMarcas');
+  if (cont) {
+    cont.innerHTML = FOL_MARCAS.map(m => {
+      const n = m === 'TODAS' ? FOL_STATE.lista.length
+                              : FOL_STATE.lista.filter(f => f.marca === m).length;
+      return '<div class="fol-marca' + (FOL_STATE.marca === m ? ' on' : '') + '" ' +
+             'onclick="folFiltrarMarca(\'' + m + '\')">' + m +
+             '<i>' + n + '</i></div>';
+    }).join('');
+  }
+
+  const q = (document.getElementById('folBuscar') || {}).value || '';
+  const t = q.trim().toLowerCase();
+  let lista = FOL_STATE.lista;
+  if (FOL_STATE.marca !== 'TODAS') lista = lista.filter(f => f.marca === FOL_STATE.marca);
+  if (t) {
+    lista = lista.filter(f =>
+      String(f.titulo || '').toLowerCase().includes(t) ||
+      String(f.producto || '').toLowerCase().includes(t) ||
+      String(f.marca || '').toLowerCase().includes(t));
+  }
+
+  const grilla = document.getElementById('folGrilla');
+  const vacio  = document.getElementById('folVacio');
+  if (!lista.length) {
+    grilla.innerHTML = '';
+    vacio.style.display = 'block';
+    vacio.textContent = t ? 'Ningún folleto coincide con «' + q.trim() + '»'
+                          : 'Todavía no hay folletos de ' + FOL_STATE.marca.toLowerCase();
+    return;
+  }
+  vacio.style.display = 'none';
+
+  const puedeEditar = ['admin', 'finanzas'].includes((currentUser && currentUser.rol) || '');
+
+  grilla.innerHTML = lista.map(f => {
+    const link = folAbrir(f);
+    const tapa = f.drive_id
+      ? '<img src="' + folTapa(f.drive_id) + '" alt="" loading="lazy" ' +
+        'onerror="this.parentNode.innerHTML=folSinTapa(\'' + cotEsc(f.marca) + '\')">'
+      : folSinTapa(f.marca);
+
+    return '<div class="fol-card">' +
+      '<a class="fol-tapa" href="' + cotEsc(link) + '" target="_blank" rel="noopener">' + tapa + '</a>' +
+      '<div class="fol-info">' +
+        '<div class="fol-tit">' + cotEsc(f.titulo) + '</div>' +
+        '<div class="fol-meta">' +
+          '<span class="fol-chip">' + cotEsc(f.marca) + '</span>' +
+          '<span class="fol-chip">' + cotEsc(f.tipo) + '</span>' +
+          (f.idioma ? '<span class="fol-chip idi">' + cotEsc(f.idioma) + '</span>' : '') +
+        '</div>' +
+        '<div class="fol-acciones">' +
+          '<button class="btn btn-outline" onclick="folCopiarLink(\'' + f.id + '\')">Copiar link</button>' +
+          (puedeEditar
+            ? '<button class="btn btn-outline" onclick="folBorrar(\'' + f.id + '\')">Quitar</button>'
+            : '') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/** Sin miniatura —un link externo, o un Drive que no es público— se
+ *  dibuja la inicial de la marca en vez de dejar un hueco gris. */
+function folSinTapa(marca) {
+  return '<div class="fol-sintapa"><span>📄</span><span>' + cotEsc(marca || '') + '</span></div>';
+}
+
+function folFiltrarMarca(m) { FOL_STATE.marca = m; folRender(); }
+
+function folCopiarLink(id) {
+  const f = FOL_STATE.lista.find(x => x.id === id);
+  if (!f) return;
+  copiarAlPortapapeles(folAbrir(f), 'Link copiado · listo para mandar');
+}
+
+function folAbrirNuevo() {
+  FOL_STATE.editando = null;
+  document.getElementById('folModalTitulo').textContent = 'Agregar folleto';
+  ['folTitulo', 'folProducto', 'folUrl'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('folMarca').value =
+    FOL_STATE.marca === 'TODAS' ? 'AMELIFE' : FOL_STATE.marca;
+  document.getElementById('folTipo').value   = 'Folleto';
+  document.getElementById('folIdioma').value = 'ES';
+  openModal('modalFolleto');
+  document.getElementById('folTitulo').focus();
+}
+
+async function folGuardar() {
+  const v = id => document.getElementById(id).value.trim();
+  const titulo = v('folTitulo');
+  const link   = v('folUrl');
+  if (!titulo) { showToast('Ponele un título', 'error'); return; }
+  if (!link)   { showToast('Falta el link del folleto', 'error'); return; }
+
+  // Un link de Drive se guarda como id: así sirve para abrirlo Y para
+  // la miniatura. Cualquier otra cosa va como url tal cual.
+  const driveId = folDriveId(link);
+  const btn = document.getElementById('folBtnGuardar');
+  btn.disabled = true;
+
+  const r = await api('saveFolleto', { data: {
+    titulo:   titulo,
+    marca:    v('folMarca'),
+    tipo:     v('folTipo'),
+    producto: v('folProducto') || null,
+    idioma:   v('folIdioma'),
+    drive_id: driveId,
+    url:      driveId ? null : link
+  }});
+  btn.disabled = false;
+
+  if (!r.ok) { showToast(r.error || 'No se pudo guardar', 'error'); return; }
+  closeModal('modalFolleto');
+  showToast('Folleto agregado', 'success');
+  folCargar(true);
+}
+
+async function folBorrar(id) {
+  const f = FOL_STATE.lista.find(x => x.id === id);
+  if (!f) return;
+  if (!confirm('¿Quitar «' + f.titulo + '» de la sección?\n\n' +
+               'El archivo NO se borra del Drive, sólo deja de aparecer acá.')) return;
+  const r = await api('deleteFolleto', { id: id });
+  if (!r.ok) { showToast(r.error || 'No se pudo quitar', 'error'); return; }
+  showToast('Folleto quitado', 'success');
+  folCargar(true);
 }
 
 // ============================================
@@ -16061,6 +16342,61 @@ function cotIAQuitarAdjunto(i) {
   .mv-cli .btn { width:100%; justify-content:center; margin-top:10px; padding:11px; }
 
   .mv-vacio { text-align:center; padding:40px 10px; color:var(--muted); }
+
+  /* ── FOLLETOS ─────────────────────────────────────────── */
+  .fol-barra { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; }
+  .fol-marcas { display:flex; gap:6px; flex-wrap:wrap; }
+  .fol-marca {
+    padding:7px 14px; border:1px solid var(--border2); border-radius:99px;
+    background:var(--card); color:var(--muted); cursor:pointer;
+    font-size:12.5px; font-weight:600; letter-spacing:.02em; white-space:nowrap;
+  }
+  .fol-marca:hover { border-color:var(--green); color:var(--text); }
+  .fol-marca.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .fol-marca i { font-style:normal; opacity:.75; margin-left:5px; font-size:11px; }
+  .fol-buscar {
+    flex:1 1 240px; min-width:180px; padding:9px 13px;
+    background:var(--field); border:1px solid var(--border2); border-radius:8px;
+    color:var(--text); font-family:inherit; font-size:13.5px; outline:none;
+  }
+  .fol-buscar:focus { border-color:var(--green); }
+
+  /* La tarjeta es la portada del folleto: lo que se reconoce de un
+     vistazo es la tapa, no el nombre del archivo. */
+  .fol-grilla {
+    display:grid; gap:16px;
+    grid-template-columns:repeat(auto-fill, minmax(178px, 1fr));
+  }
+  .fol-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:10px; overflow:hidden; display:flex; flex-direction:column;
+    transition:border-color .15s, transform .15s;
+  }
+  .fol-card:hover { border-color:var(--green); transform:translateY(-2px); }
+  .fol-tapa {
+    display:block; aspect-ratio:3/4; background:var(--field);
+    position:relative; overflow:hidden; cursor:pointer;
+    border-bottom:1px solid var(--border);
+  }
+  .fol-tapa img { width:100%; height:100%; object-fit:cover; display:block; }
+  .fol-sintapa {
+    width:100%; height:100%; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:6px; color:var(--muted);
+  }
+  .fol-sintapa span:first-child { font-size:30px; opacity:.5; }
+  .fol-sintapa span:last-child { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; }
+  .fol-info { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .fol-tit { font-size:13px; font-weight:600; line-height:1.3; color:var(--text); }
+  .fol-meta { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:auto; }
+  .fol-chip {
+    font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:2px 6px; border-radius:99px; background:var(--field); color:var(--muted);
+  }
+  .fol-chip.idi { background:var(--green-glow); color:var(--green); }
+  .fol-acciones { display:flex; gap:6px; margin-top:8px; }
+  .fol-acciones .btn { flex:1; justify-content:center; padding:6px; font-size:11.5px; }
+  .fol-vacio { text-align:center; padding:50px 20px; color:var(--muted); }
+  .fol-ayuda { font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.45; }
 
   /* Los modales, a pantalla completa: en 360px de ancho un modal
      centrado con margenes no deja lugar para escribir. */
