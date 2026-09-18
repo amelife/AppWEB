@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v14.2 | 2026-09-18 ARG - Fix: escribir el email en el login entraba en Supabase y rebotaba en Apps Script, que solo conoce el usuario corto de AuthControl. Ahora cada backend recibe el identificador que entiende -->
+<!-- AMELIFE EMS Technologies - Web App v15.0 | 2026-09-18 ARG - Etapa 4, modulo 1: Facturas AME vive en Postgres. Listado, alta, edicion, pagos y borrado van a Supabase (0,26s contra 6s). Los correos siguen en Apps Script pero reciben la factura desde aca en vez de leer la planilla -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3455,7 +3455,11 @@ Object.keys(SB_EMAIL_DE).forEach(function (u) {
 const APPS_SCRIPT_REQUERIDO = true;
 
 const ACCIONES_SUPABASE = new Set([
-  // 'getClientes', 'buscarClientes', ...
+  // ── Facturas AME (primer módulo migrado) ──────────────────
+  'getFacturasAME', 'saveFacturaAME', 'deleteFacturaAME',
+  'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
+  // Las de correo siguen en Apps Script, pero reciben los datos desde
+  // acá en vez de leer la planilla. Ver famDatosParaCorreo().
 ]);
 
 /** Login contra Supabase Auth. Devuelve el perfil o tira el error. */
@@ -3503,24 +3507,66 @@ async function sbRenovar() {
   return true;
 }
 
-/** Una consulta a PostgREST. `path` es lo que va después de /rest/v1/. */
-async function sbGet(path) {
+/**
+ * Una llamada a PostgREST. `path` es lo que va después de /rest/v1/.
+ *
+ * Todas las respuestas de escritura piden `return=representation`: así
+ * lo que se guardó vuelve en el mismo viaje y no hace falta releer.
+ */
+async function sbReq(metodo, path, cuerpo) {
   if (SB.token && Date.now() > SB.vence - 60000) await sbRenovar();
-  const pedir = () => fetch(SB_URL + '/rest/v1/' + path, {
-    headers: {
+
+  const pedir = () => {
+    const h = {
       'apikey': SB_ANON,
       'Authorization': 'Bearer ' + (SB.token || SB_ANON),
       'Accept': 'application/json'
+    };
+    if (cuerpo !== undefined) {
+      h['Content-Type'] = 'application/json';
+      h['Prefer'] = 'return=representation';
     }
-  });
+    return fetch(SB_URL + '/rest/v1/' + path, {
+      method: metodo,
+      headers: h,
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo)
+    });
+  };
+
   let r = await pedir();
   // Un 401 con sesión viva casi siempre es el token vencido antes de
   // lo previsto (reloj corrido, sesión revocada): se renueva y se
   // reintenta UNA vez, no en loop.
   if (r.status === 401 && SB.token && await sbRenovar()) r = await pedir();
-  if (!r.ok) throw new Error('Supabase ' + r.status + ': ' + (await r.text()).slice(0, 200));
-  return await r.json();
+  if (!r.ok) {
+    const t = await r.text();
+    // PostgREST manda el detalle en JSON; el mensaje crudo no le dice
+    // nada a nadie.
+    let msg = t.slice(0, 300);
+    try { const j = JSON.parse(t); msg = j.message || j.hint || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  if (r.status === 204) return null;
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
 }
+
+const sbGet = (path) => sbReq('GET', path);
+
+/**
+ * Mismo formato de ID que genId() en 00_Config.gs: PREFIJO-AAMMDDHHMMSS-NNN.
+ * Se replica acá porque los ids ahora los genera el navegador, y los que
+ * ya están en la base tienen esta forma.
+ */
+function sbId(prefijo) {
+  const n = new Date(), z = (v) => String(v).padStart(2, '0');
+  const ts = String(n.getFullYear()).slice(2) + z(n.getMonth() + 1) + z(n.getDate()) +
+             z(n.getHours()) + z(n.getMinutes()) + z(n.getSeconds());
+  return (prefijo || 'ID') + '-' + ts + '-' + Math.floor(Math.random() * 999);
+}
+
+/** Dos decimales, como _famCent() del backend viejo. */
+const sbCent = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
 function sbLogout() {
   SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
@@ -3915,7 +3961,165 @@ async function apiSupabase(action, params, silencioso) {
 // acción en ACCIONES_SUPABASE sin handler acá devuelve error explícito
 // en vez de fallar en silencio.
 const SUPABASE_HANDLERS = {
+
+  // ── Facturas AME ──────────────────────────────────────────
+  // Los pagos ya no son un JSON dentro de una celda: son filas de
+  // factura_pagos. PostgREST los trae embebidos en el mismo viaje, y
+  // se ordenan por id —o sea, por orden de alta— porque el frontend
+  // identifica cada pago por su POSICIÓN en el array.
+  getFacturasAME: async () => {
+    const filas = await sbGet(
+      'facturas?select=*,factura_pagos(id,fecha,monto,nota,quien)' +
+      '&order=fecha_emision.desc.nullslast');
+    return filas.map(f => ({
+      id: f.id, numero: f.numero,
+      cliente: f.cliente, contacto: f.contacto, email: f.email, telefono: f.telefono,
+      fecha_emision: f.fecha_emision, vence: f.vence, pagada_el: f.pagada_el,
+      moneda: f.moneda || 'USD',
+      total:  sbCent(f.total),
+      estado: f.estado || 'Pendiente',
+      items:  f.items || [],
+      notas: f.notas, pdf_url: f.pdf_url, creado_por: f.creado_por,
+      cliente_id: f.cliente_id || '',
+      pagado: sbCent(f.pagado),
+      // El saldo viaja calculado, igual que antes: ninguna pantalla lo
+      // recalcula por su cuenta.
+      saldo:  sbCent(sbCent(f.total) - sbCent(f.pagado)),
+      pagos: (f.factura_pagos || [])
+        .sort((a, b) => a.id - b.id)
+        .map(p => ({ fecha: p.fecha, monto: sbCent(p.monto),
+                     nota: p.nota || '', quien: p.quien || '' })),
+      recordatorios: f.recordatorios || []
+    }));
+  },
+
+  saveFacturaAME: async (params) => {
+    const d = params.data || {};
+    if (!String(d.numero || '').trim()) throw new Error('Falta el número de factura');
+
+    // El nombre de la empresa va SIEMPRE en mayúsculas, como en
+    // mayusEmpresa() del backend viejo: si no, el mismo cliente aparece
+    // dos veces escrito distinto.
+    const fila = {
+      numero:        String(d.numero).trim(),
+      cliente:       String(d.cliente || '').toUpperCase().trim(),
+      contacto:      d.contacto || null,
+      email:         d.email || null,
+      telefono:      d.telefono || null,
+      fecha_emision: d.fecha_emision || null,
+      vence:         d.vence || null,
+      moneda:        d.moneda || 'USD',
+      total:         sbCent(d.total),
+      items:         d.items || [],
+      notas:         d.notas || null,
+      pdf_url:       d.pdf_url || null,
+      cliente_id:    d.cliente_id || null
+    };
+
+    if (d.id) {
+      // pagado, estado, pagada_el y creado_por NO se tocan al editar:
+      // los maneja el trigger de pagos o son de sólo escritura inicial.
+      // Si el formulario los pisara, corregir un teléfono borraría la
+      // cobranza.
+      const r = await sbReq('PATCH', 'facturas?id=eq.' + encodeURIComponent(d.id), fila);
+      if (!r || !r.length) throw new Error('Factura no encontrada');
+      return r[0];
+    }
+
+    fila.id         = sbId('FAM');
+    fila.estado     = d.estado || 'Pendiente';
+    fila.pagado     = 0;
+    fila.creado_por = (SB.usuario || currentUser?.usuario || '');
+    const r = await sbReq('POST', 'facturas', fila);
+    return r[0];
+  },
+
+  deleteFacturaAME: async (params) => {
+    // Los pagos se van solos: la FK es on delete cascade.
+    await sbReq('DELETE', 'facturas?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  registrarPagoFacturaAME: async (params) => {
+    const monto = sbCent(params.monto);
+    if (!(monto > 0)) throw new Error('El monto del pago tiene que ser mayor a cero');
+
+    const f = (await sbGet('facturas?select=total,pagado,estado&id=eq.' +
+                           encodeURIComponent(params.id)))[0];
+    if (!f) throw new Error('Factura no encontrada');
+
+    // Cobrar de más casi siempre es un cero de más al tipear. Se frena,
+    // con un centavo de tolerancia para no pelear con el redondeo
+    // cuando se paga el saldo exacto.
+    const saldo = sbCent(sbCent(f.total) - sbCent(f.pagado));
+    if (monto > saldo + 0.005) {
+      throw new Error('El pago (' + monto.toFixed(2) + ') es mayor al saldo (' +
+                      saldo.toFixed(2) + ')');
+    }
+
+    await sbReq('POST', 'factura_pagos', {
+      factura_id: params.id,
+      fecha: params.fecha || new Date().toISOString().slice(0, 10),
+      monto: monto,
+      nota:  params.nota || null,
+      quien: (SB.usuario || currentUser?.usuario || '')
+    });
+
+    // pagado y estado los recalculó el trigger: se releen, no se
+    // suponen.
+    return await famEstadoDeFactura(params.id);
+  },
+
+  borrarPagoFacturaAME: async (params) => {
+    // El frontend identifica el pago por su POSICIÓN en el array, no
+    // por id. Se traduce acá: se piden los pagos en el mismo orden en
+    // que se armó ese array y se borra el que ocupa ese lugar.
+    const pagos = await sbGet('factura_pagos?select=id&factura_id=eq.' +
+                              encodeURIComponent(params.id) + '&order=id.asc');
+    const p = pagos[Number(params.indice)];
+    if (!p) throw new Error('Ese pago ya no existe');
+    await sbReq('DELETE', 'factura_pagos?id=eq.' + p.id);
+    return await famEstadoDeFactura(params.id);
+  }
 };
+
+/**
+ * Guarda en Postgres el historial de reclamos que devolvió Apps Script.
+ *
+ * El backend viejo manda el correo pero ya no tiene dónde anotar que lo
+ * mandó: la factura vive acá. Si esto falla, el correo YA SALIÓ, así
+ * que no se trata como error del envío — se avisa y se sigue.
+ */
+/** La factura de la lista en memoria, por id. */
+function famDeId(id) {
+  return (FAM_STATE.lista || []).find(f => f.id === id) || null;
+}
+
+async function famGuardarRecordatorios(id, lista) {
+  if (!id || !Array.isArray(lista)) return;
+  try {
+    await sbReq('PATCH', 'facturas?id=eq.' + encodeURIComponent(id),
+                { recordatorios: lista });
+  } catch (e) {
+    showToast('El correo salió, pero no pude anotar el reclamo: ' + e.message, 'error');
+  }
+}
+
+/** El estado de cobranza de una factura, tal como lo dejó el trigger. */
+async function famEstadoDeFactura(id) {
+  const f = (await sbGet('facturas?select=total,pagado,estado,pagada_el,' +
+                         'factura_pagos(id,fecha,monto,nota,quien)&id=eq.' +
+                         encodeURIComponent(id)))[0];
+  return {
+    pagado: sbCent(f.pagado),
+    saldo:  sbCent(sbCent(f.total) - sbCent(f.pagado)),
+    estado: f.estado,
+    pagos: (f.factura_pagos || [])
+      .sort((a, b) => a.id - b.id)
+      .map(p => ({ fecha: p.fecha, monto: sbCent(p.monto),
+                   nota: p.nota || '', quien: p.quien || '' }))
+  };
+}
 
 async function apiAppsScript(action, params = {}, silencioso = false, topeMs = 0) {
   // SIEMPRE se avisa lo que está haciendo, salvo que quien llama pida
@@ -8200,7 +8404,8 @@ async function famAbrirResumen(cliente) {
     return;
   }
 
-  const r = await api('borradorResumenAME', { ids: suyas.map(f => f.id) });
+  const r = await api('borradorResumenAME', { ids: suyas.map(f => f.id),
+                                             facturas: suyas });
   // Si el usuario ya empezó a escribir, no se le pisa lo que puso.
   const tocado = document.getElementById('famResCuerpo').value !== FAM_RES_CUERPO;
   if (r && r.ok && r.data.cuerpo && !tocado) {
@@ -8356,6 +8561,7 @@ async function famEnviarResumen() {
   const copia = ccValores('famRes');
   const r = await api('resumenDeudaAME', {
     ids:      elegidas.map(f => f.id),
+    facturas: elegidas,
     vencidas: elegidas.filter(famResVencida).map(f => f.id),
     cc:       copia.cc,
     cco:      copia.cco,
@@ -8369,6 +8575,13 @@ async function famEnviarResumen() {
   if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
 
   closeModal('modalFamResumen');
+
+  // Apps Script mandó el correo y devolvió el historial nuevo de cada
+  // factura; guardarlo es tarea de acá. Se espera a que terminen antes
+  // de recargar, si no la lista se dibuja con los reclamos viejos.
+  const hist = r.data.historiales || {};
+  await Promise.all(Object.keys(hist).map(id => famGuardarRecordatorios(id, hist[id])));
+
   famCargar(true);          // cada factura del resumen queda recordada
   let msg = 'Estado de cuenta enviado a ' + r.data.enviado_a +
             ' · ' + r.data.facturas + ' facturas';
@@ -8571,7 +8784,8 @@ async function famAbrirGracias(id, monto, resultado) {
 
   // Por atrás, la plantilla guardada: sólo pisa lo de arriba si la
   // editaste desde Configuración.
-  const r = await api('borradorGraciasAME', { id: id, monto: monto });
+  const r = await api('borradorGraciasAME', { id: id, monto: monto,
+                                             factura: famDeId(id) });
   if (!r || !r.ok) return;
   if (r.data.wa) FAM_GRACIAS.wa = r.data.wa;
 
@@ -8630,6 +8844,7 @@ async function famGrEnviar() {
   const copia = ccValores('famGr');
   const r = await api('graciasPagoAME', {
     id:       f.id,
+    factura:  f,
     monto:    FAM_GRACIAS.monto,
     para:     para,
     asunto:   document.getElementById('famGrAsunto').value.trim(),
@@ -8738,10 +8953,13 @@ function famEnviarRecordatorio() {
   btn.disabled = true;
   btn.textContent = 'Enviando…';
   const copia = ccValores('famRec');
-  api('recordatorioFacturaAME', { id: f.id, para: para, cc: copia.cc, cco: copia.cco }).then(r => {
+  // La factura viaja entera: Apps Script ya no la busca en la planilla
+  // porque desde la Etapa 4 vive en Postgres.
+  api('recordatorioFacturaAME', { id: f.id, factura: f, para: para, cc: copia.cc, cco: copia.cco }).then(r => {
     btn.disabled = false;
     btn.textContent = 'Enviar por correo';
     if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
+    famGuardarRecordatorios(f.id, r.data.recordatorios);
     closeModal('modalFamRecordar');
     showToast('Recordatorio enviado a ' + para +
       (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
