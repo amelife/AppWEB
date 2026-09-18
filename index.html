@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v17.3 | 2026-09-18 ARG - Fix de nombres: ordenes (items=cantidad en la lista), trackings (link y demora) e inventario (la columna es descrip en SQL pero la pantalla lee desc) -->
+<!-- AMELIFE EMS Technologies - Web App v17.4 | 2026-09-18 ARG - Los correos de las ordenes salen de parametros en Postgres: el modal de envio ya no espera 6s a Apps Script, y Alejandra y Marisol dejan de desaparecer cuando esa llamada falla -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3459,6 +3459,7 @@ const ACCIONES_SUPABASE = new Set([
   'getFacturasAME', 'saveFacturaAME', 'deleteFacturaAME',
   'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
   // ── Clientes ──────────────────────────────────────────────
+  'getOrdenEmails', 'setOrdenEmails',
   'getNotas', 'saveNota', 'deleteNota',
   'getDashboardData',
   'getTrackingConfig', 'getTrackingsFull', 'saveTrackingFull',
@@ -3540,7 +3541,11 @@ async function sbReq(metodo, path, cuerpo) {
     };
     if (cuerpo !== undefined) {
       h['Content-Type'] = 'application/json';
-      h['Prefer'] = 'return=representation';
+      // Con on_conflict en la URL el POST es un upsert: sin este Prefer,
+      // PostgREST rechaza la fila que ya existe en vez de actualizarla.
+      h['Prefer'] = path.indexOf('on_conflict=') > -1
+        ? 'return=representation,resolution=merge-duplicates'
+        : 'return=representation';
     }
     return fetch(SB_URL + '/rest/v1/' + path, {
       method: metodo,
@@ -4313,6 +4318,46 @@ const SUPABASE_HANDLERS = {
   // factura_pagos. PostgREST los trae embebidos en el mismo viaje, y
   // se ordenan por id —o sea, por orden de alta— porque el frontend
   // identifica cada pago por su POSICIÓN en el array.
+  // ── Correos de las órdenes de compra ──────────────────────
+  //
+  // Esto vivía en Apps Script y era la causa de dos problemas a la vez:
+  // el modal de envío esperaba esos 6 segundos, y cuando la llamada
+  // tardaba de más o fallaba, el código caía al valor por defecto —sólo
+  // elazaris@zoll.com— y Alejandra y Marisol desaparecían de la lista.
+  // Son dos filas de `parametros`: no hay motivo para ir a buscarlas a
+  // Google.
+  getOrdenEmails: async () => {
+    const r = await sbGet('parametros?select=clave,valor&clave=in.' +
+                          '("PO_EMAIL_TO","PO_EMAIL_PRESETS")');
+    const v = {};
+    r.forEach(x => { v[x.clave] = x.valor; });
+    return {
+      to: (v.PO_EMAIL_TO || 'elazaris@zoll.com').trim(),
+      presets: String(v.PO_EMAIL_PRESETS ||
+                      'Alejandra.Ponce@zoll.com,Marisol.Huertos@zoll.com')
+        .split(/[,;]/).map(x => x.trim()).filter(Boolean)
+    };
+  },
+
+  setOrdenEmails: async (params) => {
+    const to = String(params.to || '').trim();
+    const mail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!to) throw new Error('El correo por defecto no puede quedar vacío');
+    if (!mail.test(to)) throw new Error('Correo por defecto inválido: ' + to);
+
+    const presets = (params.presets || []).map(x => String(x).trim()).filter(Boolean);
+    for (const e of presets) {
+      if (!mail.test(e)) throw new Error('Correo inválido: ' + e);
+    }
+    // upsert: la clave es la PK, así que resolution=merge-duplicates
+    // actualiza si ya está y crea si no.
+    await sbReq('POST', 'parametros?on_conflict=clave', [
+      { clave: 'PO_EMAIL_TO',      valor: to },
+      { clave: 'PO_EMAIL_PRESETS', valor: presets.join(',') }
+    ]);
+    return { to: to, presets: presets };
+  },
+
   // ── Notas ─────────────────────────────────────────────────
   // La más nueva primero, como el .reverse() del backend viejo.
   getNotas: async () => {
