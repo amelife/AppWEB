@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v14.0 | 2026-09-17 ARG - Etapa 3: login por Supabase Auth con renovacion de token, y ruteo doble en api() (acciones migradas a Postgres, el resto a Apps Script). ACCIONES_SUPABASE arranca vacio: el unico cambio de esta version es de donde sale la sesion -->
+<!-- AMELIFE EMS Technologies - Web App v14.1 | 2026-09-18 ARG - Fix: entrar sin sesion de Apps Script expulsaba al usuario al cargar modulos (SESION_INVALIDA sin token previo se trataba como sesion vencida). Ahora, mientras quede algo en el backend viejo, su sesion es obligatoria y el error se explica en el login -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3417,13 +3417,22 @@ const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 
 var SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
 
-// El formulario pide usuario ('admin'), pero Supabase Auth identifica
+// El formulario pide usuario ('german'), pero Supabase Auth identifica
 // por email. Este mapa traduce y mantiene el hábito de tipear el
 // usuario corto. Si alguien escribe el email directo, pasa de largo.
+//
+// SÓLO los que están acá entran por Supabase. Los otros cinco usuarios
+// de AuthControl (ezequiel, staff1, maca, maia, lucia) todavía no
+// existen en Supabase Auth, y hasta que existan siguen entrando por
+// Apps Script como siempre. Sin esta salida, subir esta versión los
+// dejaba a todos afuera de la app.
 const SB_EMAIL_DE = {
-  admin: 'amelife@amelife-911.com',
-  // ezequiel: '...',   <- cuando estén sus emails
+  german: 'amelife@amelife-911.com',
+  // ezequiel: '...',   <- faltan los emails de los otros cinco
   // staff1:   '...',
+  // maca:     '...',
+  // maia:     '...',
+  // lucia:    '...',
 };
 
 // Acciones que YA viven en Supabase. Arranca vacío: en la Etapa 3 el
@@ -3431,6 +3440,11 @@ const SB_EMAIL_DE = {
 // a Apps Script exactamente como antes. En la Etapa 4 se agregan de a
 // un módulo por vez, y cada acción que entra acá deja de viajar a
 // Google. Así se puede migrar de a poco sin quedarse sin app.
+// Mientras quede UN módulo en Apps Script, su sesión es obligatoria
+// para entrar. Se pone en false en la Etapa 6, cuando allá sólo queden
+// el OCR y los correos y la app pueda vivir sólo con Supabase.
+const APPS_SCRIPT_REQUERIDO = true;
+
 const ACCIONES_SUPABASE = new Set([
   // 'getClientes', 'buscarClientes', ...
 ]);
@@ -3919,8 +3933,18 @@ async function apiAppsScript(action, params = {}, silencioso = false, topeMs = 0
     const text = await res.text();
     const json = JSON.parse(text);
 
+    // Sólo es "sesión vencida" si ALGUNA VEZ hubo sesión. Si
+    // SESSION_TOKEN nunca se llenó, el backend viejo está diciendo "vos
+    // acá no entraste", y expulsar por eso echaba al usuario a los dos
+    // segundos de entrar, en medio de la carga de módulos.
     if (json && json.code === 'SESION_INVALIDA') {
-      forzarLogout('Tu sesión expiró. Volvé a ingresar.');
+      if (SESSION_TOKEN) {
+        forzarLogout('Tu sesión expiró. Volvé a ingresar.');
+      } else {
+        json.error = 'Este módulo todavía vive en el backend viejo y no ' +
+                     'tenés sesión ahí. Revisá la contraseña de AuthControl.';
+        json.code  = 'SIN_SESION_VIEJA';
+      }
     } else if (json && json.code === 'PIN_REQUERIDO') {
       relockBancos();
     }
@@ -4022,15 +4046,23 @@ async function doLogin() {
   // Supabase va primero y es la que manda: si falla, no se entra. La
   // de Apps Script se pide después y, si falla, se avisa pero se deja
   // pasar — así el día que el Sheet se apague la app sigue entrando.
-  let perfil = null;
-  try {
-    perfil = await sbLogin(SB_EMAIL_DE[user] || user, pass);
-  } catch (e) {
-    btn.textContent = 'Ingresar al sistema →';
-    btn.disabled    = false;
-    errEl.textContent   = e.message;
-    errEl.style.display = 'block';
-    return;
+  // Quien todavía no tiene usuario en Supabase entra sólo por Apps
+  // Script. Mientras ACCIONES_SUPABASE esté vacía no cambia nada para
+  // esa persona; cuando empiece la Etapa 4 sí hay que crearle el
+  // usuario, y ahí este atajo deja de alcanzar.
+  const email  = SB_EMAIL_DE[user] || (user.includes('@') ? user : null);
+  let   perfil = null;
+
+  if (email) {
+    try {
+      perfil = await sbLogin(email, pass);
+    } catch (e) {
+      btn.textContent = 'Ingresar al sistema →';
+      btn.disabled    = false;
+      errEl.textContent   = e.message;
+      errEl.style.display = 'block';
+      return;
+    }
   }
 
   const res = await api('validateUser', { usuario: user, password: pass });
@@ -4042,13 +4074,27 @@ async function doLogin() {
   if (res.ok && res.data && res.data.token) {
     SESSION_TOKEN = res.data.token;
     found = res.data;
-  } else {
-    // Sin sesión de Apps Script se entra igual, pero los módulos que
-    // todavía viven allá no van a funcionar. Mejor decirlo que dejar
-    // que fallen de a uno sin explicación.
+  } else if (perfil && !APPS_SCRIPT_REQUERIDO) {
+    // Etapa 6: ya no queda nada en Apps Script, se entra sólo con
+    // Supabase y esto es lo normal.
     found = { usuario: perfil.usuario, nombre: perfil.nombre, rol: perfil.rol };
-    showToast('Entraste con Supabase, pero el backend viejo rechazó la sesión: ' +
-              'los módulos sin migrar no van a andar.', 'error');
+  } else if (perfil) {
+    // Entró por Supabase pero el backend viejo lo rechazó, y todavía
+    // vive TODO ahí. Dejarlo pasar era peor que no dejarlo: entraba,
+    // la carga de módulos se topaba con SESION_INVALIDA y lo echaba a
+    // los dos segundos sin decir por qué.
+    errEl.innerHTML =
+      'Entraste en Supabase, pero el backend viejo rechazó la sesión de <b>' +
+      user + '</b>.<br>La contraseña tiene que ser la misma en los dos lados: ' +
+      'cambiá la de Supabase por la que ya usás, o actualizá el hash en AuthControl.';
+    errEl.style.display = 'block';
+    sbLogout();
+    return;
+  } else {
+    // Sin ninguna de las dos no hay forma de entrar.
+    errEl.textContent   = (res && res.error) || 'Credenciales incorrectas';
+    errEl.style.display = 'block';
+    return;
   }
 
   currentUser = found;
