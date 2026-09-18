@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v15.0 | 2026-09-18 ARG - Etapa 4, modulo 1: Facturas AME vive en Postgres. Listado, alta, edicion, pagos y borrado van a Supabase (0,26s contra 6s). Los correos siguen en Apps Script pero reciben la factura desde aca en vez de leer la planilla -->
+<!-- AMELIFE EMS Technologies - Web App v15.2 | 2026-09-18 ARG - Fix recordatorios: el modal se cierra apenas sale el correo (antes una excepcion posterior lo dejaba abierto) y se espera a que el reclamo quede anotado antes de recargar, asi el conteo se actualiza al instante -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3572,6 +3572,86 @@ function sbLogout() {
   SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
 }
 
+// ============================================================
+//  SESIÓN QUE SOBREVIVE AL F5
+// ============================================================
+//
+// Antes, recargar la página te devolvía al login: el token vivía sólo
+// en memoria. Ahora Supabase da un refresh_token, así que la sesión se
+// puede reconstruir sin volver a pedir la contraseña.
+//
+// Qué se guarda y por qué en localStorage: el refresh_token de Supabase
+// (es lo que hace la propia librería oficial) y el token de sesión de
+// Apps Script, que de todos modos vence a las 12 horas del lado del
+// servidor. La contraseña NO se guarda, en ningún momento.
+var SESION_KEY = 'AME_SESION';
+var SESION_RESTAURADA = false;
+
+// Mientras esto es true, un SESION_INVALIDA no expulsa: se está
+// comprobando a propósito si la sesión guardada sigue sirviendo.
+var RESTAURANDO = false;
+
+function sesionGuardar(found) {
+  try {
+    localStorage.setItem(SESION_KEY, JSON.stringify({
+      sb:   { refresh: SB.refresh, rol: SB.rol, usuario: SB.usuario },
+      gs:   SESSION_TOKEN,
+      user: found,
+      ts:   Date.now()
+    }));
+  } catch (e) { /* modo incógnito o storage lleno: se sigue sin persistir */ }
+}
+
+function sesionOlvidar() {
+  try { localStorage.removeItem(SESION_KEY); } catch (e) {}
+}
+
+/**
+ * Intenta volver a entrar con lo que quedó guardado.
+ *
+ * Devuelve true si lo logró. Ante CUALQUIER duda devuelve false y se
+ * muestra el login: es preferible pedir la contraseña de más que dejar
+ * a alguien adentro con una sesión que el servidor ya no reconoce.
+ */
+async function sesionRestaurar() {
+  let g;
+  try { g = JSON.parse(localStorage.getItem(SESION_KEY) || 'null'); }
+  catch (e) { return false; }
+  if (!g || !g.user) return false;
+
+  // El refresh_token de Supabase es el que manda: si no renueva, no hay
+  // sesión que valga.
+  if (g.sb && g.sb.refresh) {
+    SB.refresh = g.sb.refresh;
+    if (!await sbRenovar()) { sesionOlvidar(); return false; }
+    SB.rol     = g.sb.rol;
+    SB.usuario = g.sb.usuario;
+  } else if (APPS_SCRIPT_REQUERIDO && !g.gs) {
+    return false;
+  }
+
+  SESSION_TOKEN = g.gs || null;
+
+  // La sesión de Apps Script vence a las 12 h del lado del servidor y
+  // no hay forma de renovarla: hay que preguntarle si sigue viva. Si
+  // murió, se entra igual —Supabase anda— pero se avisa, porque los
+  // módulos sin migrar no van a responder.
+  if (SESSION_TOKEN) {
+    RESTAURANDO = true;
+    const chequeo = await api('getConfigApp', {}, true);
+    RESTAURANDO = false;
+    if (chequeo && !chequeo.ok && chequeo.code === 'SESION_INVALIDA') {
+      SESSION_TOKEN = null;
+      sesionOlvidar();
+      if (APPS_SCRIPT_REQUERIDO) return false;
+    }
+  }
+
+  SESION_RESTAURADA = true;
+  entrarALaApp(g.user);
+  return true;
+}
+
 
 // ── Sesión ─────────────────────────────────────────────────
 // Token emitido por el backend en validateUser(). Viaja en cada
@@ -4151,9 +4231,13 @@ async function apiAppsScript(action, params = {}, silencioso = false, topeMs = 0
     // acá no entraste", y expulsar por eso echaba al usuario a los dos
     // segundos de entrar, en medio de la carga de módulos.
     if (json && json.code === 'SESION_INVALIDA') {
-      if (SESSION_TOKEN) {
+      // Durante la restauración este error es ESPERADO: es justamente
+      // la pregunta "¿sigue viva la sesión guardada?". Expulsar acá
+      // borraba el estado antes de que sesionRestaurar() pudiera
+      // decidir qué hacer.
+      if (SESSION_TOKEN && !RESTAURANDO) {
         forzarLogout('Tu sesión expiró. Volvé a ingresar.');
-      } else {
+      } else if (!SESSION_TOKEN) {
         json.error = 'Este módulo todavía vive en el backend viejo y no ' +
                      'tenés sesión ahí. Revisá la contraseña de AuthControl.';
         json.code  = 'SIN_SESION_VIEJA';
@@ -4192,6 +4276,7 @@ function forzarLogout(msg) {
   SESSION_TOKEN = null;
   currentUser   = null;
   sbLogout();
+  sesionOlvidar();
 
   // Frenar el auto-refresh del dashboard (si está corriendo)
   if (typeof DASHBOARD_STATE !== 'undefined' && DASHBOARD_STATE.autoRefreshTimer) {
@@ -4314,6 +4399,17 @@ async function doLogin() {
     return;
   }
 
+  sesionGuardar(found);
+  entrarALaApp(found);
+}
+
+/**
+ * Todo lo que hay que hacer una vez que la sesión es válida.
+ *
+ * Vive aparte de doLogin() porque ahora hay DOS caminos para entrar: el
+ * formulario, y la restauración de la sesión al recargar la página.
+ */
+function entrarALaApp(found) {
   currentUser = found;
   document.getElementById('userName').textContent = found.nombre;
   const ROTULO_ROL = { admin: 'Admin', finanzas: 'Finanzas', staff: 'Team AME' };
@@ -4356,7 +4452,8 @@ async function doLogin() {
     setTimeout(() => openModal('modalBienvenida'), 500);
   }
 
-  showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
+  if (!SESION_RESTAURADA) showToast('¡Bienvenido, ' + found.nombre + '!', 'success');
+  SESION_RESTAURADA = false;
 }
 
 // ── Caché del Price Book en el navegador ───────────────────
@@ -8955,19 +9052,36 @@ function famEnviarRecordatorio() {
   const copia = ccValores('famRec');
   // La factura viaja entera: Apps Script ya no la busca en la planilla
   // porque desde la Etapa 4 vive en Postgres.
-  api('recordatorioFacturaAME', { id: f.id, factura: f, para: para, cc: copia.cc, cco: copia.cco }).then(r => {
-    btn.disabled = false;
-    btn.textContent = 'Enviar por correo';
-    if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
-    famGuardarRecordatorios(f.id, r.data.recordatorios);
-    closeModal('modalFamRecordar');
-    showToast('Recordatorio enviado a ' + para +
-      (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
-    famCargar(true);        // para que la marca aparezca al instante
-    if (r.data.sin_pdf) {
-      showToast('Esa factura no tiene PDF cargado: fue sin adjunto', 'info');
-    }
-  });
+  api('recordatorioFacturaAME', { id: f.id, factura: f, para: para, cc: copia.cc, cco: copia.cco })
+    .then(async r => {
+      btn.disabled = false;
+      btn.textContent = 'Enviar por correo';
+      if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
+
+      // El correo YA SALIÓ. Cerrar es lo primero: si algo de lo que
+      // viene abajo falla, el modal tiene que irse igual — dejarlo
+      // abierto hace pensar que no se mandó y lleva a mandarlo dos veces.
+      const d = r.data || {};
+      closeModal('modalFamRecordar');
+      showToast('Recordatorio enviado a ' + para +
+        (d.adjunto ? ' · con la factura adjunta' : ''), 'success');
+      if (d.sin_pdf) {
+        showToast('Esa factura no tiene PDF cargado: fue sin adjunto', 'info');
+      }
+
+      // Se ESPERA a que el reclamo quede anotado antes de recargar. Sin
+      // el await, famCargar() leía Postgres antes de que llegara el
+      // PATCH y la fila seguía mostrando el conteo viejo.
+      await famGuardarRecordatorios(f.id, d.recordatorios);
+      famCargar(true);
+    })
+    .catch(e => {
+      // Que no quede el botón en "Enviando…" para siempre.
+      btn.disabled = false;
+      btn.textContent = 'Enviar por correo';
+      showToast('El correo pudo haber salido, pero algo falló después: ' + e.message, 'error');
+      closeModal('modalFamRecordar');
+    });
 }
 
 // ============================================
@@ -14629,6 +14743,35 @@ function cotIAQuitarAdjunto(i) {
     z.style.borderColor = 'var(--border)';
     cotIASumarArchivos(Array.from(e.dataTransfer.files || []));
   });
+})();
+
+// ============================================================
+//  ARRANQUE · intentar entrar con la sesión guardada
+// ============================================================
+//
+// Va al final de todo a propósito: sesionRestaurar() usa medio archivo
+// (entrarALaApp, api, sbRenovar), así que tiene que correr cuando todo
+// eso ya está definido.
+(function () {
+  const login = document.getElementById('loginScreen');
+  const arrancar = async () => {
+    // El login queda oculto mientras se prueba la sesión: si no,
+    // parpadea el formulario durante medio segundo y parece un error.
+    if (login) login.style.visibility = 'hidden';
+    let entro = false;
+    try { entro = await sesionRestaurar(); }
+    catch (e) { console.warn('No se pudo restaurar la sesión:', e); }
+    if (login) login.style.visibility = '';
+    if (!entro) {
+      const u = document.getElementById('loginUser');
+      if (u) u.focus();
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar);
+  } else {
+    arrancar();
+  }
 })();
 
 </script>
