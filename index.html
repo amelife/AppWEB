@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v19.0 | 2026-09-18 ARG - Bancos migrado a Postgres: cuentas, snapshots, resumen consolidado y evolucion. La clasificacion disponible/invertido/resta se porto tal cual y da identico al centavo contra Apps Script. El OCR de extractos se queda en Google -->
+<!-- AMELIFE EMS Technologies - Web App v20.0 | 2026-09-18 ARG - Seccion Documentos: documentacion regulatoria en tabla (no grilla: un certificado no se reconoce por la tapa) con alcance por pais y aviso de vencimientos 90 dias antes -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -482,6 +482,61 @@
   .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text); }
   .btn-outline:hover { border-color:var(--green); color:var(--green); }
   .btn-danger { background:var(--danger); color:var(--on-solid); }
+
+  /* ── DOCUMENTOS ───────────────────────────────────────────
+     A diferencia de Folletos, acá NO va una grilla de tapas: un
+     certificado no se reconoce por la portada. Lo que importa es de
+     qué es, para qué país sirve y cuándo se vence — o sea, una
+     tabla. */
+  .doc-alerta {
+    display:flex; align-items:flex-start; gap:10px;
+    padding:12px 15px; margin-bottom:16px; border-radius:8px;
+    border-left:3px solid var(--warning); background:var(--field);
+    font-size:13px; line-height:1.5;
+  }
+  .doc-alerta.grave { border-left-color:var(--danger); }
+  .doc-alerta b { display:block; margin-bottom:2px; }
+  .doc-alerta a { color:var(--green); cursor:pointer; text-decoration:underline; }
+
+  .tbox-doc { overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:var(--card); }
+  .doc-tabla { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .doc-tabla th {
+    text-align:left; font-size:10.5px; font-weight:700; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--muted); white-space:nowrap;
+    padding:11px 14px; border-bottom:1px solid var(--border);
+  }
+  .doc-tabla td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .doc-tabla tr:last-child td { border-bottom:0; }
+  .doc-tabla tbody tr:hover { background:var(--field); }
+  .doc-tit { font-weight:600; color:var(--text); }
+  .doc-sub { font-size:11.5px; color:var(--muted); margin-top:1px; }
+  .doc-marca {
+    font-size:10px; font-weight:700; letter-spacing:.05em;
+    padding:2px 8px; border-radius:99px; background:var(--field); color:var(--muted);
+    white-space:nowrap;
+  }
+  .doc-alc {
+    font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700;
+    color:var(--muted); letter-spacing:.04em;
+  }
+  /* El vencimiento es la columna que justifica la sección: el color
+     dice si hay que hacer algo sin tener que leer la fecha. */
+  .doc-vto { font-size:12px; white-space:nowrap; }
+  .doc-vto .d { font-family:'JetBrains Mono',monospace; }
+  .doc-vto .e { font-size:10px; font-weight:700; letter-spacing:.05em;
+                text-transform:uppercase; display:block; margin-top:1px; }
+  .doc-vto.ok      .e { color:var(--green); }
+  .doc-vto.pronto  .e { color:var(--warning); }
+  .doc-vto.vencido .e { color:var(--danger); }
+  .doc-vto.vencido .d { color:var(--danger); font-weight:700; }
+  .doc-acc { display:flex; gap:5px; justify-content:flex-end; }
+  .doc-acc button {
+    padding:4px 9px; font-size:11px; font-weight:600; font-family:inherit;
+    border:1px solid var(--border2); border-radius:6px;
+    background:var(--card); color:var(--muted); cursor:pointer; white-space:nowrap;
+  }
+  .doc-acc button:hover { border-color:var(--green); color:var(--text); }
+  .doc-acc button.quitar:hover { border-color:var(--danger); color:var(--danger); }
 
   /* ── FOLLETOS ─────────────────────────────────────────────
      La tarjeta es la tapa del folleto. Lo que se reconoce de un
@@ -1734,6 +1789,10 @@
         <span class="nav-ico i3d i3d-pricebook"></span>
         <span>Folletos</span>
       </div>
+      <div class="nav-item" onclick="showPanel('documentos',this)">
+        <span class="nav-ico i3d i3d-datos"></span>
+        <span>Documentos</span>
+      </div>
       </div></div>
     </div>
 
@@ -2435,6 +2494,17 @@
       <!-- ============================================ -->
       <!-- PANEL: BANCOS (con PIN)                       -->
       <!-- ============================================ -->
+      <div class="panel" id="panel-documentos">
+        <div id="docAlerta" class="doc-alerta" style="display:none"></div>
+        <div class="fol-barra">
+          <div class="fol-marcas" id="docMarcas"></div>
+          <input type="text" id="docBuscar" class="fol-buscar" placeholder="Buscar por documento, producto o país…" oninput="docRender()">
+          <button class="btn btn-primary" onclick="docAbrirNuevo()">+ Agregar documento</button>
+        </div>
+        <div class="tbox-doc"><table class="doc-tabla" id="docTabla"></table></div>
+        <div id="docVacio" class="fol-vacio" style="display:none"></div>
+      </div>
+
       <div class="panel" id="panel-folletos">
         <div class="fol-barra">
           <div class="fol-marcas" id="folMarcas"></div>
@@ -3264,6 +3334,77 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
 </div>
 
 <!-- Modal: Recordatorio de pago -->
+<div class="modal-overlay" id="modalDocumento">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-header">
+      <h3>Agregar documento</h3>
+      <button class="modal-close" onclick="closeModal('modalDocumento')">✕</button>
+    </div>
+
+    <div class="field">
+      <label>Título</label>
+      <input type="text" id="docTitulo" placeholder="ISO 13485 de AMELIFE">
+    </div>
+
+    <div class="modal-grid">
+      <div class="field">
+        <label>Marca o entidad</label>
+        <input type="text" id="docMarcaSel" placeholder="AMELIFE · ZOLL · DeVilbiss" value="AMELIFE">
+      </div>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="docTipoSel">
+          <option>ISO 13485</option>
+          <option>Registro FDA</option>
+          <option>Registro sanitario</option>
+          <option>Declaración de conformidad</option>
+          <option>Certificado</option>
+          <option>Carta de representación</option>
+          <option>Carta de fabricante</option>
+          <option>Manual</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-grid">
+      <div class="field">
+        <label>Producto · si aplica a uno solo</label>
+        <input type="text" id="docProducto" placeholder="ZOLL M2">
+      </div>
+      <div class="field">
+        <label>Alcance · dónde vale</label>
+        <input type="text" id="docAlcance" placeholder="Global · UE · USA · PE · AR · CL" value="Global">
+      </div>
+    </div>
+
+    <div class="modal-grid">
+      <div class="field">
+        <label>Emisor</label>
+        <input type="text" id="docEmisor" placeholder="TÜV SÜD · FDA · DIGEMID · el fabricante">
+      </div>
+      <div class="field">
+        <label>Vence</label>
+        <input type="date" id="docVence">
+        <div class="fol-ayuda">Dejalo vacío si no caduca. Con fecha, la pantalla avisa 90 días antes.</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Link · del Drive o de donde esté</label>
+      <input type="text" id="docUrl" placeholder="https://drive.google.com/file/d/…">
+      <div class="fol-ayuda">
+        Para que se pueda mandar a un cliente, el archivo tiene que estar en
+        <b>DOCUMENTOS AMELIFE</b> con el link público.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('modalDocumento')">Cancelar</button>
+      <button class="btn btn-primary" id="docBtnGuardar" onclick="docGuardar()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalFolleto">
   <div class="modal" style="max-width:560px">
     <div class="modal-header">
@@ -3660,6 +3801,7 @@ const ACCIONES_SUPABASE = new Set([
   'listarBancos', 'crearBanco', 'editarBanco', 'eliminarBanco',
   'guardarSnapshot', 'guardarSnapshotsBulk',
   'getResumenBancos', 'getEvolucionBancos',
+  'getDocumentos', 'saveDocumento', 'deleteDocumento',
   'getFolletos', 'saveFolleto', 'deleteFolleto',
   'getOrdenEmails', 'setOrdenEmails',
   'getNotas', 'saveNota', 'deleteNota',
@@ -4931,6 +5073,32 @@ const SUPABASE_HANDLERS = {
       fechas: eje, series: series,
       total: suma('data'), disponible: suma('disponible'), invertido: suma('invertido')
     };
+  },
+
+  // ── Documentos ────────────────────────────────────────────
+  getDocumentos: async () =>
+    await sbGet('documentos?select=*&activo=is.true&order=marca.asc,tipo.asc,titulo.asc'),
+
+  saveDocumento: async (params) => {
+    const d = params.data || {};
+    if (!String(d.titulo || '').trim()) throw new Error('Ponele un título');
+    if (!d.drive_id && !d.url) throw new Error('Falta el link del documento');
+    const id = 'DOC-' + String(d.marca || 'OTR').slice(0, 3).toUpperCase() + '-' +
+               sbId('').replace(/^-/, '');
+    const r = await sbReq('POST', 'documentos', {
+      id: id, marca: d.marca || 'OTROS', tipo: d.tipo || 'Certificado',
+      titulo: String(d.titulo).trim(), producto: d.producto || null,
+      alcance: d.alcance || null, emisor: d.emisor || null,
+      vence: d.vence || null, drive_id: d.drive_id || null, url: d.url || null,
+      creado_por: (currentUser && currentUser.usuario) || SB.usuario || ''
+    });
+    return r[0];
+  },
+
+  // Quitar saca la fila, no borra el archivo del Drive.
+  deleteDocumento: async (params) => {
+    await sbReq('DELETE', 'documentos?id=eq.' + encodeURIComponent(params.id));
+    return true;
   },
 
   // ── Folletos ──────────────────────────────────────────────
@@ -7674,7 +7842,7 @@ function showPanel(id, el) {
     trackings:'Trackings', warehouse:'Warehouse',
     datos:'Datos Importantes', facturasame:'Facturas AME',
     subdist:'Subdistribuidores',
-    goldway:'Goldway Inventory', bancos:'Bancos', folletos:'Folletos'
+    goldway:'Goldway Inventory', bancos:'Bancos', folletos:'Folletos', documentos:'Documentos'
   };
 
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -7714,6 +7882,7 @@ function showPanel(id, el) {
     ocCargar();
   }
   if (id === 'folletos' && typeof folCargar === 'function') folCargar();
+  if (id === 'documentos' && typeof docCargar === 'function') docCargar();
 
   if (id === 'datos' && typeof notCargar === 'function') {
     notCargar();
@@ -10766,6 +10935,192 @@ function famEnviarRecordatorio() {
       showToast('El recordatorio de ' + f.numero + ' pudo haber salido, ' +
                 'pero algo falló después: ' + e.message, 'error');
     });
+}
+
+// ============================================
+//  DOCUMENTOS
+// ============================================
+//
+// Documentación regulatoria: ISO, registros, declaraciones de
+// conformidad, cartas de representación.
+//
+// A diferencia de Folletos esto NO es una grilla de tapas — un
+// certificado no se reconoce por la portada. Lo que se necesita saber
+// es de qué es, para qué país sirve y cuándo se vence, y eso es una
+// tabla. El aviso de vencimientos va arriba de todo: es la razón por
+// la que esta pantalla existe y no es una carpeta más.
+
+var DOC_STATE = { lista: [], marca: 'TODAS', cargado: false };
+
+/** Días hasta el vencimiento. Negativo = ya venció. */
+function docDias(vence) {
+  if (!vence) return null;
+  const v = new Date(String(vence).slice(0, 10) + 'T00:00:00');
+  if (isNaN(v)) return null;
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.round((v - hoy) / 86400000);
+}
+
+const docAbrir = (d) => d.drive_id
+  ? 'https://drive.google.com/file/d/' + d.drive_id + '/view'
+  : d.url;
+
+async function docCargar(forzar) {
+  if (DOC_STATE.cargado && !forzar) { docRender(); return; }
+  const r = await api('getDocumentos');
+  if (!r.ok) { showToast(r.error || 'No pude cargar los documentos', 'error'); return; }
+  DOC_STATE.lista = r.data || [];
+  DOC_STATE.cargado = true;
+  docRender();
+}
+
+function docRender() {
+  const lista0 = DOC_STATE.lista;
+
+  // ── El aviso de vencimientos ──────────────────────────────
+  const vencidos = lista0.filter(d => { const n = docDias(d.vence); return n !== null && n < 0; });
+  const pronto   = lista0.filter(d => { const n = docDias(d.vence); return n !== null && n >= 0 && n <= 90; });
+  const al = document.getElementById('docAlerta');
+  if (vencidos.length || pronto.length) {
+    al.style.display = '';
+    al.className = 'doc-alerta' + (vencidos.length ? ' grave' : '');
+    const partes = [];
+    if (vencidos.length) partes.push('<b>' + vencidos.length + ' vencido' +
+      (vencidos.length > 1 ? 's' : '') + '</b>' +
+      vencidos.map(d => d.titulo).join(' · '));
+    if (pronto.length) partes.push('<b>' + pronto.length + ' vence' +
+      (pronto.length > 1 ? 'n' : '') + ' en los próximos 90 días</b>' +
+      pronto.map(d => d.titulo + ' (' + docDias(d.vence) + ' días)').join(' · '));
+    al.innerHTML = '<span>⚠️</span><div>' + partes.join('<br>') + '</div>';
+  } else {
+    al.style.display = 'none';
+  }
+
+  // ── Filtros por marca, con conteo ─────────────────────────
+  const marcas = ['TODAS'].concat([...new Set(lista0.map(d => d.marca))].sort());
+  document.getElementById('docMarcas').innerHTML = marcas.map(m => {
+    const n = m === 'TODAS' ? lista0.length : lista0.filter(d => d.marca === m).length;
+    return '<div class="fol-marca' + (DOC_STATE.marca === m ? ' on' : '') + '" ' +
+           'onclick="docFiltrarMarca(\'' + m + '\')">' + cotEsc(m) + '<i>' + n + '</i></div>';
+  }).join('');
+
+  const q = (document.getElementById('docBuscar') || {}).value || '';
+  const t = q.trim().toLowerCase();
+  let lista = lista0;
+  if (DOC_STATE.marca !== 'TODAS') lista = lista.filter(d => d.marca === DOC_STATE.marca);
+  if (t) lista = lista.filter(d =>
+    [d.titulo, d.producto, d.alcance, d.tipo, d.emisor, d.marca]
+      .some(v => String(v || '').toLowerCase().includes(t)));
+
+  // Los que vencen antes, primero: es el orden en que hay que ocuparse.
+  lista = lista.slice().sort((a, b) => {
+    const da = docDias(a.vence), db = docDias(b.vence);
+    if (da === null && db === null) return String(a.titulo).localeCompare(String(b.titulo), 'es');
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return da - db;
+  });
+
+  const tabla = document.getElementById('docTabla');
+  const vacio = document.getElementById('docVacio');
+  if (!lista.length) {
+    tabla.innerHTML = '';
+    vacio.style.display = 'block';
+    vacio.textContent = t ? 'Ningún documento coincide con «' + q.trim() + '»'
+                          : 'Todavía no hay documentos cargados acá';
+    return;
+  }
+  vacio.style.display = 'none';
+
+  const puedeEditar = ['admin', 'finanzas'].includes((currentUser && currentUser.rol) || '');
+
+  tabla.innerHTML =
+    '<thead><tr>' +
+      '<th>Documento</th><th>Marca</th><th>Tipo</th>' +
+      '<th>Alcance</th><th>Vigencia</th><th></th>' +
+    '</tr></thead><tbody>' +
+    lista.map(d => {
+      const n = docDias(d.vence);
+      let vto = '<span style="color:var(--muted)">—</span>';
+      if (n !== null) {
+        const cls = n < 0 ? 'vencido' : (n <= 90 ? 'pronto' : 'ok');
+        const txt = n < 0 ? 'vencido hace ' + Math.abs(n) + ' d'
+                          : (n <= 90 ? 'en ' + n + ' días' : 'vigente');
+        vto = '<span class="doc-vto ' + cls + '">' +
+                '<span class="d">' + famFecha(d.vence) + '</span>' +
+                '<span class="e">' + txt + '</span>' +
+              '</span>';
+      }
+      return '<tr>' +
+        '<td><div class="doc-tit">' + cotEsc(d.titulo) + '</div>' +
+            (d.producto || d.emisor
+              ? '<div class="doc-sub">' +
+                  [d.producto, d.emisor].filter(Boolean).map(cotEsc).join(' · ') +
+                '</div>' : '') + '</td>' +
+        '<td><span class="doc-marca">' + cotEsc(d.marca) + '</span></td>' +
+        '<td style="color:var(--muted);font-size:12.5px">' + cotEsc(d.tipo) + '</td>' +
+        '<td><span class="doc-alc">' + cotEsc(d.alcance || '—') + '</span></td>' +
+        '<td>' + vto + '</td>' +
+        '<td><div class="doc-acc">' +
+          '<button onclick="window.open(\'' + cotEsc(docAbrir(d)) + '\',\'_blank\')">Abrir</button>' +
+          '<button onclick="docCopiarLink(\'' + d.id + '\')">Copiar</button>' +
+          (puedeEditar ? '<button class="quitar" onclick="docBorrar(\'' + d.id + '\')">Quitar</button>' : '') +
+        '</div></td>' +
+      '</tr>';
+    }).join('') + '</tbody>';
+}
+
+function docFiltrarMarca(m) { DOC_STATE.marca = m; docRender(); }
+
+function docCopiarLink(id) {
+  const d = DOC_STATE.lista.find(x => x.id === id);
+  if (!d) return;
+  copiarAlPortapapeles(docAbrir(d), 'Link copiado · listo para mandar');
+}
+
+function docAbrirNuevo() {
+  ['docTitulo','docProducto','docUrl','docEmisor','docVence'].forEach(i => {
+    const e = document.getElementById(i); if (e) e.value = '';
+  });
+  document.getElementById('docMarcaSel').value = 'AMELIFE';
+  document.getElementById('docTipoSel').value  = 'ISO 13485';
+  document.getElementById('docAlcance').value  = 'Global';
+  openModal('modalDocumento');
+  document.getElementById('docTitulo').focus();
+}
+
+async function docGuardar() {
+  const v = id => (document.getElementById(id).value || '').trim();
+  const titulo = v('docTitulo');
+  const link   = v('docUrl');
+  if (!titulo) { showToast('Ponele un título', 'error'); return; }
+  if (!link)   { showToast('Falta el link del documento', 'error'); return; }
+
+  const driveId = folDriveId(link);   // mismo lector de links que Folletos
+  const btn = document.getElementById('docBtnGuardar');
+  btn.disabled = true;
+  const r = await api('saveDocumento', { data: {
+    titulo: titulo, marca: v('docMarcaSel'), tipo: v('docTipoSel'),
+    producto: v('docProducto') || null, alcance: v('docAlcance') || null,
+    emisor: v('docEmisor') || null, vence: v('docVence') || null,
+    drive_id: driveId, url: driveId ? null : link
+  }});
+  btn.disabled = false;
+  if (!r.ok) { showToast(r.error || 'No se pudo guardar', 'error'); return; }
+  closeModal('modalDocumento');
+  showToast('Documento agregado', 'success');
+  docCargar(true);
+}
+
+async function docBorrar(id) {
+  const d = DOC_STATE.lista.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm('¿Quitar «' + d.titulo + '» de la sección?\n\n' +
+               'El archivo NO se borra del Drive, sólo deja de aparecer acá.')) return;
+  const r = await api('deleteDocumento', { id: id });
+  if (!r.ok) { showToast(r.error || 'No se pudo quitar', 'error'); return; }
+  showToast('Documento quitado', 'success');
+  docCargar(true);
 }
 
 // ============================================
