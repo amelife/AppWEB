@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v18.0 | 2026-09-18 ARG - Seccion Folletos: catalogo curado por marca (AMELIFE/ZOLL/SPENCER/OTROS) con miniatura de la tapa, buscador, y alta y baja desde la app. Las miniaturas salen de Drive, sin guardar imagenes -->
+<!-- AMELIFE EMS Technologies - Web App v18.1 | 2026-09-18 ARG - Folletos: el CSS habia quedado dentro de la media query de movil y no aplicaba nada en pantalla grande. Rediseñada la seccion (tarjetas de 150px, idioma y tipo sobre la tapa, acciones al pasar por encima) y movida a Principal -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -482,6 +482,115 @@
   .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text); }
   .btn-outline:hover { border-color:var(--green); color:var(--green); }
   .btn-danger { background:var(--danger); color:var(--on-solid); }
+
+  /* ── FOLLETOS ─────────────────────────────────────────────
+     La tarjeta es la tapa del folleto. Lo que se reconoce de un
+     vistazo es la portada, no el nombre del archivo — por eso la
+     imagen manda y el texto es al pie, chico.
+     Tamaño: 150px de ancho entran 6 u 8 por fila en un monitor
+     normal. Más grande obliga a scrollear para ver el catálogo. */
+  .fol-barra {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border);
+  }
+  .fol-marcas { display:flex; gap:6px; flex-wrap:wrap; }
+  .fol-marca {
+    display:inline-flex; align-items:center; gap:7px;
+    padding:7px 14px; border:1px solid var(--border2); border-radius:99px;
+    background:var(--card); color:var(--muted); cursor:pointer; user-select:none;
+    font-size:12px; font-weight:700; letter-spacing:.04em;
+    white-space:nowrap; transition:all .14s;
+  }
+  .fol-marca:hover { border-color:var(--green); color:var(--text); }
+  .fol-marca.on { background:var(--green); border-color:var(--green); color:#fff; }
+  .fol-marca i {
+    font-style:normal; font-size:10.5px; font-weight:700;
+    padding:1px 6px; border-radius:99px;
+    background:var(--field); color:var(--muted);
+  }
+  .fol-marca.on i { background:rgba(255,255,255,.22); color:#fff; }
+
+  .fol-buscar {
+    flex:1 1 220px; min-width:170px; max-width:340px;
+    padding:9px 14px; background:var(--field);
+    border:1px solid var(--border2); border-radius:8px;
+    color:var(--text); font-family:inherit; font-size:13.5px; outline:none;
+  }
+  .fol-buscar:focus { border-color:var(--green); }
+  .fol-barra .btn { margin-left:auto; }
+
+  .fol-grilla {
+    display:grid; gap:18px 16px;
+    grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+    align-items:start;
+  }
+  .fol-card { display:flex; flex-direction:column; gap:9px; min-width:0; }
+
+  .fol-tapa {
+    display:block; position:relative; aspect-ratio:3/4; overflow:hidden;
+    background:var(--field); border:1px solid var(--border); border-radius:8px;
+    cursor:pointer; transition:border-color .15s, box-shadow .15s, transform .15s;
+  }
+  .fol-tapa:hover {
+    border-color:var(--green); transform:translateY(-3px);
+    box-shadow:0 8px 20px -10px rgba(0,0,0,.45);
+  }
+  .fol-tapa img { width:100%; height:100%; object-fit:cover; object-position:top center; display:block; }
+  .fol-sintapa {
+    width:100%; height:100%; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:8px; color:var(--muted);
+  }
+  .fol-sintapa .ico { font-size:26px; opacity:.45; }
+  .fol-sintapa .mar { font-size:10px; font-weight:700; letter-spacing:.1em; }
+
+  /* El idioma va sobre la tapa: es lo que más se busca al elegir cuál
+     mandar, y en el pie compite con todo lo demás. */
+  .fol-idi {
+    position:absolute; top:7px; right:7px;
+    font-size:9.5px; font-weight:700; letter-spacing:.06em;
+    padding:2px 7px; border-radius:99px;
+    background:rgba(0,0,0,.66); color:#fff; backdrop-filter:blur(3px);
+  }
+  .fol-tipo {
+    position:absolute; bottom:7px; left:7px;
+    font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    padding:2px 7px; border-radius:99px;
+    background:rgba(0,0,0,.66); color:#fff; backdrop-filter:blur(3px);
+  }
+
+  .fol-pie { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .fol-tit {
+    font-size:12.5px; font-weight:600; line-height:1.32; color:var(--text);
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .fol-sub { font-size:10.5px; color:var(--muted); letter-spacing:.03em; }
+
+  /* Las acciones aparecen al pasar por encima: en una grilla de 30
+     tarjetas, 60 botones siempre visibles son sólo ruido. */
+  .fol-acciones {
+    display:flex; gap:5px; margin-top:2px;
+    opacity:0; transition:opacity .14s;
+  }
+  .fol-card:hover .fol-acciones, .fol-card:focus-within .fol-acciones { opacity:1; }
+  .fol-acciones button {
+    flex:1; padding:4px 6px; font-size:10.5px; font-weight:600;
+    border:1px solid var(--border2); border-radius:6px;
+    background:var(--card); color:var(--muted);
+    cursor:pointer; font-family:inherit; white-space:nowrap;
+  }
+  .fol-acciones button:hover { border-color:var(--green); color:var(--text); }
+  .fol-acciones button.quitar:hover { border-color:var(--danger); color:var(--danger); }
+
+  .fol-vacio { text-align:center; padding:56px 20px; color:var(--muted); font-size:14px; }
+  .fol-ayuda { font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.45; }
+
+  @media (max-width:720px) {
+    .fol-grilla { grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); gap:14px 12px; }
+    .fol-barra .btn { margin-left:0; width:100%; justify-content:center; }
+    .fol-buscar { max-width:none; }
+    .fol-acciones { opacity:1; }
+  }
 
   .data-table { width:100%; border-collapse:collapse; font-size:15px; }
   .data-table thead tr { background:var(--card2); border-bottom:2px solid var(--green); }
@@ -1621,6 +1730,10 @@
         <span class="nav-ico i3d i3d-facturasame"></span>
         <span>Facturas AME</span>
       </div>
+      <div class="nav-item" onclick="showPanel('folletos',this)">
+        <span class="nav-ico i3d i3d-pricebook"></span>
+        <span>Folletos</span>
+      </div>
       </div></div>
     </div>
 
@@ -1664,10 +1777,6 @@
       <div class="nav-item" onclick="showPanel('goldway',this)">
         <span class="nav-ico i3d i3d-goldway"></span>
         <span>Goldway</span>
-      </div>
-      <div class="nav-item" onclick="showPanel('folletos',this)">
-        <span class="nav-ico i3d i3d-pricebook"></span>
-        <span>Folletos</span>
       </div>
       <div class="nav-item" id="navBancos" onclick="showPanel('bancos',this)">
         <span class="nav-ico i3d i3d-bancos"></span>
@@ -10350,16 +10459,15 @@ async function folCargar(forzar) {
 }
 
 function folRender() {
-  // Los filtros de marca llevan el conteo: se ve de una qué hay de cada
-  // proveedor sin tener que entrar a mirar.
+  // Los filtros llevan el conteo: se ve de una qué hay de cada marca
+  // sin tener que entrar a mirar.
   const cont = document.getElementById('folMarcas');
   if (cont) {
     cont.innerHTML = FOL_MARCAS.map(m => {
       const n = m === 'TODAS' ? FOL_STATE.lista.length
                               : FOL_STATE.lista.filter(f => f.marca === m).length;
       return '<div class="fol-marca' + (FOL_STATE.marca === m ? ' on' : '') + '" ' +
-             'onclick="folFiltrarMarca(\'' + m + '\')">' + m +
-             '<i>' + n + '</i></div>';
+             'onclick="folFiltrarMarca(\'' + m + '\')">' + m + '<i>' + n + '</i></div>';
     }).join('');
   }
 
@@ -10391,24 +10499,27 @@ function folRender() {
     const link = folAbrir(f);
     const tapa = f.drive_id
       ? '<img src="' + folTapa(f.drive_id) + '" alt="" loading="lazy" ' +
-        'onerror="this.parentNode.innerHTML=folSinTapa(\'' + cotEsc(f.marca) + '\')">'
+        'onerror="this.parentNode.insertAdjacentHTML(\'afterbegin\', folSinTapa(\'' +
+        cotEsc(f.marca) + '\')); this.remove();">'
       : folSinTapa(f.marca);
 
     return '<div class="fol-card">' +
-      '<a class="fol-tapa" href="' + cotEsc(link) + '" target="_blank" rel="noopener">' + tapa + '</a>' +
-      '<div class="fol-info">' +
+      '<a class="fol-tapa" href="' + cotEsc(link) + '" target="_blank" rel="noopener" ' +
+         'title="' + cotEsc(f.titulo) + '">' +
+        tapa +
+        (f.idioma ? '<span class="fol-idi">' + cotEsc(f.idioma) + '</span>' : '') +
+        '<span class="fol-tipo">' + cotEsc(f.tipo) + '</span>' +
+      '</a>' +
+      '<div class="fol-pie">' +
         '<div class="fol-tit">' + cotEsc(f.titulo) + '</div>' +
-        '<div class="fol-meta">' +
-          '<span class="fol-chip">' + cotEsc(f.marca) + '</span>' +
-          '<span class="fol-chip">' + cotEsc(f.tipo) + '</span>' +
-          (f.idioma ? '<span class="fol-chip idi">' + cotEsc(f.idioma) + '</span>' : '') +
-        '</div>' +
-        '<div class="fol-acciones">' +
-          '<button class="btn btn-outline" onclick="folCopiarLink(\'' + f.id + '\')">Copiar link</button>' +
-          (puedeEditar
-            ? '<button class="btn btn-outline" onclick="folBorrar(\'' + f.id + '\')">Quitar</button>'
-            : '') +
-        '</div>' +
+        '<div class="fol-sub">' + cotEsc(f.marca) +
+          (f.producto ? ' · ' + cotEsc(f.producto) : '') + '</div>' +
+      '</div>' +
+      '<div class="fol-acciones">' +
+        '<button onclick="folCopiarLink(\'' + f.id + '\')">Copiar link</button>' +
+        (puedeEditar
+          ? '<button class="quitar" onclick="folBorrar(\'' + f.id + '\')">Quitar</button>'
+          : '') +
       '</div>' +
     '</div>';
   }).join('');
@@ -10417,7 +10528,10 @@ function folRender() {
 /** Sin miniatura —un link externo, o un Drive que no es público— se
  *  dibuja la inicial de la marca en vez de dejar un hueco gris. */
 function folSinTapa(marca) {
-  return '<div class="fol-sintapa"><span>📄</span><span>' + cotEsc(marca || '') + '</span></div>';
+  return '<div class="fol-sintapa">' +
+           '<span class="ico">📄</span>' +
+           '<span class="mar">' + cotEsc(marca || '') + '</span>' +
+         '</div>';
 }
 
 function folFiltrarMarca(m) { FOL_STATE.marca = m; folRender(); }
@@ -16342,61 +16456,6 @@ function cotIAQuitarAdjunto(i) {
   .mv-cli .btn { width:100%; justify-content:center; margin-top:10px; padding:11px; }
 
   .mv-vacio { text-align:center; padding:40px 10px; color:var(--muted); }
-
-  /* ── FOLLETOS ─────────────────────────────────────────── */
-  .fol-barra { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; }
-  .fol-marcas { display:flex; gap:6px; flex-wrap:wrap; }
-  .fol-marca {
-    padding:7px 14px; border:1px solid var(--border2); border-radius:99px;
-    background:var(--card); color:var(--muted); cursor:pointer;
-    font-size:12.5px; font-weight:600; letter-spacing:.02em; white-space:nowrap;
-  }
-  .fol-marca:hover { border-color:var(--green); color:var(--text); }
-  .fol-marca.on { background:var(--green); border-color:var(--green); color:#fff; }
-  .fol-marca i { font-style:normal; opacity:.75; margin-left:5px; font-size:11px; }
-  .fol-buscar {
-    flex:1 1 240px; min-width:180px; padding:9px 13px;
-    background:var(--field); border:1px solid var(--border2); border-radius:8px;
-    color:var(--text); font-family:inherit; font-size:13.5px; outline:none;
-  }
-  .fol-buscar:focus { border-color:var(--green); }
-
-  /* La tarjeta es la portada del folleto: lo que se reconoce de un
-     vistazo es la tapa, no el nombre del archivo. */
-  .fol-grilla {
-    display:grid; gap:16px;
-    grid-template-columns:repeat(auto-fill, minmax(178px, 1fr));
-  }
-  .fol-card {
-    background:var(--card); border:1px solid var(--border);
-    border-radius:10px; overflow:hidden; display:flex; flex-direction:column;
-    transition:border-color .15s, transform .15s;
-  }
-  .fol-card:hover { border-color:var(--green); transform:translateY(-2px); }
-  .fol-tapa {
-    display:block; aspect-ratio:3/4; background:var(--field);
-    position:relative; overflow:hidden; cursor:pointer;
-    border-bottom:1px solid var(--border);
-  }
-  .fol-tapa img { width:100%; height:100%; object-fit:cover; display:block; }
-  .fol-sintapa {
-    width:100%; height:100%; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:6px; color:var(--muted);
-  }
-  .fol-sintapa span:first-child { font-size:30px; opacity:.5; }
-  .fol-sintapa span:last-child { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; }
-  .fol-info { padding:10px 12px 12px; display:flex; flex-direction:column; gap:6px; flex:1; }
-  .fol-tit { font-size:13px; font-weight:600; line-height:1.3; color:var(--text); }
-  .fol-meta { display:flex; flex-wrap:wrap; gap:5px; align-items:center; margin-top:auto; }
-  .fol-chip {
-    font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-    padding:2px 6px; border-radius:99px; background:var(--field); color:var(--muted);
-  }
-  .fol-chip.idi { background:var(--green-glow); color:var(--green); }
-  .fol-acciones { display:flex; gap:6px; margin-top:8px; }
-  .fol-acciones .btn { flex:1; justify-content:center; padding:6px; font-size:11.5px; }
-  .fol-vacio { text-align:center; padding:50px 20px; color:var(--muted); }
-  .fol-ayuda { font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.45; }
 
   /* Los modales, a pantalla completa: en 360px de ancho un modal
      centrado con margenes no deja lugar para escribir. */
