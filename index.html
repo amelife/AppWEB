@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v15.4 | 2026-09-18 ARG - Recordatorios: el modal se cierra al apretar Enviar, sin esperar los 3-4s de Apps Script. El resultado llega por aviso y nombra la factura, porque para entonces el modal ya no esta -->
+<!-- AMELIFE EMS Technologies - Web App v17.0 | 2026-09-18 ARG - Etapa 4 completa salvo Bancos: Facturas AME, Clientes, Inventario, Price Book, Cotizaciones, Ordenes de compra, Trackings, Dashboard y Notas viven en Postgres. Bancos sigue entero en Apps Script a proposito (su logica financiera no se porta a las apuradas) -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3458,6 +3458,18 @@ const ACCIONES_SUPABASE = new Set([
   // ── Facturas AME (primer módulo migrado) ──────────────────
   'getFacturasAME', 'saveFacturaAME', 'deleteFacturaAME',
   'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
+  // ── Clientes ──────────────────────────────────────────────
+  'getNotas', 'saveNota', 'deleteNota',
+  'getDashboardData',
+  'getTrackingConfig', 'getTrackingsFull', 'saveTrackingFull',
+  'trackingEstado', 'marcarTrackingRecibido', 'deleteTracking',
+  'getOrdenes', 'getOrden', 'saveOrden', 'updateOrden', 'deleteOrden', 'recibirOrden',
+  'getCotizaciones', 'getCotizacion', 'saveCotizacion', 'updateCotizacion',
+  'actualizarEstadoCotizacion', 'deleteCotizacion',
+  'getInventario', 'getPriceBook', 'getItemsSinWH',
+  'addItem', 'deleteItem', 'ajustarStockItem', 'asignarWHBulk',
+  'getClientes', 'getClientesRecientes', 'buscarClientes',
+  'addCliente', 'deleteCliente', 'eliminarClientesBulk', 'updateClientesBulk',
   // Las de correo siguen en Apps Script, pero reciben los datos desde
   // acá en vez de leer la planilla. Ver famDatosParaCorreo().
 ]);
@@ -3571,6 +3583,212 @@ function sbId(prefijo) {
 
 /** Dos decimales, como _famCent() del backend viejo. */
 const sbCent = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+// Las mismas constantes que 21_Trackings.gs. Son fijas: no vale gastar
+// un viaje al servidor para traerlas.
+const TRK_AMBITOS = ['AMELIFE', 'Cliente'];
+const TRK_TIPOS   = ['Courier', 'Guía aérea', 'Bill of Lading', 'Terrestre'];
+const TRK_ESTADOS = ['En preparación', 'Despachado', 'En tránsito',
+                     'En aduana', 'Arribado', 'Entregado'];
+const TRK_CARRIERS = {
+  'FedEx':  'https://www.fedex.com/fedextrack/?trknbr={N}',
+  'DHL':    'https://www.dhl.com/global-en/home/tracking/tracking-express.html?submit=1&tracking-id={N}',
+  'UPS':    'https://www.ups.com/track?tracknum={N}',
+  'USPS':   'https://tools.usps.com/go/TrackConfirmAction?tLabels={N}',
+  'Amazon': '',
+  'Otro':   ''
+};
+
+/** 'AAAA-MM-DD hh:mm' en hora argentina, como tsARG(). */
+function sbAhora() {
+  const d = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}
+
+/**
+ * Guarda en Postgres la lista de adjuntos que devolvió Apps Script.
+ *
+ * El archivo YA SUBIÓ a Drive cuando esto corre, así que un fallo acá
+ * no es un fallo de la subida: se avisa y se sigue.
+ */
+async function trkGuardarAdjuntos(id, lista) {
+  if (!id || !Array.isArray(lista)) return;
+  try {
+    await sbReq('PATCH', 'trackings?id=eq.' + encodeURIComponent(id),
+                { adjuntos: lista });
+  } catch (e) {
+    showToast('El archivo subió, pero no pude actualizar la lista: ' + e.message, 'error');
+  }
+}
+
+/** El tracking de Postgres con la forma que espera el frontend. */
+function trkDesdeFila(t) {
+  return Object.assign({}, t, {
+    orden_ids: t.orden_ids ? String(t.orden_ids).split(',').filter(Boolean) : [],
+    adjuntos:  Array.isArray(t.adjuntos)  ? t.adjuntos  : [],
+    historial: Array.isArray(t.historial) ? t.historial : [],
+    bultos: Number(t.bultos) || 0, peso_kg: Number(t.peso_kg) || 0,
+    valor_usd: Number(t.valor_usd) || 0, flete_usd: Number(t.flete_usd) || 0
+  });
+}
+
+/** El total de una orden: la suma de qty x precio de cada línea. */
+function ocGuardarItemsTotal(items) {
+  let t = 0;
+  (items || []).forEach(i => { t += (Number(i.qty) || 0) * (Number(i.precio) || 0); });
+  return cotNum(t);
+}
+
+/**
+ * Las líneas se borran y se reescriben.
+ *
+ * Es más simple y seguro que casar línea por línea, y una orden nunca
+ * tiene tantos ítems como para que importe. Se conserva lo recibido de
+ * cada línea: editar una orden no puede borrar lo que ya llegó — ése
+ * fue justamente el bug de la primera sesión.
+ */
+async function ocGuardarItems(ocId, items) {
+  const previas = await sbGet('orden_items?select=linea,recibido,recibido_qty&oc_id=eq.' +
+                              encodeURIComponent(ocId));
+  const rec = {};
+  previas.forEach(p => { rec[String(p.linea)] = p; });
+
+  await sbReq('DELETE', 'orden_items?oc_id=eq.' + encodeURIComponent(ocId));
+
+  const filas = (items || []).map((it, idx) => {
+    const linea = idx + 1;
+    const qty   = Number(it.qty) || 0;
+    const previo = rec[String(linea)] || {};
+    // Lo que manda el formulario gana; si no lo manda, vale lo que ya
+    // había en la base.
+    const rq = it.recibido_qty !== undefined ? Number(it.recibido_qty)
+                                             : (Number(previo.recibido_qty) || 0);
+    return {
+      oc_id: ocId, linea: linea, pn: it.pn || null,
+      descrip: it.desc || it.descrip || null, qty: qty,
+      uom: it.uom || 'EA', rep: it.rep || null,
+      precio: cotNum(it.precio),
+      total: cotNum(qty * (Number(it.precio) || 0)),
+      wh: it.wh || null,
+      recibido: it.recibido !== undefined ? !!it.recibido : !!previo.recibido,
+      recibido_qty: rq
+    };
+  });
+  if (filas.length) await sbReq('POST', 'orden_items', filas);
+}
+
+/** La orden de Postgres con la forma que espera el frontend. */
+function ocDesdeFila(o) {
+  const items = (o.orden_items || []).sort((a, b) => a.linea - b.linea).map(i => ({
+    oc_id: o.id, linea: i.linea, pn: i.pn, desc: i.descrip,
+    qty: Number(i.qty) || 0, uom: i.uom || 'EA', rep: i.rep || '',
+    precio: cotNum(i.precio), total: cotNum(i.total), wh: i.wh || '',
+    recibido: !!i.recibido, recibido_qty: Number(i.recibido_qty) || 0,
+    pendiente: Math.max(0, (Number(i.qty) || 0) - (Number(i.recibido_qty) || 0))
+  }));
+  return {
+    id: o.id, numero: o.numero, referencia: o.referencia || '',
+    proveedor: o.proveedor || '', fecha: o.fecha, estado: o.estado || 'Draft',
+    total: cotNum(o.total), observaciones: o.observaciones || '',
+    creado_por: o.creado_por || '', creado_el: o.creado_el,
+    recibido_el: o.recibido_el || '', enviado_a: o.enviado_a || '',
+    enviado_el: o.enviado_el || '', items: items
+  };
+}
+
+// Tienen que coincidir con COT_ESTADOS del backend viejo.
+const COT_ESTADOS_VALIDOS = ['Borrador', 'Enviada', 'Aprobada', 'Rechazada', 'Cerrada'];
+
+/** Dos decimales o cero, como _cotNum(). */
+const cotNum = (n) => { const v = Number(n); return isFinite(v) ? Math.round(v * 100) / 100 : 0; };
+
+/**
+ * El precio final de una línea.
+ *
+ * Si tiene precio puesto a mano, MANDA ese: es el caso de las líneas
+ * negociadas. Si no, se aplica el markup sobre el precio de lista.
+ */
+function cotPrecioFinal(item, markup) {
+  const m = item.precio_final;
+  if (m !== null && m !== undefined && m !== '' && isFinite(Number(m))) return cotNum(m);
+  return cotNum((Number(item.precio_lista) * Number(item.qty)) * (1 + markup / 100));
+}
+
+/**
+ * Subtotal y total.
+ *
+ * El subtotal va a precio de lista, para poder comparar. El total es la
+ * SUMA de las líneas y no el subtotal con markup: si alguna línea lleva
+ * precio a mano, esas dos cuentas ya no coinciden.
+ */
+function cotTotales(items, markup) {
+  let subtotal = 0, total = 0;
+  (items || []).forEach(i => {
+    subtotal += (Number(i.precio_lista) * Number(i.qty)) || 0;
+    total    += cotPrecioFinal(i, markup);
+  });
+  return { subtotal: cotNum(subtotal), total: cotNum(total) };
+}
+
+async function cotMarkupDefault() {
+  try {
+    const r = await sbGet('parametros?select=valor&clave=eq.MARKUP_DEFAULT&limit=1');
+    const v = Number(r.length ? r[0].valor : 0);
+    return v > 0 ? v : 20;
+  } catch (e) { return 20; }
+}
+
+/**
+ * El correlativo del año.
+ *
+ * Sale del MÁXIMO existente, no de la cantidad de filas: si se borra
+ * una cotización, el próximo número no se repite.
+ */
+async function cotProximoNumero(year) {
+  const r = await sbGet('cotizaciones?select=numero&numero=like.COT-' + year + '-*');
+  let max = 0;
+  const rx = new RegExp('^COT-' + year + '-(\\d+)$');
+  r.forEach(c => {
+    const m = String(c.numero || '').trim().match(rx);
+    if (m) { const n = parseInt(m[1], 10); if (n > max) max = n; }
+  });
+  return 'COT-' + year + '-' + String(max + 1).padStart(3, '0');
+}
+
+/** Las líneas se borran y se reescriben, igual que en órdenes de compra. */
+async function cotGuardarItems(cotId, items, markup) {
+  await sbReq('DELETE', 'cotizacion_items?cot_id=eq.' + encodeURIComponent(cotId));
+  const filas = (items || []).map(i => ({
+    cot_id: cotId, pn: i.pn || null, descrip: i.desc || i.descrip || null,
+    qty: Number(i.qty) || 0,
+    precio_lista: cotNum(i.precio_lista),
+    precio_final: cotPrecioFinal(i, markup)
+  }));
+  if (filas.length) await sbReq('POST', 'cotizacion_items', filas);
+}
+
+/** La fila de Postgres con la forma que espera el frontend. */
+function cotDesdeFila(c) {
+  return {
+    id: c.id, numero: c.numero, cliente_id: c.cliente_id || '',
+    cliente_nom: c.cliente_nom, markup: Number(c.markup) || 0,
+    subtotal: cotNum(c.subtotal), total: cotNum(c.total),
+    estado: c.estado || 'Borrador', fecha: c.fecha, notas: c.notas,
+    incoterm: c.incoterm || '', enviado_a: c.enviado_a || '', enviado_el: c.enviado_el || '',
+    items: (c.cotizacion_items || []).sort((a, b) => a.id - b.id).map(i => ({
+      cot_id: c.id, pn: i.pn, desc: i.descrip, qty: Number(i.qty) || 0,
+      precio_lista: cotNum(i.precio_lista), precio_final: cotNum(i.precio_final)
+    }))
+  };
+}
+
+/** El estado de un ítem sale del stock. Mismos cortes que calcEstado(). */
+function invEstado(stock) {
+  const n = Number(stock) || 0;
+  if (n <= 0) return 'zero';
+  if (n <= 2) return 'low';
+  return 'ok';
+}
 
 function sbLogout() {
   SB = { token: null, refresh: null, vence: 0, rol: null, usuario: null };
@@ -4061,6 +4279,607 @@ const SUPABASE_HANDLERS = {
   // factura_pagos. PostgREST los trae embebidos en el mismo viaje, y
   // se ordenan por id —o sea, por orden de alta— porque el frontend
   // identifica cada pago por su POSICIÓN en el array.
+  // ── Notas ─────────────────────────────────────────────────
+  // La más nueva primero, como el .reverse() del backend viejo.
+  getNotas: async () => {
+    const n = await sbGet('notas?select=*&order=id.desc');
+    return n.map(x => ({ id: x.id, titulo: x.titulo, crudo: x.crudo,
+                         ordenado: x.ordenado, fecha: x.fecha, autor: x.autor }));
+  },
+
+  saveNota: async (params) => {
+    const d = params.data || params || {};
+    const titulo0 = String(d.titulo || '').trim();
+    const crudo   = String(d.crudo  || '').trim();
+    if (!titulo0 && !crudo) throw new Error('La nota está vacía');
+    // Sin título, se toma la primera línea: es lo que uno reconoce
+    // después en la lista.
+    const titulo = titulo0 || crudo.split('\n')[0].slice(0, 60);
+    const autor  = (currentUser && currentUser.usuario) || SB.usuario || '';
+
+    if (d.id) {
+      const r = await sbReq('PATCH', 'notas?id=eq.' + encodeURIComponent(d.id),
+        { titulo: titulo, crudo: crudo, ordenado: String(d.ordenado || '') });
+      if (!r || !r.length) throw new Error('Nota no encontrada');
+      return { id: d.id };
+    }
+    const id = sbId('NOT');
+    await sbReq('POST', 'notas', {
+      id: id, titulo: titulo, crudo: crudo,
+      ordenado: String(d.ordenado || ''), fecha: new Date().toISOString(), autor: autor
+    });
+    return { id: id };
+  },
+
+  deleteNota: async (params) => {
+    await sbReq('DELETE', 'notas?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  // ── Dashboard ─────────────────────────────────────────────
+  //
+  // Antes era UN endpoint que leía seis hojas. Ahora son cinco
+  // consultas a Postgres en paralelo —0,3 s en total— y el armado se
+  // hace acá. Tenía que migrar sí o sí: leyendo la planilla habría
+  // mostrado inventario, cotizaciones y facturas congelados.
+  //
+  // El bloque de finanzas sigue viniendo de Apps Script, porque Bancos
+  // todavía vive allá y allá están sus datos frescos.
+  getDashboardData: async (params) => {
+    const umbral  = Number(params && params.umbralStock) || 5;
+    const diasETA = Number(params && params.diasETA) || 2;
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const dia = 24 * 60 * 60 * 1000;
+    const dias = (a, b) => Math.round((a - b) / dia);
+    const fch  = (v) => { if (!v) return null; const d = new Date(String(v).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? null : d; };
+
+    const [inv, cots, tracks, facturas] = await Promise.all([
+      sbGet('inventario?select=id,pn,descrip,stock,costo,wh,deposito,estado'),
+      sbGet('cotizaciones?select=id,numero,cliente_nom,total,estado,fecha'),
+      sbGet('trackings?select=id,numero,carrier,origen,destino,estado,eta,items'),
+      sbGet('facturas?select=id,numero,estado,vence,total,pagado')
+    ]);
+
+    const stockBajo  = inv.filter(i => i.stock !== null && Number(i.stock) <= umbral);
+    const itemsSinWH = inv.filter(i => !i.wh || String(i.wh).trim() === '');
+    const valorInv   = inv.reduce((s, i) => s + (Number(i.costo) || 0) * (Number(i.stock) || 0), 0);
+
+    const cotsPorEstado = {};
+    COT_ESTADOS_VALIDOS.forEach(e => { cotsPorEstado[e] = 0; });
+    cots.forEach(c => {
+      const e = c.estado || 'Borrador';
+      cotsPorEstado[e] = (cotsPorEstado[e] || 0) + 1;
+    });
+    const cotsActivas  = cots.filter(c => c.estado === 'Enviada' || c.estado === 'Borrador');
+    const montoActivas = cotsActivas.reduce((s, c) => s + (Number(c.total) || 0), 0);
+
+    // Pendiente = todo lo que no llegó ni se canceló.
+    const pend = tracks.filter(t => {
+      const e = String(t.estado || '').toLowerCase();
+      return e !== 'recibido' && e !== 'cancelado' && e !== 'entregado';
+    });
+    const conEta = (t) => fch(t.eta);
+    const porLlegar = pend.filter(t => { const e = conEta(t); return e && dias(e, hoy) >= 0 && dias(e, hoy) <= diasETA; })
+      .map(t => ({ id: t.id, numero: t.numero, carrier: t.carrier, origen: t.origen,
+                   destino: t.destino, eta: t.eta, diasRestantes: dias(conEta(t), hoy),
+                   estado: t.estado, items: t.items }))
+      .sort((a, b) => a.diasRestantes - b.diasRestantes);
+    const vencidos = pend.filter(t => { const e = conEta(t); return e && e < hoy; })
+      .map(t => ({ id: t.id, numero: t.numero, carrier: t.carrier, eta: t.eta,
+                   diasVencido: dias(hoy, conEta(t)), estado: t.estado }))
+      .sort((a, b) => b.diasVencido - a.diasVencido);
+    const noArribados = pend.map(t => {
+      const e = conEta(t);
+      return { id: t.id, numero: t.numero, carrier: t.carrier, origen: t.origen,
+               destino: t.destino, estado: t.estado, eta: t.eta,
+               diasRestantes: e ? dias(e, hoy) : null };
+    }).sort((a, b) => {
+      if (a.diasRestantes === null) return 1;
+      if (b.diasRestantes === null) return -1;
+      return a.diasRestantes - b.diasRestantes;
+    });
+
+    // Enviadas hace más de 7 días: son las que hay que ir a golpear.
+    const seguimiento = cots.filter(c => {
+      if (c.estado !== 'Enviada') return false;
+      const f = fch(c.fecha);
+      return !f || dias(hoy, f) >= 7;
+    }).map(c => {
+      const f = fch(c.fecha);
+      return { id: c.id, numero: c.numero, cliente: c.cliente_nom, total: c.total,
+               estado: c.estado, fecha: c.fecha, diasEnviada: f ? dias(hoy, f) : null };
+    }).sort((a, b) => (b.diasEnviada || 0) - (a.diasEnviada || 0));
+
+    const abiertas = facturas.filter(f => f.estado !== 'Pagada' && f.estado !== 'Anulada');
+    const limite = new Date(hoy.getTime() + 15 * dia);
+    const saldo = (f) => sbCent(Number(f.total) - Number(f.pagado));
+    const suma = (a) => sbCent(a.reduce((s, f) => s + saldo(f), 0));
+    const vencidasF = [], prox = [];
+    abiertas.forEach(f => {
+      const v = fch(f.vence);
+      if (!v) return;
+      if (v < hoy) vencidasF.push(f); else if (v <= limite) prox.push(f);
+    });
+
+    const actividad = [];
+    cots.slice(-5).reverse().forEach(c => actividad.push({
+      tipo: 'cotizacion', icon: '📄',
+      texto: 'Cotización ' + (c.numero || c.id) + ' · ' + (c.cliente_nom || '') +
+             ' · US$ ' + (Number(c.total) || 0).toLocaleString('en-US'),
+      fecha: c.fecha, estado: c.estado }));
+    tracks.slice(-5).reverse().forEach(t => actividad.push({
+      tipo: 'tracking', icon: '✈️',
+      texto: 'Tracking ' + (t.numero || t.id) + ' · ' + (t.carrier || '') + ' · ETA ' + (t.eta || '—'),
+      fecha: t.eta, estado: t.estado }));
+
+    // Bancos sigue en Apps Script: el bloque de finanzas se pide aparte
+    // y sólo si el rol puede verlo. Si falla, el panel se dibuja igual.
+    let finanzas = null;
+    const rol = (currentUser && currentUser.rol) || SB.rol;
+    if (rol === 'admin' || rol === 'finanzas') {
+      try {
+        const rb = await apiAppsScript('getResumenBancos', {}, true);
+        if (rb && rb.ok && rb.data) {
+          finanzas = {
+            totalUSD: rb.data.totalUSD || 0,
+            bancos:  (rb.data.porBanco || []).length,
+            cuentas: (rb.data.detalle  || []).length,
+            porBanco: (rb.data.porBanco || []).map(b => ({ banco: b.banco, total: b.totalUSD || 0 })),
+            fecha: ((rb.data.detalle || []).map(d => d.ultimaFecha).filter(Boolean).sort()[0]) || ''
+          };
+        }
+      } catch (e) { /* si Bancos no responde, el dashboard se dibuja igual */ }
+    }
+
+    return {
+      tracksNoArribados: noArribados.slice(0, 25),
+      facturasAME: {
+        total: suma(abiertas), cantidad: abiertas.length,
+        vencido: suma(vencidasF), vencidasCantidad: vencidasF.length,
+        prox15: suma(prox), prox15Cantidad: prox.length
+      },
+      stats: {
+        itemsTotal: inv.length, stockBajoCount: stockBajo.length,
+        itemsSinWHCount: itemsSinWH.length, valorInventario: sbCent(valorInv),
+        cotsActivasCount: cotsActivas.length, cotsActivasMonto: sbCent(montoActivas),
+        tracksPendientesCount: pend.length, tracksPorLlegarCount: porLlegar.length,
+        tracksVencidosCount: vencidos.length, cotsSeguimientoCount: seguimiento.length
+      },
+      stockBajo: stockBajo.slice(0, 20).map(i => ({
+        id: i.id, pn: i.pn, desc: i.descrip, stock: i.stock,
+        wh: i.wh, deposito: i.deposito, estado: i.estado })),
+      tracksPorLlegar: porLlegar.slice(0, 15),
+      tracksVencidos:  vencidos.slice(0, 10),
+      cotsSeguimiento: seguimiento.slice(0, 15),
+      ultimasCots: cots.slice().sort((a, b) =>
+          String(b.fecha || '').localeCompare(String(a.fecha || ''))).slice(0, 5).map(c => {
+        const f = fch(c.fecha);
+        return { id: c.id, numero: c.numero, cliente: c.cliente_nom, total: c.total,
+                 estado: c.estado, fecha: c.fecha, diasEnviada: f ? dias(hoy, f) : null };
+      }),
+      cotsPorEstado: cotsPorEstado,
+      actividadReciente: actividad.slice(0, 10),
+      finanzas: finanzas,
+      umbralStockBajo: umbral, diasETA: diasETA,
+      usuario: currentUser ? { nombre: currentUser.nombre, rol: currentUser.rol } : null
+    };
+  },
+
+  // ── Trackings ─────────────────────────────────────────────
+  // La config son constantes, no datos: viajaba a Apps Script y volvía
+  // 6 segundos después con cuatro listas fijas. Ahora está acá.
+  getTrackingConfig: async () => ({
+    tipos: TRK_TIPOS, estados: TRK_ESTADOS,
+    carriers: Object.keys(TRK_CARRIERS), ambitos: TRK_AMBITOS
+  }),
+
+  getTrackingsFull: async () => {
+    const t = await sbGet('trackings?select=*&order=id.desc');
+    return t.map(trkDesdeFila);
+  },
+
+  saveTrackingFull: async (params) => {
+    const d = params.data || {};
+    if (!d.numero) throw new Error('Falta el número de guía');
+    const quien = (currentUser && currentUser.usuario) || SB.usuario || '';
+
+    const fila = {
+      numero: d.numero, carrier: d.carrier || null, items: d.items || null,
+      origen: d.origen || null, destino: d.destino || null,
+      estado: d.estado || 'En preparación', eta: d.eta || null,
+      wh: d.wh || null, notas: d.notas || null,
+      tipo: d.tipo || 'Courier',
+      orden_ids: (d.orden_ids || []).join(',') || null,
+      fabricante: d.fabricante || null, contenido: d.contenido || null,
+      bultos: Number(d.bultos) || 0, peso_kg: Number(d.peso_kg) || 0,
+      valor_usd: Number(d.valor_usd) || 0,
+      despachado_el: d.despachado_el || null, llegada_real: d.llegada_real || null,
+      flete_usd: Number(d.flete_usd) || 0,
+      ambito: TRK_AMBITOS.indexOf(d.ambito) > -1 ? d.ambito : 'AMELIFE'
+    };
+
+    if (d.id) {
+      // Los adjuntos y el historial se manejan aparte: si el formulario
+      // los pisara, editar la ETA borraría los papeles del embarque.
+      const r = await sbReq('PATCH', 'trackings?id=eq.' + encodeURIComponent(d.id), fila);
+      if (!r || !r.length) throw new Error('Tracking no encontrado');
+      return { id: d.id, numero: d.numero };
+    }
+
+    fila.id = sbId('TRK');
+    fila.adjuntos = [];
+    fila.creado_por = quien;
+    fila.historial = [{ estado: fila.estado, quien: quien, cuando: sbAhora() }];
+    await sbReq('POST', 'trackings', fila);
+    return { id: fila.id, numero: d.numero };
+  },
+
+  trackingEstado: async (params) => {
+    const { id, estado } = params;
+    if (!id) throw new Error('Falta el id');
+    if (TRK_ESTADOS.indexOf(estado) === -1) throw new Error('Estado inválido: ' + estado);
+
+    const t = (await sbGet('trackings?select=llegada_real,historial&id=eq.' +
+                           encodeURIComponent(id)))[0];
+    if (!t) throw new Error('Tracking no encontrado');
+
+    const patch = { estado: estado };
+    // Al arribar se sella la fecha real: con la ETA da la demora.
+    if (estado === 'Arribado' && !t.llegada_real) {
+      patch.llegada_real = new Date().toISOString().slice(0, 10);
+    }
+    const h = Array.isArray(t.historial) ? t.historial.slice() : [];
+    h.push({ estado: estado, quien: (currentUser && currentUser.usuario) || '', cuando: sbAhora() });
+    patch.historial = h.slice(-30);
+
+    await sbReq('PATCH', 'trackings?id=eq.' + encodeURIComponent(id), patch);
+    return { id: id, estado: estado };
+  },
+
+  marcarTrackingRecibido: async (params) => {
+    if (!params.id) throw new Error('ID requerido');
+    const patch = { estado: 'Arribado',
+                    llegada_real: new Date().toISOString().slice(0, 10) };
+    if (params.wh) patch.wh = params.wh;
+    await sbReq('PATCH', 'trackings?id=eq.' + encodeURIComponent(params.id), patch);
+    return { id: params.id, estado: 'Arribado' };
+  },
+
+  deleteTracking: async (params) => {
+    await sbReq('DELETE', 'trackings?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  // ── Órdenes de compra ─────────────────────────────────────
+  getOrdenes: async () => {
+    const o = await sbGet('ordenes?select=*,orden_items(id,linea,pn,descrip,qty,uom,rep,' +
+                          'precio,total,wh,recibido,recibido_qty)&order=id.desc');
+    return o.map(ocDesdeFila);
+  },
+
+  getOrden: async (params) => {
+    const o = await sbGet('ordenes?select=*,orden_items(id,linea,pn,descrip,qty,uom,rep,' +
+                          'precio,total,wh,recibido,recibido_qty)&id=eq.' +
+                          encodeURIComponent(params.id));
+    if (!o.length) throw new Error('Orden no encontrada');
+    return ocDesdeFila(o[0]);
+  },
+
+  saveOrden: async (params) => {
+    const d = params.data || {};
+    if (!d.numero) throw new Error('Falta el número de orden');
+    if (!d.items || !d.items.length) throw new Error('La orden no tiene ítems');
+
+    const ya = await sbGet('ordenes?select=id&numero=eq.' +
+                           encodeURIComponent(d.numero) + '&limit=1');
+    if (ya.length) throw new Error('Ya existe una orden con el número ' + d.numero);
+
+    const id = sbId('OC');
+    const total = ocGuardarItemsTotal(d.items);
+    await sbReq('POST', 'ordenes', {
+      id: id, numero: d.numero, referencia: d.referencia || null,
+      proveedor: d.proveedor || 'ZOLL', fecha: d.fecha || null,
+      estado: 'Draft', total: total, observaciones: d.observaciones || null,
+      creado_por: (currentUser && currentUser.usuario) || SB.usuario || ''
+    });
+    await ocGuardarItems(id, d.items);
+    return { id: id, total: total };
+  },
+
+  updateOrden: async (params) => {
+    const id = params.id, d = params.data || {};
+    if (!id) throw new Error('id requerido');
+    if (!d.items || !d.items.length) throw new Error('La orden no tiene ítems');
+    const prev = (await sbGet('ordenes?select=id&id=eq.' + encodeURIComponent(id)))[0];
+    if (!prev) throw new Error('Orden no encontrada');
+
+    const total = ocGuardarItemsTotal(d.items);
+    await sbReq('PATCH', 'ordenes?id=eq.' + encodeURIComponent(id), {
+      numero: d.numero, referencia: d.referencia || null,
+      fecha: d.fecha || null, total: total,
+      observaciones: d.observaciones || null
+    });
+    await ocGuardarItems(id, d.items);
+    return { id: id, total: total };
+  },
+
+  deleteOrden: async (params) => {
+    await sbReq('DELETE', 'ordenes?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  /**
+   * Recibir una orden, entera o a medias.
+   *
+   * Sin cantidad indicada llega TODO lo que falta: es el caso de
+   * siempre y el que menos hay que tipear. Nunca entra más de lo
+   * pedido.
+   */
+  recibirOrden: async (params) => {
+    const id = params.id;
+    if (!id) throw new Error('Falta el id de la orden');
+
+    const oc = (await sbGet('ordenes?select=numero,estado,recibido_el&id=eq.' +
+                            encodeURIComponent(id)))[0];
+    if (!oc) throw new Error('Orden no encontrada');
+    if (oc.estado === 'Received') {
+      throw new Error('Esta orden ya se recibió completa el ' + (oc.recibido_el || '—'));
+    }
+
+    const porLinea = {};
+    (params.items || []).forEach(x => {
+      porLinea[String(x.linea)] = {
+        wh:  x.wh  !== undefined ? String(x.wh || '').trim() : undefined,
+        qty: x.qty !== undefined ? Number(x.qty) : undefined
+      };
+    });
+
+    const lineas = await sbGet('orden_items?select=*&oc_id=eq.' +
+                               encodeURIComponent(id) + '&order=linea.asc');
+    let creados = 0, sumados = 0, recibidoAhora = 0;
+    const sinPN = [];
+    let faltaAlgo = false;
+
+    for (const it of lineas) {
+      const qty   = Number(it.qty) || 0;
+      const yaRec = Number(it.recibido_qty) || 0;
+      const falta = Math.max(0, qty - yaRec);
+
+      const pedido = porLinea[String(it.linea)] || {};
+      const wh = (pedido.wh !== undefined) ? pedido.wh : (it.wh || '');
+
+      let llega = (pedido.qty === undefined || !isFinite(pedido.qty)) ? falta : pedido.qty;
+      if (llega < 0) llega = 0;
+      if (llega > falta) llega = falta;      // nunca más de lo pedido
+
+      const totalRec = yaRec + llega;
+      if (totalRec < qty) faltaAlgo = true;
+
+      // El WH y lo recibido quedan en la línea SIEMPRE, haya o no
+      // impactado en inventario: es el registro de lo que pasó.
+      await sbReq('PATCH', 'orden_items?id=eq.' + it.id, {
+        wh: wh || null,
+        recibido: totalRec >= qty && qty > 0,
+        recibido_qty: totalRec
+      });
+
+      if (!llega) continue;                  // esta línea no vino en este arribo
+      const pn = String(it.pn || '').trim();
+      if (!pn) { sinPN.push(it.linea); continue; }
+      recibidoAhora += llega;
+
+      const inv = (await sbGet('inventario?select=id,stock&pn=eq.' +
+                               encodeURIComponent(pn) + '&limit=1'))[0];
+      if (inv) {
+        const nuevo = (Number(inv.stock) || 0) + llega;
+        const patch = { stock: nuevo, estado: invEstado(nuevo) };
+        if (wh) patch.wh = wh;
+        await sbReq('PATCH', 'inventario?id=eq.' + encodeURIComponent(inv.id), patch);
+        sumados++;
+      } else {
+        // PN que no estaba en inventario: entra como ítem nuevo, con lo
+        // que llegó AHORA y no con lo que se pidió.
+        await sbReq('POST', 'inventario', {
+          id: sbId('INV'), pn: pn, descrip: it.descrip || null, prov: 'ZOLL',
+          lista: 0, costo: Number(it.precio) || 0, stock: llega,
+          wh: wh || null, estado: invEstado(llega),
+          fecha_ing: new Date().toISOString().slice(0, 10),
+          notas: 'Alta por orden de compra ' + (oc.numero || id)
+        });
+        creados++;
+      }
+    }
+
+    const estado = faltaAlgo ? 'Partial' : 'Received';
+    // La fecha de recepción se sella cuando llegó TODO. Un parcial deja
+    // la orden abierta y no tiene fecha de cierre.
+    await sbReq('PATCH', 'ordenes?id=eq.' + encodeURIComponent(id), {
+      estado: estado,
+      recibido_el: estado === 'Received' ? new Date().toISOString() : null
+    });
+
+    return { id: id, estado: estado, parcial: faltaAlgo, sumados: sumados,
+             creados: creados, sinPN: sinPN, total: recibidoAhora };
+  },
+
+  // ── Cotizaciones ──────────────────────────────────────────
+  getCotizaciones: async () => {
+    const c = await sbGet('cotizaciones?select=*,cotizacion_items(id,pn,descrip,qty,' +
+                          'precio_lista,precio_final)&order=id.desc');
+    return c.map(cotDesdeFila);
+  },
+
+  getCotizacion: async (params) => {
+    if (!params.id) throw new Error('id requerido');
+    const c = await sbGet('cotizaciones?select=*,cotizacion_items(id,pn,descrip,qty,' +
+                          'precio_lista,precio_final)&id=eq.' + encodeURIComponent(params.id));
+    if (!c.length) throw new Error('Cotización no encontrada');
+    return cotDesdeFila(c[0]);
+  },
+
+  saveCotizacion: async (params) => {
+    const d = params.data || {};
+    if (!d.items || !d.items.length) throw new Error('La cotización no tiene ítems');
+    if (!d.cliente_nom) throw new Error('Elegí un cliente');
+
+    let markup = Number(d.markup);
+    if (!(markup >= 0)) markup = await cotMarkupDefault();
+
+    const tot = cotTotales(d.items, markup);
+    const id  = sbId('COT');
+    await sbReq('POST', 'cotizaciones', {
+      id: id,
+      numero: await cotProximoNumero(new Date().getFullYear()),
+      cliente_id:  d.cliente_id || null,
+      cliente_nom: String(d.cliente_nom || '').trim().toUpperCase(),
+      markup: markup, subtotal: tot.subtotal, total: tot.total,
+      estado: 'Borrador',
+      fecha: new Date().toISOString().slice(0, 10),
+      notas: d.notas || null, incoterm: d.incoterm || null
+    });
+    await cotGuardarItems(id, d.items, markup);
+    return { id: id };
+  },
+
+  updateCotizacion: async (params) => {
+    const id = params.id;
+    const d  = params.data || {};
+    if (!id) throw new Error('id requerido');
+    if (!d.items || !d.items.length) throw new Error('La cotización no tiene ítems');
+
+    const prev = (await sbGet('cotizaciones?select=*&id=eq.' + encodeURIComponent(id)))[0];
+    if (!prev) throw new Error('Cotización no encontrada');
+
+    let markup = Number(d.markup);
+    if (!(markup >= 0)) markup = Number(prev.markup) || await cotMarkupDefault();
+
+    const tot = cotTotales(d.items, markup);
+    // El número, el estado y la fecha original NO se tocan al editar.
+    await sbReq('PATCH', 'cotizaciones?id=eq.' + encodeURIComponent(id), {
+      cliente_id:  d.cliente_id  || prev.cliente_id  || null,
+      cliente_nom: String(d.cliente_nom || prev.cliente_nom || '').trim().toUpperCase(),
+      markup: markup, subtotal: tot.subtotal, total: tot.total,
+      notas: d.notas !== undefined ? d.notas : prev.notas,
+      incoterm: d.incoterm !== undefined ? d.incoterm : prev.incoterm
+    });
+    await cotGuardarItems(id, d.items, markup);
+    return { id: id };
+  },
+
+  actualizarEstadoCotizacion: async (params) => {
+    if (!params.id || !params.estado) throw new Error('id y estado requeridos');
+    if (COT_ESTADOS_VALIDOS.indexOf(params.estado) < 0) {
+      throw new Error('Estado inválido. Debe ser uno de: ' + COT_ESTADOS_VALIDOS.join(', '));
+    }
+    const prev = (await sbGet('cotizaciones?select=estado&id=eq.' +
+                              encodeURIComponent(params.id)))[0];
+    if (!prev) throw new Error('Cotización no encontrada');
+    const anterior = prev.estado || '';
+
+    await sbReq('PATCH', 'cotizaciones?id=eq.' + encodeURIComponent(params.id),
+                { estado: params.estado });
+
+    // El audit trail: se anota si cambió el estado O si dejaron nota.
+    if (params.nota || anterior !== params.estado) {
+      await sbReq('POST', 'cotizacion_historial', {
+        cot_id: params.id, estado_anterior: anterior, estado_nuevo: params.estado,
+        nota: params.nota || null,
+        usuario: (currentUser && currentUser.nombre) || SB.usuario || ''
+      });
+    }
+    return { id: params.id, estado: params.estado, estadoAnterior: anterior,
+             usuario: (currentUser && currentUser.nombre) || '' };
+  },
+
+  deleteCotizacion: async (params) => {
+    // Los ítems y el historial se van solos: FK on delete cascade.
+    await sbReq('DELETE', 'cotizaciones?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  // ── Inventario y Price Book ───────────────────────────────
+  // El estado sale del stock, igual que calcEstado() del backend
+  // viejo: no es un campo que se elija a mano.
+  getInventario: async () => sbGet('inventario?select=*&order=id.desc'),
+
+  getPriceBook: async () => {
+    const f = await sbGet('pricebook?select=categoria,pn,descrip,precio_lista' +
+                          '&order=categoria.asc,pn.asc');
+    // El frontend espera las claves de la hoja: categoria/pn/desc/precio.
+    return f.map(r => ({ categoria: r.categoria, pn: r.pn,
+                         desc: r.descrip, precio: r.precio_lista }));
+  },
+
+  // "Sin WH" incluye el guión: la hoja usa '—' para decir "todavía no".
+  getItemsSinWH: async () =>
+    await sbGet('inventario?select=*&or=(wh.is.null,wh.eq.,wh.eq.%E2%80%94)&order=id.desc'),
+
+  addItem: async (params) => {
+    const d = params.data || params || {};
+    const stock = Number(d.stock) || 0;
+    const r = await sbReq('POST', 'inventario', {
+      id:        sbId('INV'),
+      pn:        d.pn || null,
+      descrip:   d.desc || null,
+      prov:      d.prov || 'ZOLL',
+      lista:     Number(d.lista) || 0,
+      costo:     Number(d.costo) || 0,
+      stock:     stock,
+      wh:        d.wh || null,
+      tracking:  d.tracking || null,
+      lote:      d.lote || null,
+      venc:      d.venc || null,
+      estado:    invEstado(stock),
+      fecha_ing: new Date().toISOString().slice(0, 10),
+      notas:     d.notas || null,
+      deposito:  d.deposito || null
+    });
+    return { id: r[0].id, estado: r[0].estado };
+  },
+
+  deleteItem: async (params) => {
+    await sbReq('DELETE', 'inventario?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  ajustarStockItem: async (params) => {
+    const delta = Number(params.delta) || 0;
+    const it = (await sbGet('inventario?select=stock&id=eq.' +
+                            encodeURIComponent(params.id)))[0];
+    if (!it) throw new Error('Ítem no encontrado');
+    const anterior = Number(it.stock) || 0;
+    // Nunca por debajo de cero, igual que ajustarStockPorId().
+    const nuevo = Math.max(0, anterior + delta);
+    await sbReq('PATCH', 'inventario?id=eq.' + encodeURIComponent(params.id),
+                { stock: nuevo, estado: invEstado(nuevo) });
+    return { id: params.id, stock: nuevo, estado: invEstado(nuevo), anterior: anterior };
+  },
+
+  asignarWHBulk: async (params) => {
+    const items = params.items || [];
+    let n = 0;
+    await Promise.all(items.map(async (it) => {
+      const patch = {};
+      if (it.wh)   patch.wh   = it.wh;
+      if (it.lote) patch.lote = it.lote;
+      if (it.venc) patch.venc = it.venc;
+      if (!Object.keys(patch).length && !it.serie) return;
+
+      const filtro = it.id ? 'id=eq.' + encodeURIComponent(it.id)
+                           : 'pn=eq.' + encodeURIComponent(it.pn || '');
+      // La serie se AGREGA a las notas, no las pisa: es lo que hacía el
+      // backend viejo y lo que espera quien después lee esa columna.
+      if (it.serie) {
+        const actual = (await sbGet('inventario?select=notas&' + filtro + '&limit=1'))[0];
+        const previo = (actual && actual.notas) ? String(actual.notas) : '';
+        patch.notas = previo ? previo + ' · S/N ' + it.serie : 'S/N ' + it.serie;
+      }
+      const r = await sbReq('PATCH', 'inventario?' + filtro, patch);
+      if (r && r.length) n += r.length;
+    }));
+    return { actualizados: n };
+  },
+
   getFacturasAME: async () => {
     const filas = await sbGet(
       'facturas?select=*,factura_pagos(id,fecha,monto,nota,quien)' +
@@ -4162,6 +4981,95 @@ const SUPABASE_HANDLERS = {
     // pagado y estado los recalculó el trigger: se releen, no se
     // suponen.
     return await famEstadoDeFactura(params.id);
+  },
+
+  // ── Clientes ──────────────────────────────────────────────
+  // El buscador dejó de traerse las 196 fichas enteras para filtrar en
+  // el navegador: ahora filtra Postgres con índices trigram.
+  getClientes: async () => sbGet('clientes?select=*&order=id.desc'),
+
+  // "Los últimos N" eran las últimas filas de la hoja, o sea orden de
+  // alta. El id lleva el timestamp adentro (CLI-AAMMDDHHMMSS-NNN), así
+  // que ordenar por id reproduce exactamente ese orden.
+  getClientesRecientes: async (params) => {
+    const n = Number(params && params.limite) || 20;
+    return await sbGet('clientes?select=*&order=id.desc&limit=' + n);
+  },
+
+  buscarClientes: async (params) => {
+    const q = String((params && params.query) || '').trim();
+    if (q.length < 2) return [];
+    // Se escapan los comodines y la coma: la coma separa condiciones en
+    // PostgREST, y un cliente con coma en el nombre rompía la consulta.
+    const t = q.replace(/[,()*]/g, ' ').trim();
+    if (!t) return [];
+    const like = '*' + t + '*';
+    return await sbGet('clientes?select=*&or=(' +
+      ['nombre', 'empresa', 'email', 'tel']
+        .map(c => c + '.ilike.' + encodeURIComponent(like)).join(',') +
+      ')&order=id.desc&limit=100');
+  },
+
+  addCliente: async (params) => {
+    const d = params.data || params || {};
+    // Mismo control que addCliente() del backend viejo: no dos fichas
+    // con el mismo correo.
+    if (d.email) {
+      const ya = await sbGet('clientes?select=id,nombre&email=eq.' +
+                             encodeURIComponent(d.email) + '&limit=1');
+      if (ya.length) throw new Error('Ya existe un cliente con ese email');
+    }
+    // nombre y empresa SIEMPRE en mayúsculas, como mayusEmpresa():
+    // si no, el mismo cliente aparece dos veces escrito distinto.
+    const r = await sbReq('POST', 'clientes', {
+      id:         sbId('CLI'),
+      nombre:     String(d.nombre || '').trim().toUpperCase(),
+      empresa:    String(d.empresa || '').trim().toUpperCase(),
+      email:      d.email || null,
+      tel:        d.tel || null,
+      pais:       d.pais || null,
+      ciudad:     d.ciudad || null,
+      notas:      d.notas || null,
+      fecha:      new Date().toISOString().slice(0, 10),
+      ruc:        d.ruc || null,
+      dir_fiscal: d.dir_fiscal || null,
+      completo:   false
+    });
+    return r[0];
+  },
+
+  deleteCliente: async (params) => {
+    await sbReq('DELETE', 'clientes?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  eliminarClientesBulk: async (params) => {
+    const ids = (params.ids || []).filter(Boolean);
+    if (!ids.length) return { borrados: 0 };
+    // in.(...) en una sola llamada, en vez de una por cliente.
+    const lista = ids.map(i => '"' + String(i).replace(/"/g, '') + '"').join(',');
+    const r = await sbReq('DELETE', 'clientes?id=in.(' + lista + ')', undefined);
+    return { borrados: Array.isArray(r) ? r.length : ids.length };
+  },
+
+  updateClientesBulk: async (params) => {
+    const items = params.items || [];
+    let hechos = 0;
+    const faltantes = [];
+    // PostgREST no hace un PATCH distinto por fila en una sola llamada,
+    // así que van en paralelo. Son pocas y cada una tarda ~0,25 s.
+    await Promise.all(items.map(async (it) => {
+      const id = String((it && it.id) || '').trim();
+      if (!id) return;
+      const patch = Object.assign({}, it.data || {});
+      if (patch.nombre  !== undefined) patch.nombre  = String(patch.nombre).trim().toUpperCase();
+      if (patch.empresa !== undefined) patch.empresa = String(patch.empresa).trim().toUpperCase();
+      try {
+        const r = await sbReq('PATCH', 'clientes?id=eq.' + encodeURIComponent(id), patch);
+        if (r && r.length) hechos++; else faltantes.push(id);
+      } catch (e) { faltantes.push(id); }
+    }));
+    return { actualizados: hechos, noEncontrados: faltantes };
   },
 
   borrarPagoFacturaAME: async (params) => {
@@ -5900,11 +6808,37 @@ const PRECARGA = [
  * pedidos de antes: la app arranca igual, sólo que más lento.
  */
 async function precargarModulos() {
-  const modulos = PRECARGA.filter(m => m.panel === null || panelPermitido(m.panel));
-  if (!modulos.length) return;
+  const todos = PRECARGA.filter(m => m.panel === null || panelPermitido(m.panel));
+  if (!todos.length) return;
 
   const tarea = actIniciar('Preparando los módulos');
+
+  // Los módulos ya migrados NO pueden venir en el pedido batch: ése lo
+  // atiende Apps Script leyendo la planilla, y para lo migrado la
+  // planilla está congelada. Traerlos de ahí llenaría la caché con
+  // datos viejos, que es peor que no precargar nada.
+  //
+  // Van por su cuenta contra Postgres —0,26 s cada uno, en paralelo— y
+  // se mueven solos a este camino a medida que se migran, porque la
+  // lista que manda es ACCIONES_SUPABASE.
+  const migrados = todos.filter(m => ACCIONES_SUPABASE.has(m.accion));
+  const modulos  = todos.filter(m => !ACCIONES_SUPABASE.has(m.accion));
+
+  const deSupabase = Promise.all(migrados.map(async (m) => {
+    const rm = await api(m.accion, {}, true);
+    if (!rm || !rm.ok) return;
+    cacheGuardar(m.clave, rm.data);
+    if (m.luego) { try { m.luego(rm.data); } catch (e) {} }
+  }));
+
+  if (!modulos.length) {
+    await deSupabase;
+    actTerminar(tarea, true);
+    return;
+  }
+
   const r = await api('precargaModulos', { quiero: modulos.map(m => m.clave) }, true);
+  await deSupabase;
 
   if (r && r.ok && r.data) {
     let listos = 0;
@@ -11178,13 +12112,17 @@ async function trkAdjSubir() {
     fr.readAsDataURL(f);
   });
 
+  // Los adjuntos van a Drive —eso se queda en Apps Script— pero la
+  // lista vive en Postgres: se manda la actual y se guarda la que vuelve.
   const r = await api('subirAdjuntoTracking', {
     id: TRK_STATE.adjuntando.id, nombre: f.name, mime: f.type,
-    tipoDoc: document.getElementById('trkAdjTipo').value, base64
+    tipoDoc: document.getElementById('trkAdjTipo').value, base64,
+    adjuntos: TRK_STATE.adjuntando.adjuntos || []
   });
   btn.disabled = false; btn.textContent = 'Subir';
 
   if (!r.ok) { showToast(r.error || 'No se pudo subir', 'error'); return; }
+  await trkGuardarAdjuntos(TRK_STATE.adjuntando.id, r.data.adjuntos);
   TRK_STATE.adjuntando.adjuntos = r.data.adjuntos;
   trkAdjRender(r.data.adjuntos);
   inp.value = '';
@@ -11193,9 +12131,13 @@ async function trkAdjSubir() {
 }
 
 async function trkAdjBorrar(i) {
-  const r = await api('borrarAdjuntoTracking', { id: TRK_STATE.adjuntando.id, indice: i });
+  const r = await api('borrarAdjuntoTracking', {
+    id: TRK_STATE.adjuntando.id, indice: i,
+    adjuntos: TRK_STATE.adjuntando.adjuntos || []
+  });
   if (!r.ok) { showToast(r.error || 'Error', 'error'); return; }
   TRK_STATE.adjuntando.adjuntos = r.data.adjuntos;
+  await trkGuardarAdjuntos(TRK_STATE.adjuntando.id, r.data.adjuntos);
   trkAdjRender(r.data.adjuntos);
   cacheInvalidar('trackings');
 }
