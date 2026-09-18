@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v15.3 | 2026-09-18 ARG - Restaurar sesion: se entra apenas contesta Supabase (0,3s) y la validacion del token viejo de Apps Script (6s) pasa a segundo plano, que era la pantalla en blanco. El refresh_token rotado se vuelve a guardar -->
+<!-- AMELIFE EMS Technologies - Web App v15.4 | 2026-09-18 ARG - Recordatorios: el modal se cierra al apretar Enviar, sin esperar los 3-4s de Apps Script. El resultado llega por aviso y nombra la factura, porque para entonces el modal ya no esta -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -9060,27 +9060,35 @@ function famEnviarRecordatorio() {
   const para = document.getElementById('famRecMail').value.trim();
   if (!para) { showToast('Poné el correo del cliente', 'error'); return; }
 
-  const btn = document.getElementById('famRecBtn');
-  btn.disabled = true;
-  btn.textContent = 'Enviando…';
   const copia = ccValores('famRec');
+
+  // El modal se cierra YA, sin esperar a Apps Script.
+  //
+  // Mandar el correo tarda 3 o 4 segundos, y son todos de ida y vuelta
+  // con Google: cuando la respuesta llega, el correo salió hace rato.
+  // Tener la pantalla trabada mirando un botón que dice "Enviando…" no
+  // aporta nada. Se cierra, queda el indicador de actividad arriba, y
+  // el resultado avisa cuando está.
+  //
+  // Si falla, el aviso dice de QUÉ factura se trata: para cuando llega,
+  // el modal ya no está y sin el número no se sabe cuál reintentar.
+  closeModal('modalFamRecordar');
+  showToast('Enviando el recordatorio de ' + f.numero + ' a ' + para + '…', 'info');
+
   // La factura viaja entera: Apps Script ya no la busca en la planilla
   // porque desde la Etapa 4 vive en Postgres.
   api('recordatorioFacturaAME', { id: f.id, factura: f, para: para, cc: copia.cc, cco: copia.cco })
     .then(async r => {
-      btn.disabled = false;
-      btn.textContent = 'Enviar por correo';
-      if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
-
-      // El correo YA SALIÓ. Cerrar es lo primero: si algo de lo que
-      // viene abajo falla, el modal tiene que irse igual — dejarlo
-      // abierto hace pensar que no se mandó y lleva a mandarlo dos veces.
+      if (!r || !r.ok) {
+        showToast('No se pudo enviar el recordatorio de ' + f.numero + ': ' +
+                  ((r && r.error) || 'error'), 'error');
+        return;
+      }
       const d = r.data || {};
-      closeModal('modalFamRecordar');
-      showToast('Recordatorio enviado a ' + para +
+      showToast('Recordatorio de ' + f.numero + ' enviado a ' + para +
         (d.adjunto ? ' · con la factura adjunta' : ''), 'success');
       if (d.sin_pdf) {
-        showToast('Esa factura no tiene PDF cargado: fue sin adjunto', 'info');
+        showToast(f.numero + ' no tiene PDF cargado: fue sin adjunto', 'info');
       }
 
       // Se ESPERA a que el reclamo quede anotado antes de recargar. Sin
@@ -9090,11 +9098,8 @@ function famEnviarRecordatorio() {
       famCargar(true);
     })
     .catch(e => {
-      // Que no quede el botón en "Enviando…" para siempre.
-      btn.disabled = false;
-      btn.textContent = 'Enviar por correo';
-      showToast('El correo pudo haber salido, pero algo falló después: ' + e.message, 'error');
-      closeModal('modalFamRecordar');
+      showToast('El recordatorio de ' + f.numero + ' pudo haber salido, ' +
+                'pero algo falló después: ' + e.message, 'error');
     });
 }
 
