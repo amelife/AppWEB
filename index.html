@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v14.1 | 2026-09-18 ARG - Fix: entrar sin sesion de Apps Script expulsaba al usuario al cargar modulos (SESION_INVALIDA sin token previo se trataba como sesion vencida). Ahora, mientras quede algo en el backend viejo, su sesion es obligatoria y el error se explica en el login -->
+<!-- AMELIFE EMS Technologies - Web App v14.2 | 2026-09-18 ARG - Fix: escribir el email en el login entraba en Supabase y rebotaba en Apps Script, que solo conoce el usuario corto de AuthControl. Ahora cada backend recibe el identificador que entiende -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3435,6 +3435,15 @@ const SB_EMAIL_DE = {
   // lucia:    '...',
 };
 
+// El mismo mapa al revés. El formulario dice "USUARIO / EMAIL", así que
+// se puede escribir cualquiera de los dos — pero Apps Script sólo
+// conoce el usuario corto de AuthControl. Sin esta traducción, escribir
+// el email entraba en Supabase y rebotaba en el backend viejo.
+const SB_USUARIO_DE = {};
+Object.keys(SB_EMAIL_DE).forEach(function (u) {
+  SB_USUARIO_DE[SB_EMAIL_DE[u].toLowerCase()] = u;
+});
+
 // Acciones que YA viven en Supabase. Arranca vacío: en la Etapa 3 el
 // único cambio es de dónde sale la sesión, y todo lo demás sigue yendo
 // a Apps Script exactamente como antes. En la Etapa 4 se agregan de a
@@ -4050,8 +4059,12 @@ async function doLogin() {
   // Script. Mientras ACCIONES_SUPABASE esté vacía no cambia nada para
   // esa persona; cuando empiece la Etapa 4 sí hay que crearle el
   // usuario, y ahí este atajo deja de alcanzar.
-  const email  = SB_EMAIL_DE[user] || (user.includes('@') ? user : null);
-  let   perfil = null;
+  // Se acepte lo que se acepte en el formulario, cada backend recibe el
+  // identificador que entiende: Supabase el email, Apps Script el
+  // usuario corto.
+  const email   = SB_EMAIL_DE[user] || (user.includes('@') ? user : null);
+  const usuario = SB_USUARIO_DE[user.toLowerCase()] || user;
+  let   perfil  = null;
 
   if (email) {
     try {
@@ -4065,7 +4078,7 @@ async function doLogin() {
     }
   }
 
-  const res = await api('validateUser', { usuario: user, password: pass });
+  const res = await api('validateUser', { usuario: usuario, password: pass });
 
   btn.textContent = 'Ingresar al sistema →';
   btn.disabled    = false;
@@ -4085,7 +4098,7 @@ async function doLogin() {
     // los dos segundos sin decir por qué.
     errEl.innerHTML =
       'Entraste en Supabase, pero el backend viejo rechazó la sesión de <b>' +
-      user + '</b>.<br>La contraseña tiene que ser la misma en los dos lados: ' +
+      usuario + '</b>.<br>La contraseña tiene que ser la misma en los dos lados: ' +
       'cambiá la de Supabase por la que ya usás, o actualizá el hash en AuthControl.';
     errEl.style.display = 'block';
     sbLogout();
