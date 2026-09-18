@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v18.1 | 2026-09-18 ARG - Folletos: el CSS habia quedado dentro de la media query de movil y no aplicaba nada en pantalla grande. Rediseñada la seccion (tarjetas de 150px, idioma y tipo sobre la tapa, acciones al pasar por encima) y movida a Principal -->
+<!-- AMELIFE EMS Technologies - Web App v19.0 | 2026-09-18 ARG - Bancos migrado a Postgres: cuentas, snapshots, resumen consolidado y evolucion. La clasificacion disponible/invertido/resta se porto tal cual y da identico al centavo contra Apps Script. El OCR de extractos se queda en Google -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -3644,6 +3644,22 @@ const ACCIONES_SUPABASE = new Set([
   'registrarPagoFacturaAME', 'borrarPagoFacturaAME',
   // ── Clientes ──────────────────────────────────────────────
   'confirmarImportacion',
+  // ── Bancos ────────────────────────────────────────────────
+  //
+  // OJO CON EL PIN. Cuando Bancos vivía en Apps Script, el router
+  // rechazaba estas acciones si la sesión no tenía el PIN validado en
+  // los últimos 15 minutos: era una barrera DEL SERVIDOR.
+  //
+  // Contra Postgres la barrera es la RLS, que mira el ROL: sólo admin y
+  // finanzas leen y escriben `bancos` y `banco_snapshots`, y eso sí lo
+  // hace cumplir la base. Pero el PIN pasó a ser sólo de pantalla.
+  //
+  // O sea: sigue habiendo un control real de quién entra, pero el PIN
+  // dejó de ser el segundo factor que era. Para recuperarlo hay que
+  // moverlo a una función de Postgres.
+  'listarBancos', 'crearBanco', 'editarBanco', 'eliminarBanco',
+  'guardarSnapshot', 'guardarSnapshotsBulk',
+  'getResumenBancos', 'getEvolucionBancos',
   'getFolletos', 'saveFolleto', 'deleteFolleto',
   'getOrdenEmails', 'setOrdenEmails',
   'getNotas', 'saveNota', 'deleteNota',
@@ -3912,6 +3928,90 @@ function ocDesdeFila(o) {
     recibido_el: o.recibido_el || '', enviado_a: o.enviado_a || '',
     enviado_el: o.enviado_el || '', items: items
   };
+}
+
+// ============================================================
+//  BANCOS · clasificación de saldos
+// ============================================================
+//
+// Portado tal cual de 14_Bancos.gs. Esta lógica tiene un error caro
+// documentado adentro y NO conviene "simplificarla":
+//
+//   Sumar los saldos a secas da un número grande y engañoso, porque
+//   mezcla la plata con la que se puede pagar mañana con bonos y
+//   acciones que hay que vender primero. Por eso cada cuenta se parte
+//   en disponible / invertido / lo que resta.
+//
+// Se clasifica cada LÍNEA del desglose, no la cuenta, porque las dos
+// fuentes que se usan rotulan distinto y las dos tienen que llegar al
+// mismo par de números:
+//   · La app del teléfono → Cash / Securities / LCs / Brokerage
+//   · El statement en PDF → Cash / Bonds / Stocks / Funds
+
+function bcoClasificar(etiqueta, tipoCuenta) {
+  const t  = String(etiqueta || '').toLowerCase();
+  const tc = String(tipoCuenta || '').toLowerCase();
+
+  // Primero lo que RESTA: una LC no es plata, es un compromiso tomado.
+  if (/\blcs?\b|acceptan/.test(t)) return 'resta';
+
+  // EL TIPO DE CUENTA MANDA SOBRE LA ETIQUETA.
+  //   En la app del teléfono las cuentas de brokerage vienen rotuladas
+  //   "****0730 - Cash". Dice Cash, pero no es plata disponible: es el
+  //   valor de la cuenta de inversión. Leyendo la etiqueta, esos
+  //   2,9 millones caían en "disponible" y el número quedaba inflado
+  //   casi treinta veces.
+  if (/brokerage|invers/.test(tc)) return 'invertido';
+
+  if (/securit|bond|stock|fund|brokerage|invest|portfolio/.test(t)) return 'invertido';
+  if (/cash|checking|saving|corriente|ahorro|disponible|available|busck|buss|dom/.test(t)) return 'liquido';
+
+  return 'liquido';
+}
+
+/** El monto de una línea del desglose, se llame como se llame. */
+function bcoMonto(linea) {
+  if (linea == null) return 0;
+  let v = linea.monto;
+  if (v === undefined) v = linea.saldo;
+  if (v === undefined) v = linea.saldoSugerido;
+  return Math.abs(Number(v) || 0);
+}
+
+/**
+ * Parte un saldo en disponible / invertido / lo que resta.
+ *
+ * Con desglose se clasifica línea por línea. Sin desglose no hay más
+ * remedio que usar el tipo de la cuenta y mandar todo a un lado.
+ *
+ * `descuadre` avisa cuando las líneas no dan el saldo de la cuenta: no
+ * se corrige nada —el dato es el que es— pero la pantalla lo puede
+ * mostrar en vez de dejar pasar un desglose incompleto en silencio.
+ */
+function bcoPartir(saldo, desglose, banco) {
+  const out = { liquido: 0, invertido: 0, resta: 0, neto: 0, descuadre: 0 };
+  banco = banco || {};
+
+  if (desglose && desglose.length) {
+    desglose.forEach(l => {
+      out[bcoClasificar(l.etiqueta || l.nombre, banco.tipo)] += bcoMonto(l);
+    });
+    const suma = out.liquido + out.invertido - out.resta;
+    out.descuadre = Math.round((suma - (Number(saldo) || 0)) * 100) / 100;
+  } else {
+    out[bcoClasificar(banco.cuenta, banco.tipo)] += Number(saldo) || 0;
+  }
+
+  out.neto = Math.round((out.liquido + out.invertido - out.resta) * 100) / 100;
+  return out;
+}
+
+/** El desglose de un snapshot, venga como array (jsonb) o como texto. */
+function bcoDesglose(v) {
+  if (Array.isArray(v)) return v;
+  if (!v) return [];
+  try { const r = JSON.parse(v); return Array.isArray(r) ? r : []; }
+  catch (e) { return []; }
 }
 
 // Tienen que coincidir con COT_ESTADOS del backend viejo.
@@ -4578,6 +4678,259 @@ const SUPABASE_HANDLERS = {
       { clave: 'PO_EMAIL_PRESETS', valor: presets.join(',') }
     ]);
     return { to: to, presets: presets };
+  },
+
+  // ── Bancos ────────────────────────────────────────────────
+  listarBancos: async () => {
+    const b = await sbGet('bancos?select=*&order=banco.asc,cuenta.asc');
+    return b.map(x => ({
+      id: x.id, banco: x.banco, cuenta: x.cuenta, titular: x.titular,
+      tipo: x.tipo, moneda: x.moneda || 'USD', activo: !!x.activo,
+      notas: x.notas, fechaAlta: x.fecha_alta
+    }));
+  },
+
+  crearBanco: async (params) => {
+    if (!params.banco || !params.cuenta) throw new Error('Banco y Cuenta son obligatorios');
+    const id = sbId('BNK');
+    await sbReq('POST', 'bancos', {
+      id: id, banco: params.banco, cuenta: params.cuenta,
+      titular: params.titular || null, tipo: params.tipo || 'Checking',
+      moneda: params.moneda || 'USD', activo: true,
+      notas: params.notas || null,
+      fecha_alta: new Date().toISOString().slice(0, 10)
+    });
+    return { id: id };
+  },
+
+  editarBanco: async (params) => {
+    if (!params.id) throw new Error('ID requerido');
+    const patch = {};
+    ['banco','cuenta','titular','tipo','moneda','notas'].forEach(k => {
+      if (params[k] !== undefined) patch[k] = params[k];
+    });
+    if (params.activo !== undefined) patch.activo = !!params.activo;
+    const r = await sbReq('PATCH', 'bancos?id=eq.' + encodeURIComponent(params.id), patch);
+    if (!r || !r.length) throw new Error('Banco no encontrado');
+    return { id: params.id };
+  },
+
+  eliminarBanco: async (params) => {
+    // Los snapshots se van con la cuenta: FK on delete cascade.
+    await sbReq('DELETE', 'bancos?id=eq.' + encodeURIComponent(params.id));
+    return true;
+  },
+
+  /**
+   * Un saldo por cuenta y fecha.
+   *
+   * Si ya hay uno de esa cuenta ese día, se PISA en vez de duplicar:
+   * cargar dos veces el mismo cierre es el error más común y dejaría
+   * dos puntos en el mismo mes.
+   */
+  guardarSnapshot: async (params) => {
+    if (!params.bancoId || !params.fecha || params.saldo === undefined) {
+      throw new Error('bancoId, fecha y saldo son obligatorios');
+    }
+    const b = (await sbGet('bancos?select=moneda&id=eq.' +
+                           encodeURIComponent(params.bancoId)))[0];
+    if (!b) throw new Error('Banco no encontrado');
+
+    const fecha = String(params.fecha).slice(0, 10);
+    const desg = (params.desglose && params.desglose.length) ? params.desglose : null;
+    const fila = {
+      banco_id: params.bancoId, fecha: fecha,
+      saldo: Number(params.saldo) || 0, moneda: b.moneda || 'USD',
+      fuente: params.fuente || 'Manual', archivo_ref: params.archivoRef || null,
+      notas: params.notas || null, desglose: desg
+    };
+
+    const ya = await sbGet('banco_snapshots?select=id&banco_id=eq.' +
+                           encodeURIComponent(params.bancoId) +
+                           '&fecha=eq.' + fecha + '&limit=1');
+    if (ya.length) {
+      await sbReq('PATCH', 'banco_snapshots?id=eq.' + encodeURIComponent(ya[0].id), fila);
+      return { id: ya[0].id, actualizado: true };
+    }
+    fila.id = sbId('SNP');
+    await sbReq('POST', 'banco_snapshots', fila);
+    return { id: fila.id, actualizado: false };
+  },
+
+  guardarSnapshotsBulk: async (params) => {
+    const items = params.items || [];
+    let n = 0;
+    for (const it of items) {
+      try { await SUPABASE_HANDLERS.guardarSnapshot(it); n++; } catch (e) {}
+    }
+    return { guardados: n, total: items.length };
+  },
+
+  getResumenBancos: async () => {
+    const [bancos, snaps] = await Promise.all([
+      sbGet('bancos?select=*&activo=is.true&order=banco.asc,cuenta.asc'),
+      sbGet('banco_snapshots?select=banco_id,fecha,saldo,moneda,fuente,desglose&order=fecha.asc')
+    ]);
+
+    // El ÚLTIMO snapshot de cada cuenta. Vienen ordenados por fecha, así
+    // que el que queda pisando es el más nuevo.
+    const ultimos = {};
+    snaps.forEach(r => {
+      ultimos[r.banco_id] = {
+        fecha: r.fecha, saldo: Number(r.saldo) || 0,
+        moneda: r.moneda || 'USD', fuente: r.fuente || '',
+        desglose: bcoDesglose(r.desglose)
+      };
+    });
+
+    const detalle = bancos.map(b => {
+      const u = ultimos[b.id];
+      const d = {
+        id: b.id, banco: b.banco, cuenta: b.cuenta, titular: b.titular,
+        tipo: b.tipo, moneda: b.moneda || 'USD',
+        ultimoSaldo:    u ? u.saldo    : 0,
+        ultimaFecha:    u ? u.fecha    : '',
+        ultimaFuente:   u ? u.fuente   : '',
+        ultimoDesglose: u ? u.desglose : []
+      };
+      d.clases = bcoPartir(d.ultimoSaldo, d.ultimoDesglose, d);
+      return d;
+    });
+
+    const enUSD = detalle.filter(d => d.moneda === 'USD');
+    const totalUSD = enUSD.reduce((s, d) => s + d.ultimoSaldo, 0);
+    const T = { liquido: 0, invertido: 0, resta: 0 };
+    enUSD.forEach(d => {
+      T.liquido   += d.clases.liquido;
+      T.invertido += d.clases.invertido;
+      T.resta     += d.clases.resta;
+    });
+
+    const porBanco = {};
+    detalle.forEach(d => {
+      if (!porBanco[d.banco]) {
+        porBanco[d.banco] = { banco: d.banco, totalUSD: 0, disponible: 0,
+                              invertido: 0, resta: 0, cuentas: [] };
+      }
+      const b = porBanco[d.banco];
+      b.cuentas.push(d);
+      if (d.moneda === 'USD') {
+        b.totalUSD   += d.ultimoSaldo;
+        b.disponible += d.clases.liquido - d.clases.resta;
+        b.invertido  += d.clases.invertido;
+        b.resta      += d.clases.resta;
+      }
+    });
+
+    // De dónde salió la foto: si el último dato de alguna cuenta vino de
+    // una captura, el número es de hoy y no del cierre.
+    const fuentes = {};
+    detalle.forEach(d => { if (d.ultimaFuente) fuentes[d.ultimaFuente] = true; });
+
+    return {
+      totalUSD: totalUSD,
+      fuentes: Object.keys(fuentes),
+      disponible: Math.round((T.liquido - T.resta) * 100) / 100,
+      invertido:  Math.round(T.invertido * 100) / 100,
+      resta:      Math.round(T.resta * 100) / 100,
+      porBanco: Object.keys(porBanco).map(k => porBanco[k]),
+      detalle: detalle
+    };
+  },
+
+  /**
+   * La evolución de los saldos, por MES.
+   *
+   * Tres reglas que no son obvias y que vienen del backend viejo:
+   *
+   * 1. EL EJE VA POR MES, NO POR FECHA EXACTA. IFB cierra el 30 y Safra
+   *    el 31: con fechas sueltas, enero aparecía dos veces y el primero
+   *    de los dos puntos arrastraba todavía el saldo de diciembre de
+   *    Safra. El gráfico mostraba un escalón que nunca existió.
+   *
+   * 2. AL GRÁFICO SÓLO ENTRAN LOS STATEMENTS. La historia se arma con
+   *    el cierre oficial de cada mes, que es un dato auditado y
+   *    comparable. Las capturas sirven para saber cuánto hay AHORA,
+   *    entre statement y statement, y se sacan cuando pinta: mezclarlas
+   *    metería puntos en fechas cualquiera.
+   *
+   * 3. EL EJE LLEVA TODOS LOS MESES, tengan statement o no. Con sólo
+   *    los meses con dato, el salto de septiembre a diciembre de 2024
+   *    —tres meses— se dibujaba igual de largo que el de diciembre a
+   *    enero. La curva mentía sobre el ritmo.
+   */
+  getEvolucionBancos: async (params) => {
+    const meses = Number(params && params.meses) || 12;
+    const [bancos, todos] = await Promise.all([
+      sbGet('bancos?select=*&activo=is.true&order=banco.asc,cuenta.asc'),
+      sbGet('banco_snapshots?select=banco_id,fecha,saldo,fuente,desglose&order=fecha.asc')
+    ]);
+
+    const snaps = todos.filter(r => /statement/i.test(String(r.fuente || '')));
+
+    const conDato = [...new Set(snaps.map(r => String(r.fecha).slice(0, 7)))].sort();
+
+    const fechas = [];
+    if (conDato.length) {
+      const [y0, m0] = conDato[0].split('-').map(Number);
+      const [yF, mF] = conDato[conDato.length - 1].split('-').map(Number);
+      let y = y0, m = m0;
+      while (y < yF || (y === yF && m <= mF)) {
+        fechas.push(y + '-' + ('0' + m).slice(-2));
+        m++;
+        if (m > 12) { m = 1; y++; }
+      }
+    }
+
+    let eje = fechas;
+    if (eje.length && meses > 0) {
+      const corte = new Date();
+      corte.setMonth(corte.getMonth() - meses);
+      const corteStr = corte.toISOString().slice(0, 7);
+      eje = eje.filter(f => f >= corteStr);
+    }
+
+    const finDe = (mes) => mes + '-31';
+
+    const series = bancos.map(b => {
+      const bsnaps = snaps
+        .filter(r => r.banco_id === b.id)
+        .map(r => ({
+          fecha: String(r.fecha).slice(0, 10),
+          saldo: Number(r.saldo) || 0,
+          clases: bcoPartir(Number(r.saldo) || 0, bcoDesglose(r.desglose), b)
+        }))
+        .sort((a, c) => a.fecha < c.fecha ? -1 : 1);
+
+      // Un punto se arrastra hasta que llega el siguiente: el saldo de
+      // una cuenta no desaparece porque ese mes no se haya subido el
+      // statement. Si nunca hubo dato, queda en null y la línea no
+      // arranca antes de tiempo.
+      const datos = [], liq = [], inv = [];
+      let ult = null;
+      eje.forEach(f => {
+        const tope = finDe(f);
+        const match = bsnaps.filter(x => x.fecha <= tope);
+        if (match.length) ult = match[match.length - 1];
+        datos.push(ult ? ult.saldo : null);
+        liq.push(ult ? (ult.clases.liquido - ult.clases.resta) : null);
+        inv.push(ult ? ult.clases.invertido : null);
+      });
+
+      return {
+        bancoId: b.id, banco: b.banco, cuenta: b.cuenta,
+        label: b.banco + ' · ' + b.cuenta,
+        data: datos, disponible: liq, invertido: inv
+      };
+    });
+
+    const suma = (campo) => eje.map((_, i) =>
+      series.reduce((s, serie) => s + (serie[campo][i] || 0), 0));
+
+    return {
+      fechas: eje, series: series,
+      total: suma('data'), disponible: suma('disponible'), invertido: suma('invertido')
+    };
   },
 
   // ── Folletos ──────────────────────────────────────────────
@@ -14326,13 +14679,35 @@ async function bancosGuardarManual() {
   if (!fecha)   { showToast('Ingresá la fecha',  'error'); return; }
   if (isNaN(saldo)) { showToast('Saldo inválido', 'error'); return; }
 
-  const r = await api('guardarSnapshot', { bancoId, fecha, saldo, notas, fuente: 'Manual', desglose });
-  if (!r.ok) { showToast('Error: ' + (r.error||''), 'error'); return; }
+  // El nombre de la cuenta, para poder nombrarla en los avisos: cuando
+  // llegue la respuesta el modal ya no está, y un "no se pudo guardar"
+  // a secas no dice cuál saldo se perdió.
+  const cta = (BANCOS_STATE.bancos || []).find(b => b.id === bancoId);
+  const rotulo = cta ? (cta.banco + ' · ' + cta.cuenta) : 'la cuenta';
 
-  showToast('Saldo guardado', 'success');
+  // El modal se cierra YA. Bancos todavía vive en Apps Script y guardar
+  // son varios segundos de ida y vuelta con Google: no hay motivo para
+  // tener la pantalla trabada mirando el botón.
   closeModal('modalBancosManual');
-  await bancosRefresh();
-  await bancosCargarEvolucion();
+  showToast('Guardando ' + rotulo + ' · ' + fecha + '…', 'info');
+
+  const r = await api('guardarSnapshot', { bancoId, fecha, saldo, notas, fuente: 'Manual', desglose });
+
+  if (!r.ok) {
+    // Con el modal cerrado, el aviso tiene que alcanzar para saber qué
+    // volver a cargar: cuenta, fecha y monto.
+    showToast('No se pudo guardar ' + rotulo + ' (' + fecha + ' · ' +
+              saldo.toLocaleString('en-US', { minimumFractionDigits: 2 }) + '): ' +
+              (r.error || 'error'), 'error');
+    return;
+  }
+
+  showToast('Saldo guardado · ' + rotulo, 'success');
+
+  // Las dos recargas van por detrás: el saldo ya está en la base y
+  // esto es sólo redibujar.
+  bancosRefresh();
+  bancosCargarEvolucion();
 }
 
 // ---------- Gestión de Cuentas ----------
