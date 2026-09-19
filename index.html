@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- AMELIFE EMS Technologies - Web App v20.0 | 2026-09-18 ARG - Seccion Documentos: documentacion regulatoria en tabla (no grilla: un certificado no se reconoce por la tapa) con alcance por pais y aviso de vencimientos 90 dias antes -->
+<!-- AMELIFE EMS Technologies - Web App v20.1 | 2026-09-19 ARG - Documentos: se puede arrastrar un archivo de la computadora al modal. Sube a DOCUMENTOS AMELIFE por Apps Script, le activa el link publico y deja el link cargado -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -482,6 +482,28 @@
   .btn-outline { background:transparent; border:1px solid var(--border2); color:var(--text); }
   .btn-outline:hover { border-color:var(--green); color:var(--green); }
   .btn-danger { background:var(--danger); color:var(--on-solid); }
+
+  /* Zona de arrastre para subir archivos desde la computadora. */
+  .doc-drop {
+    border:2px dashed var(--border2); border-radius:10px;
+    padding:22px 16px; text-align:center; cursor:pointer;
+    background:var(--field); transition:border-color .15s, background .15s;
+  }
+  .doc-drop:hover { border-color:var(--green); }
+  .doc-drop.encima { border-color:var(--green); background:var(--green-glow); }
+  .doc-drop.subiendo { cursor:progress; opacity:.75; }
+  .doc-drop.listo { border-style:solid; border-color:var(--green); background:var(--green-glow); }
+  .doc-drop-ico { font-size:26px; opacity:.55; margin-bottom:6px; }
+  .doc-drop-txt { font-size:13px; color:var(--text); }
+  .doc-drop-sub { font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .doc-ollink {
+    display:flex; align-items:center; gap:10px;
+    margin:12px 0 7px; font-size:11px; color:var(--muted);
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .doc-ollink::before, .doc-ollink::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
 
   /* ── DOCUMENTOS ───────────────────────────────────────────
      A diferencia de Folletos, acá NO va una grilla de tapas: un
@@ -3390,11 +3412,28 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
     </div>
 
     <div class="field">
-      <label>Link · del Drive o de donde esté</label>
+      <label>El archivo</label>
+      <div class="doc-drop" id="docDrop"
+           onclick="document.getElementById('docFile').click()"
+           ondragover="docDragOver(event)" ondragleave="docDragLeave(event)"
+           ondrop="docDrop(event)">
+        <div class="doc-drop-ico">📄</div>
+        <div class="doc-drop-txt">
+          <b>Arrastrá el archivo acá</b> o hacé clic para elegirlo
+        </div>
+        <div class="doc-drop-sub">Se sube solo a <b>DOCUMENTOS AMELIFE</b>, con el link público listo</div>
+      </div>
+      <input type="file" id="docFile" style="display:none"
+             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+             onchange="docArchivoElegido(this.files[0])">
+
+      <div class="doc-ollink">
+        <span>o pegá un link</span>
+      </div>
       <input type="text" id="docUrl" placeholder="https://drive.google.com/file/d/…">
       <div class="fol-ayuda">
-        Para que se pueda mandar a un cliente, el archivo tiene que estar en
-        <b>DOCUMENTOS AMELIFE</b> con el link público.
+        Si el archivo ya está en Drive, pegá el link y listo. Si está en tu
+        computadora, arrastralo arriba.
       </div>
     </div>
 
@@ -11070,6 +11109,93 @@ function docRender() {
     }).join('') + '</tbody>';
 }
 
+// ── Subir un archivo desde la computadora ───────────────────
+//
+// El navegador no puede escribir en Drive por su cuenta, así que el
+// archivo va a Apps Script —que sigue siendo quien maneja Google— y de
+// ahí vuelve el id. La ficha del documento se guarda en Postgres.
+
+const DOC_MAX_MB = 18;
+
+function docDragOver(e) {
+  e.preventDefault();
+  document.getElementById('docDrop').classList.add('encima');
+}
+function docDragLeave(e) {
+  e.preventDefault();
+  document.getElementById('docDrop').classList.remove('encima');
+}
+function docDrop(e) {
+  e.preventDefault();
+  document.getElementById('docDrop').classList.remove('encima');
+  const f = (e.dataTransfer.files || [])[0];
+  if (f) docArchivoElegido(f);
+}
+
+async function docArchivoElegido(file) {
+  if (!file) return;
+  const zona = document.getElementById('docDrop');
+  const mb = file.size / (1024 * 1024);
+  if (mb > DOC_MAX_MB) {
+    showToast(file.name + ' pesa ' + mb.toFixed(1) + ' MB y el máximo son ' +
+              DOC_MAX_MB + '. Subilo a mano al Drive y pegá el link.', 'error');
+    return;
+  }
+
+  // Si el título está vacío, se propone el nombre del archivo sin la
+  // extensión: casi siempre es lo que uno iba a escribir igual.
+  const tit = document.getElementById('docTitulo');
+  if (tit && !tit.value.trim()) {
+    tit.value = file.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim();
+  }
+
+  zona.classList.add('subiendo');
+  zona.innerHTML = '<div class="doc-drop-ico"><div class="act-spin" style="margin:0 auto"></div></div>' +
+                   '<div class="doc-drop-txt">Subiendo <b>' + cotEsc(file.name) + '</b>…</div>' +
+                   '<div class="doc-drop-sub">' + mb.toFixed(1) + ' MB · puede tardar unos segundos</div>';
+
+  const b64 = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload  = () => res(String(fr.result).split(',')[1]);
+    fr.onerror = () => rej(new Error('No pude leer el archivo'));
+    fr.readAsDataURL(file);
+  }).catch(e => { showToast(e.message, 'error'); return null; });
+
+  if (!b64) { docDropReset(); return; }
+
+  const r = await api('subirArchivoDrive', {
+    carpeta: 'documentos', nombre: file.name, mime: file.type, base64: b64
+  });
+
+  if (!r || !r.ok) {
+    showToast((r && r.error) || 'No se pudo subir', 'error');
+    docDropReset();
+    return;
+  }
+
+  // El link queda cargado en el campo: guardar es un clic más.
+  document.getElementById('docUrl').value =
+    'https://drive.google.com/file/d/' + r.data.id + '/view';
+
+  zona.classList.remove('subiendo');
+  zona.classList.add('listo');
+  zona.innerHTML = '<div class="doc-drop-ico">✅</div>' +
+                   '<div class="doc-drop-txt"><b>' + cotEsc(r.data.nombre) + '</b></div>' +
+                   '<div class="doc-drop-sub">Ya está en ' + cotEsc(r.data.carpeta || 'Drive') +
+                   ' · hacé clic para cambiarlo</div>';
+
+  if (r.data.aviso) showToast(r.data.aviso, 'info');
+}
+
+function docDropReset() {
+  const zona = document.getElementById('docDrop');
+  if (!zona) return;
+  zona.className = 'doc-drop';
+  zona.innerHTML = '<div class="doc-drop-ico">📄</div>' +
+    '<div class="doc-drop-txt"><b>Arrastrá el archivo acá</b> o hacé clic para elegirlo</div>' +
+    '<div class="doc-drop-sub">Se sube solo a <b>DOCUMENTOS AMELIFE</b>, con el link público listo</div>';
+}
+
 function docFiltrarMarca(m) { DOC_STATE.marca = m; docRender(); }
 
 function docCopiarLink(id) {
@@ -11085,6 +11211,8 @@ function docAbrirNuevo() {
   document.getElementById('docMarcaSel').value = 'AMELIFE';
   document.getElementById('docTipoSel').value  = 'ISO 13485';
   document.getElementById('docAlcance').value  = 'Global';
+  docDropReset();
+  document.getElementById('docFile').value = '';
   openModal('modalDocumento');
   document.getElementById('docTitulo').focus();
 }
