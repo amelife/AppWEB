@@ -10672,7 +10672,7 @@ function famGuardarPago() {
 // el modal se abra ya escrito sin esperar al servidor.
 var FAM_GR_ASUNTO = 'Pago recibido · Factura {{numero}} · AME LIFE 911 LLC';
 var FAM_GR_CUERPO = [
-  'Estimado/a {{contacto}},',
+  'Estimado/a {{cliente}},',
   '',
   'Confirmamos la recepción de su pago por *{{monto}}* correspondiente a la factura *{{numero}}*.',
   '',
@@ -10689,7 +10689,7 @@ var FAM_GR_CUERPO = [
 var FAM_GR_WA = [
   '*Pago recibido · {{numero}}*',
   '',
-  '{{contacto}}, confirmamos la recepción de su pago por *{{monto}}*.',
+  '{{cliente}}, confirmamos la recepción de su pago por *{{monto}}*.',
   '',
   '{{resto}}',
   'Muchas gracias por su confianza.',
@@ -10728,8 +10728,17 @@ async function famAbrirGracias(id, monto, resultado) {
   const saldo  = Number(resultado && resultado.saldo) || 0;
   const total  = Number(f.total) || 0;
 
+  // La factura de la lista es la de ANTES del pago (la lista se recarga
+  // por atrás). Se arma una copia con lo pagado ya al día; si no, el
+  // servidor calcula el saldo con lo viejo y dice que falta todo.
+  const fresca = Object.assign({}, f, {
+    pagado: Math.round((total - saldo) * 100) / 100,
+    saldo:  saldo,
+    estado: (resultado && resultado.estado) || f.estado
+  });
+
   FAM_GRACIAS = {
-    factura: f, monto: monto, wa: FAM_GR_WA,
+    factura: fresca, monto: monto, wa: FAM_GR_WA,
     vars: {
       contacto: String(f.contacto || '').trim() || 'Estimados',
       cliente:  f.cliente || '',
@@ -10769,7 +10778,7 @@ async function famAbrirGracias(id, monto, resultado) {
   // Por atrás, la plantilla guardada: sólo pisa lo de arriba si la
   // editaste desde Configuración.
   const r = await api('borradorGraciasAME', { id: id, monto: monto,
-                                             factura: famDeId(id) });
+                                             factura: fresca });
   if (!r || !r.ok) return;
   if (r.data.wa) FAM_GRACIAS.wa = r.data.wa;
 
