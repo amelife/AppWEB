@@ -2607,6 +2607,18 @@
                  daba un número que no sirve para decidir nada: la plata de
                  IFB y la de Safra no son intercambiables. -->
             <div id="bancosCajasBanco" style="display:contents"></div>
+
+            <!-- La plata de Germán. NO se suma: ya está dentro del total de
+                 arriba. Sólo marca qué parte de ese total es suya. -->
+            <div class="stat-card" id="bancosPersonal" style="display:none;border-left:4px solid var(--info)">
+              <div class="stat-label">Tu plata dentro de AMELIFE</div>
+              <div class="stat-value" id="bancosPersonalMonto" style="color:var(--info);font-size:30px">$0.00</div>
+              <div class="stat-sub" id="bancosPersonalSub" style="font-size:13px;margin-top:4px">—</div>
+              <button onclick="bancosPersonalAbrir()"
+                style="margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--info);padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">
+                Anotar gasto o comisión
+              </button>
+            </div>
           </div>
 
           <!-- Panel expandible con detalle completo -->
@@ -3352,6 +3364,48 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
       <button class="btn btn-outline" onclick="closeModal('modalFamPago')">Cancelar</button>
       <button class="btn btn-primary" id="famPagoBtn" onclick="famGuardarPago()">Registrar</button>
     </div>
+  </div>
+</div>
+
+<!-- Modal: plata de Germán dentro de AMELIFE -->
+<div class="modal-overlay" id="modalPersonal" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title">Tu plata dentro de AMELIFE</div>
+      <button class="modal-close" onclick="closeModal('modalPersonal')">✕</button>
+    </div>
+    <p class="cfg-ayuda">Ya está dentro del saldo de los bancos: acá sólo se lleva la cuenta de cuánto es tuyo.
+      Un <b>gasto personal</b> pagado desde AMELIFE lo baja; una <b>comisión</b> lo sube.</p>
+
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Qué es</label>
+        <select id="ppTipo">
+          <option value="Gasto personal">Gasto personal (resta)</option>
+          <option value="Comisión">Comisión (suma)</option>
+        </select>
+      </div>
+      <div class="field"><label>Monto</label>
+        <input type="number" step="0.01" min="0" id="ppMonto">
+      </div>
+    </div>
+    <div class="modal-grid" style="grid-template-columns:1fr 2fr">
+      <div class="field"><label>Fecha</label>
+        <input type="date" id="ppFecha">
+      </div>
+      <div class="field"><label>Nota · opcional</label>
+        <input type="text" id="ppNota" placeholder="Pasaje, comisión ZOLL marzo…">
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalPersonal')">Cerrar</button>
+      <button class="btn btn-primary" id="ppBtn" onclick="bancosPersonalGuardar()">Anotar</button>
+    </div>
+
+    <div style="font-family:var(--cond);font-size:12px;font-weight:700;letter-spacing:1.4px;
+                text-transform:uppercase;color:var(--muted);margin:18px 0 8px">Movimientos</div>
+    <div id="ppLista" style="max-height:280px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -14302,6 +14356,116 @@ async function bancosRefresh() {
   bancosRenderTotal();
   bancosRenderGrid();
   bancosLlenarSelectsCuentas();
+  bancosPersonalCargar();
+}
+
+// ============================================================
+// LA PLATA DE GERMÁN DENTRO DE AMELIFE
+// ------------------------------------------------------------
+// Parte del saldo de los bancos es suya. NO se suma a nada: ya está
+// dentro del total. Sólo se lleva la cuenta de cuánto es suyo, y se
+// muestra cuánto queda de AMELIFE sin eso (puede dar negativo).
+//   Saldo inicial y Comisión suman · Gasto personal resta.
+// ============================================================
+BANCOS_STATE.personal = [];
+
+const ppSigno = (t) => t === 'Gasto personal' ? -1 : 1;
+
+function bancosPersonalSaldo() {
+  return sbCent((BANCOS_STATE.personal || [])
+    .reduce((s, m) => s + ppSigno(m.tipo) * (Number(m.monto) || 0), 0));
+}
+
+async function bancosPersonalCargar() {
+  const caja = document.getElementById('bancosPersonal');
+  try {
+    BANCOS_STATE.personal = await sbGet(
+      'plata_personal?select=*&order=fecha.desc,creado_el.desc') || [];
+  } catch (e) {
+    // Sin la tabla creada todavía, la caja no aparece y nada más.
+    if (caja) caja.style.display = 'none';
+    return;
+  }
+  bancosPersonalPintar();
+}
+
+function bancosPersonalPintar() {
+  const caja = document.getElementById('bancosPersonal');
+  if (!caja) return;
+  caja.style.display = '';
+
+  const mio   = bancosPersonalSaldo();
+  const total = Number((BANCOS_STATE.resumen || {}).totalUSD) || 0;
+  const ame   = sbCent(total - mio);
+
+  document.getElementById('bancosPersonalMonto').textContent = bancosFmt(mio);
+  document.getElementById('bancosPersonalSub').innerHTML =
+    'Ya incluida en el total de arriba<br>AMELIFE sin tu plata: <b style="color:' +
+    (ame < 0 ? 'var(--danger)' : 'var(--text)') + '">' +
+    (ame < 0 ? '−' + bancosFmt(-ame) : bancosFmt(ame)) + '</b>';
+
+  const lista = document.getElementById('ppLista');
+  if (lista) {
+    lista.innerHTML = (BANCOS_STATE.personal || []).map(m => {
+      const sg = ppSigno(m.tipo);
+      return '<div style="display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px">' +
+        '<span style="color:var(--muted);min-width:78px">' + cotEsc(bcoFecha(m.fecha)) + '</span>' +
+        '<span style="flex:1"><b>' + cotEsc(m.tipo) + '</b>' +
+          (m.nota ? ' · <span style="color:var(--muted)">' + cotEsc(m.nota) + '</span>' : '') + '</span>' +
+        '<b style="color:' + (sg < 0 ? 'var(--danger)' : 'var(--green)') + '">' +
+          (sg < 0 ? '−' : '+') + bancosFmt(m.monto) + '</b>' +
+        '<button onclick="bancosPersonalBorrar(\'' + cotEsc(m.id) + '\')" title="Borrar" ' +
+          'style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:15px">✕</button>' +
+      '</div>';
+    }).join('') || '<div style="color:var(--muted);font-size:13px">Todavía no hay movimientos</div>';
+  }
+}
+
+function bancosPersonalAbrir() {
+  document.getElementById('ppTipo').value  = 'Gasto personal';
+  document.getElementById('ppMonto').value = '';
+  document.getElementById('ppNota').value  = '';
+  document.getElementById('ppFecha').value = new Date().toLocaleDateString('en-CA');
+  bancosPersonalPintar();
+  openModal('modalPersonal');
+}
+
+async function bancosPersonalGuardar() {
+  const monto = sbCent(document.getElementById('ppMonto').value);
+  if (!(monto > 0)) { showToast('Poné el monto', 'error'); return; }
+
+  const btn = document.getElementById('ppBtn');
+  btn.disabled = true; btn.textContent = 'Anotando…';
+  try {
+    await sbReq('POST', 'plata_personal', {
+      id:    sbId('PP'),
+      fecha: document.getElementById('ppFecha').value || new Date().toLocaleDateString('en-CA'),
+      tipo:  document.getElementById('ppTipo').value,
+      monto: monto,
+      nota:  document.getElementById('ppNota').value.trim(),
+      creado_por: (currentUser && currentUser.usuario) || SB.usuario || ''
+    });
+    document.getElementById('ppMonto').value = '';
+    document.getElementById('ppNota').value  = '';
+    await bancosPersonalCargar();
+    showToast('Anotado · tu plata queda en ' + bancosFmt(bancosPersonalSaldo()), 'success');
+  } catch (e) {
+    showToast('No se pudo anotar: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Anotar';
+}
+
+async function bancosPersonalBorrar(id) {
+  const m = (BANCOS_STATE.personal || []).find(x => x.id === id);
+  if (!m) return;
+  if (!confirm('¿Borrar ' + m.tipo + ' de ' + bancosFmt(m.monto) + ' del ' + bcoFecha(m.fecha) + '?')) return;
+  try {
+    await sbReq('DELETE', 'plata_personal?id=eq.' + encodeURIComponent(id));
+    await bancosPersonalCargar();
+    showToast('Borrado', 'success');
+  } catch (e) {
+    showToast('No se pudo borrar: ' + e.message, 'error');
+  }
 }
 
 function bancosRenderTotal() {
