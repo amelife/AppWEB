@@ -4612,6 +4612,18 @@ var CC_PRESETS = [
   { mail: 'ezzy@ame-life.net',       fijo: false }
 ];
 
+/**
+ * Los CC que se escribieron a mano para un cliente, guardados para la
+ * próxima. Se guardan POR CLIENTE: los de uno no tienen que aparecer
+ * cuando se le escribe a otro. Viven en `parametros`, una fila por
+ * cliente: CC_CLIENTE:<NOMBRE EN MAYÚSCULA> = "a@x.com,b@y.com".
+ */
+var CC_CLIENTE = {};   // prefijo -> { clave, guardados: [] }
+
+const ccClave = (cliente) => 'CC_CLIENTE:' + String(cliente || '').trim().toUpperCase();
+const ccMails = (txt) => (String(txt || '').match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) || [])
+  .map(m => m.toLowerCase());
+
 /** Dibuja el bloque de CC/CCO adentro de su contenedor. */
 function ccMontar(prefijo) {
   const caja = document.getElementById(prefijo + 'CcCaja');
@@ -4625,13 +4637,27 @@ function ccMontar(prefijo) {
 
   caja.innerHTML =
     '<div class="cc-tit">Con copia</div>' +
-    '<div class="cc-presets">' + casillas + '</div>' +
+    '<div class="cc-presets">' + casillas + '<span id="' + prefijo + 'CcSuyos" style="display:contents"></span></div>' +
     '<div class="cc-campos">' +
       '<div class="field"><label>Otros CC</label>' +
-        '<input type="text" id="' + prefijo + 'CC" placeholder="Separados por coma"></div>' +
+        '<input type="text" id="' + prefijo + 'CC" placeholder="Separados por coma · quedan guardados para este cliente"></div>' +
       '<div class="field"><label>CCO · copia oculta</label>' +
         '<input type="text" id="' + prefijo + 'CCO" placeholder="No los ve el destinatario"></div>' +
     '</div>';
+}
+
+/** Las casillas de los CC guardados del cliente, sin tildar. */
+function ccPintarSuyos(prefijo) {
+  const el = document.getElementById(prefijo + 'CcSuyos');
+  const c  = CC_CLIENTE[prefijo];
+  if (!el || !c) return;
+  const casa = CC_PRESETS.map(p => p.mail.toLowerCase());
+  el.innerHTML = c.guardados.filter(m => casa.indexOf(m) === -1).map(m =>
+    '<label class="cc-chk">' +
+      '<input type="checkbox" data-cc-suyo="' + cotEsc(m) + '">' + cotEsc(m) +
+      '<span title="Olvidar este correo" onclick="event.preventDefault();ccOlvidar(\'' + prefijo + '\',\'' + cotEsc(m) + '\')" ' +
+        'style="margin-left:4px;color:var(--muted);cursor:pointer">✕</span>' +
+    '</label>').join('');
 }
 
 /**
@@ -4649,15 +4675,57 @@ function ccValores(prefijo) {
     return c && c.checked;
   }).map(p => p.mail);
 
+  document.querySelectorAll('#' + prefijo + 'CcSuyos input[data-cc-suyo]:checked')
+    .forEach(c => marcados.push(c.getAttribute('data-cc-suyo')));
+
   const libre = v('CC');
   if (libre) marcados.push(libre);
 
   return { cc: marcados.join(', '), cco: v('CCO') };
 }
 
-/** Deja el bloque como recién abierto: la fija tildada y el resto vacío. */
-function ccLimpiar(prefijo) {
+/**
+ * Deja el bloque como recién abierto: la fija tildada y el resto vacío.
+ * Con `cliente`, trae además los CC que se le guardaron.
+ */
+function ccLimpiar(prefijo, cliente) {
   ccMontar(prefijo);
+  delete CC_CLIENTE[prefijo];
+  if (!String(cliente || '').trim()) return;
+
+  const clave = ccClave(cliente);
+  CC_CLIENTE[prefijo] = { clave: clave, guardados: [] };
+  sbGet('parametros?select=valor&clave=eq.' + encodeURIComponent(clave) + '&limit=1')
+    .then(r => {
+      const c = CC_CLIENTE[prefijo];
+      if (!c || c.clave !== clave) return;     // ya se abrió otro cliente
+      c.guardados = ccMails(r && r[0] && r[0].valor);
+      ccPintarSuyos(prefijo);
+    })
+    .catch(() => {});                          // sin la lista, se escribe a mano como antes
+}
+
+/** Después de enviar: lo escrito a mano en "Otros CC" queda guardado. */
+function ccRecordar(prefijo) {
+  const c = CC_CLIENTE[prefijo];
+  const el = document.getElementById(prefijo + 'CC');
+  if (!c || !el) return;
+  const nuevos = ccMails(el.value).filter(m => c.guardados.indexOf(m) === -1);
+  if (!nuevos.length) return;
+  c.guardados = c.guardados.concat(nuevos);
+  sbReq('POST', 'parametros?on_conflict=clave', [{ clave: c.clave, valor: c.guardados.join(',') }])
+    .catch(e => showToast('El correo salió, pero no pude guardar los CC: ' + e.message, 'error'));
+}
+
+/** Saca un correo de la lista guardada del cliente. */
+function ccOlvidar(prefijo, mail) {
+  const c = CC_CLIENTE[prefijo];
+  if (!c) return;
+  c.guardados = c.guardados.filter(m => m !== mail);
+  ccPintarSuyos(prefijo);
+  sbReq('POST', 'parametros?on_conflict=clave', [{ clave: c.clave, valor: c.guardados.join(',') }])
+    .then(() => showToast(mail + ' ya no se ofrece para este cliente', 'success'))
+    .catch(e => showToast('No pude borrarlo: ' + e.message, 'error'));
 }
 
 function copiarAlPortapapeles(txt, mensajeOk) {
@@ -10411,7 +10479,7 @@ async function famAbrirResumen(cliente) {
   document.getElementById('famResTitulo').textContent = 'Estado de cuenta · ' + cliente;
   document.getElementById('famResPara').value =
     suyas.map(f => f.email).filter(Boolean)[0] || '';
-  ccLimpiar('famRes');
+  ccLimpiar('famRes', cliente);
 
   famResRender();
 
@@ -10612,6 +10680,7 @@ async function famEnviarResumen() {
   btn.disabled = false; btn.textContent = 'Enviar';
   if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
 
+  ccRecordar('famRes');
   closeModal('modalFamResumen');
 
   // Apps Script mandó el correo y devolvió el historial nuevo de cada
@@ -10817,7 +10886,7 @@ async function famAbrirGracias(id, monto, resultado) {
   document.getElementById('famGrPara').value   = f.email || '';
   document.getElementById('famGrAsunto').value = FAM_GR_ASUNTO;
   document.getElementById('famGrCuerpo').value = FAM_GR_CUERPO;
-  ccLimpiar('famGr');
+  ccLimpiar('famGr', f.cliente);
 
   document.getElementById('famGrVars').innerHTML =
     ['contacto', 'cliente', 'numero', 'monto', 'fecha', 'total', 'resto'].map(v =>
@@ -10903,6 +10972,7 @@ async function famGrEnviar() {
   btn.disabled = false; btn.textContent = 'Enviar';
   if (!r || !r.ok) { showToast((r && r.error) || 'No se pudo enviar', 'error'); return; }
 
+  ccRecordar('famGr');
   closeModal('modalFamGracias');
   showToast('Agradecimiento enviado a ' + r.data.enviado_a +
     (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
@@ -10944,7 +11014,7 @@ function famAbrirRecordar(id) {
       ? '<div style="margin-top:5px;color:#C4534D">Vencida hace ' + famAtraso(d, f.vence) + '</div>'
       : '<div style="margin-top:5px">Fecha de pago: ' + famFecha(f.vence) + '</div>');
   document.getElementById('famRecMail').value = f.email || '';
-  ccLimpiar('famRec');
+  ccLimpiar('famRec', f.cliente);
   msgCargar();                       // para que Copiar use el texto vigente
   openModal('modalFamRecordar');
 }
@@ -10997,6 +11067,7 @@ function famEnviarRecordatorio() {
   if (!para) { showToast('Poné el correo del cliente', 'error'); return; }
 
   const copia = ccValores('famRec');
+  ccRecordar('famRec');
 
   // El modal se cierra YA, sin esperar a Apps Script.
   //
