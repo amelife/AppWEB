@@ -1286,6 +1286,22 @@
   }
   .cot-dest-x:hover { color:#C4534D; background:rgba(196,83,77,0.14); }
 
+  /* ── Adjuntos del email: folletos y documentos ── */
+  #cotAdjChips { display:flex; flex-direction:column; gap:6px; }
+  .cot-adj-lista {
+    margin-top:6px; max-height:220px; overflow-y:auto;
+    border:1px solid var(--border2); border-radius:var(--radius);
+  }
+  .cot-adj-item {
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    appearance:none; background:transparent; border:0; border-bottom:1px solid var(--border2);
+    color:var(--text); font:inherit; font-size:13px; padding:8px 12px; cursor:pointer;
+  }
+  .cot-adj-item:last-child { border-bottom:0; }
+  .cot-adj-item:hover { background:var(--green-glow); }
+  .cot-adj-item small { color:var(--muted); font-size:11px; margin-left:auto; white-space:nowrap; }
+  .cot-adj-vacio { padding:10px 12px; font-size:12px; color:var(--muted); }
+
   /* ── Markup del Price Book ── */
   .pb-mk {
     display:inline-flex; align-items:center; gap:0;
@@ -3602,6 +3618,14 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
                style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();cotEmailAgregar();}" />
         <button class="btn btn-outline" onclick="cotEmailAgregar()" style="white-space:nowrap">+ Agregar</button>
       </div>
+    </div>
+
+    <div class="field">
+      <label>Adjuntar folletos o documentos <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+      <div id="cotAdjChips" style="margin-bottom:8px"></div>
+      <input type="text" id="cotAdjBuscar" placeholder="buscar folleto o documento… (ej. AED Plus, ISO)" autocomplete="off"
+             oninput="cotAdjRenderLista()" onfocus="cotAdjRenderLista()" />
+      <div id="cotAdjLista" class="cot-adj-lista" style="display:none"></div>
     </div>
 
     <div class="cc-caja" id="cotEmailCcCaja"></div>
@@ -17113,7 +17137,7 @@ async function cotEliminar(id) {
 
 // ---------- Envío: email o WhatsApp ----------
 
-const COT_ENVIO = { id: null, datos: null, emails: [] };
+const COT_ENVIO = { id: null, datos: null, emails: [], adjuntos: [], biblio: null };
 
 async function cotEnviarElegir(id) {
   COT_ENVIO.id = id;
@@ -17147,6 +17171,11 @@ async function cotEnviarPorEmail() {
   document.getElementById('cotEmailNuevo').value = '';
   ccLimpiar('cotEmail');
   cotEmailRenderChips();
+  COT_ENVIO.adjuntos = [];
+  document.getElementById('cotAdjBuscar').value = '';
+  document.getElementById('cotAdjLista').style.display = 'none';
+  cotAdjRenderChips();
+  cotAdjCargar();   // en paralelo: el modal se abre igual
   openModal('modalCotEmail');
   setTimeout(() => {
     if (!COT_ENVIO.emails.length) document.getElementById('cotEmailNuevo').focus();
@@ -17238,7 +17267,8 @@ async function cotEmailConfirmar() {
   const r = await api('emailCotizacion', {
     cotId: COT_ENVIO.id,
     toEmail: COT_ENVIO.emails.join(','),
-    cc: copia.cc, cco: copia.cco
+    cc: copia.cc, cco: copia.cco,
+    adjuntosDrive: COT_ENVIO.adjuntos.map(a => ({ drive_id: a.drive_id, titulo: a.titulo }))
   });
 
   btn.disabled = false;
@@ -17246,8 +17276,74 @@ async function cotEmailConfirmar() {
 
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   closeModal('modalCotEmail');
-  showToast('Enviada a ' + (r.data.enviado || ''), 'success');
+  const n = (r.data.extras || []).length;
+  showToast('Enviada a ' + (r.data.enviado || '') +
+            (n ? ' · con ' + n + (n === 1 ? ' adjunto extra' : ' adjuntos extra') : ''), 'success');
   cotCargar(true);   // refresca para mostrar la marca y el estado nuevo
+}
+
+// ---------- Adjuntos del email: folletos y documentos ----------
+//
+// Se eligen de las secciones Folletos y Documentos. Viaja sólo el id de
+// Drive: Apps Script baja el archivo y lo adjunta. Los que se cargaron
+// con un link de afuera (sin drive_id) no se pueden adjuntar y no se
+// ofrecen.
+
+async function cotAdjCargar() {
+  if (COT_ENVIO.biblio) return;
+  const [f, d] = await Promise.all([api('getFolletos', {}, true), api('getDocumentos', {}, true)]);
+  if (!f.ok && !d.ok) { showToast('No pude cargar folletos ni documentos', 'error'); return; }
+  const fol = (f.ok ? f.data : []).map(x => ({ drive_id: x.drive_id, titulo: x.titulo,
+    seccion: 'Folleto', detalle: [x.marca, x.idioma].filter(Boolean).join(' · ') }));
+  const doc = (d.ok ? d.data : []).map(x => ({ drive_id: x.drive_id, titulo: x.titulo,
+    seccion: 'Documento', detalle: [x.marca, x.tipo].filter(Boolean).join(' · ') }));
+  COT_ENVIO.biblio = fol.concat(doc).filter(x => x.drive_id);
+  // Si ya estaba buscando cuando terminó de cargar, se ve sin tocar nada
+  if (document.getElementById('cotAdjLista').style.display !== 'none') cotAdjRenderLista();
+}
+
+function cotAdjRenderLista() {
+  const box = document.getElementById('cotAdjLista');
+  box.style.display = '';
+  if (!COT_ENVIO.biblio) { box.innerHTML = '<div class="cot-adj-vacio">Cargando…</div>'; return; }
+
+  const q = document.getElementById('cotAdjBuscar').value.trim().toLowerCase();
+  const elegidos = new Set(COT_ENVIO.adjuntos.map(a => a.drive_id));
+  const lista = COT_ENVIO.biblio.filter(x => !elegidos.has(x.drive_id) &&
+    (!q || (x.titulo + ' ' + x.detalle + ' ' + x.seccion).toLowerCase().includes(q)));
+
+  if (!lista.length) {
+    box.innerHTML = '<div class="cot-adj-vacio">' +
+      (q ? 'Nada coincide con «' + cotEsc(q) + '»' : 'No quedan folletos ni documentos para agregar') + '</div>';
+    return;
+  }
+  box.innerHTML = lista.map(x =>
+    `<button type="button" class="cot-adj-item" onclick="cotAdjAgregar('${x.drive_id}')">
+      <span>${x.seccion === 'Folleto' ? '📄' : '📑'} ${cotEsc(x.titulo)}</span>
+      <small>${cotEsc(x.seccion)}${x.detalle ? ' · ' + cotEsc(x.detalle) : ''}</small>
+    </button>`).join('');
+}
+
+function cotAdjAgregar(driveId) {
+  const x = (COT_ENVIO.biblio || []).find(b => b.drive_id === driveId);
+  if (!x || COT_ENVIO.adjuntos.some(a => a.drive_id === driveId)) return;
+  COT_ENVIO.adjuntos.push(x);
+  cotAdjRenderChips();
+  cotAdjRenderLista();
+}
+
+function cotAdjQuitar(i) {
+  COT_ENVIO.adjuntos.splice(i, 1);
+  cotAdjRenderChips();
+  if (document.getElementById('cotAdjLista').style.display !== 'none') cotAdjRenderLista();
+}
+
+function cotAdjRenderChips() {
+  const box = document.getElementById('cotAdjChips');
+  box.innerHTML = COT_ENVIO.adjuntos.map((a, i) => `<span class="cot-dest">
+      <span class="cot-dest-txt"><b>${cotEsc(a.titulo)}</b><span>${cotEsc(a.seccion)}${a.detalle ? ' · ' + cotEsc(a.detalle) : ''}</span></span>
+      <button class="cot-dest-x" title="Quitar adjunto" onclick="cotAdjQuitar(${i})">✕</button>
+    </span>`).join('');
 }
 
 async function cotEnviarPorWhatsApp() {
