@@ -4372,7 +4372,7 @@ async function cotConCliente(id) {
   const cot = r.data;
   let ficha = null;
   if (cot.cliente_id) {
-    const c = await sbGet('clientes?select=nombre,empresa,email,ciudad,pais,ruc,' +
+    const c = await sbGet('clientes?select=nombre,empresa,email,tel,ciudad,pais,ruc,' +
                           'dir_fiscal&id=eq.' + encodeURIComponent(cot.cliente_id));
     ficha = c[0] || null;
   }
@@ -17137,11 +17137,33 @@ async function cotEliminar(id) {
 
 // ---------- Envío: email o WhatsApp ----------
 
-const COT_ENVIO = { id: null, datos: null, emails: [], adjuntos: [], biblio: null };
+const COT_ENVIO = { id: null, datos: null, base: null, emails: [], adjuntos: [], biblio: null };
+
+// La cotización y la ficha del cliente viven en Postgres: Apps Script
+// sólo sabe buscarlas en la planilla vieja, donde las nuevas no están
+// («Cotización no encontrada»). Por eso viajan enteras, como en el PDF.
+// El email y el teléfono que devuelve Apps Script también salen de la
+// planilla: se pisan con los de la ficha.
+async function cotProformaEnvio() {
+  let datos;
+  try { datos = await cotConCliente(COT_ENVIO.id); }
+  catch (e) { return { ok: false, error: e.message }; }
+  COT_ENVIO.base = { cotId: COT_ENVIO.id, cot: datos.cot, clienteFicha: datos.clienteFicha };
+
+  const r = await api('getProformaHTML', { id: COT_ENVIO.id, cot: datos.cot,
+                                           clienteFicha: datos.clienteFicha });
+  const ficha = datos.clienteFicha;
+  if (r.ok && ficha) {
+    if (ficha.email) r.data.emailCliente = ficha.email;
+    if (ficha.tel)   r.data.telefono     = ficha.tel;
+  }
+  return r;
+}
 
 async function cotEnviarElegir(id) {
   COT_ENVIO.id = id;
   COT_ENVIO.datos = null;
+  COT_ENVIO.base = null;
 
   const c = COT_STATE.lista.find(x => x.id === id);
   document.getElementById('cotEnviarResumen').innerHTML =
@@ -17155,7 +17177,7 @@ async function cotEnviarElegir(id) {
 async function cotEnviarPorEmail() {
   closeModal('modalCotEnviar');
 
-  const r = await api('getProformaHTML', { id: COT_ENVIO.id });
+  const r = await cotProformaEnvio();
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
 
   COT_ENVIO.datos  = r.data;
@@ -17264,18 +17286,39 @@ async function cotEmailConfirmar() {
   btn.textContent = 'Enviando…';
 
   const copia = ccValores('cotEmail');
-  const r = await api('emailCotizacion', {
-    cotId: COT_ENVIO.id,
+  const base = COT_ENVIO.base || { cotId: COT_ENVIO.id };
+  const r = await api('emailCotizacion', Object.assign({}, base, {
     toEmail: COT_ENVIO.emails.join(','),
     cc: copia.cc, cco: copia.cco,
     adjuntosDrive: COT_ENVIO.adjuntos.map(a => ({ drive_id: a.drive_id, titulo: a.titulo }))
-  });
+  }));
 
   btn.disabled = false;
   btn.innerHTML = '<i class="i3d i3d-correo"></i> Enviar cotización';
 
   if (!r.ok) { showToast('Error: ' + (r.error || ''), 'error'); return; }
   closeModal('modalCotEmail');
+
+  // Apps Script mandó el correo; el registro lo escribe quien tiene la
+  // base. Lo mismo que hace cotEnviarEmail().
+  if (base.cot) {
+    try {
+      await sbReq('PATCH', 'cotizaciones?id=eq.' + encodeURIComponent(base.cotId), {
+        enviado_a: r.data.enviado_a, enviado_el: r.data.enviado_el, estado: r.data.estado
+      });
+      if (base.cot.estado !== r.data.estado) {
+        await sbReq('POST', 'cotizacion_historial', {
+          cot_id: base.cotId, estado_anterior: base.cot.estado, estado_nuevo: r.data.estado,
+          nota: 'Enviada por email a ' + r.data.enviado,
+          usuario: (currentUser && currentUser.nombre) || ''
+        });
+      }
+    } catch (e) {
+      showToast('La cotización se envió, pero no pude anotarlo: ' + e.message, 'error');
+    }
+    cacheInvalidar('cotizaciones');
+  }
+
   const n = (r.data.extras || []).length;
   showToast('Enviada a ' + (r.data.enviado || '') +
             (n ? ' · con ' + n + (n === 1 ? ' adjunto extra' : ' adjuntos extra') : ''), 'success');
@@ -17367,7 +17410,7 @@ async function cotEnviarPorWhatsApp() {
   const win = window.open('', '_blank');
   closeModal('modalCotEnviar');
 
-  const r = await api('getProformaHTML', { id: COT_ENVIO.id });
+  const r = await cotProformaEnvio();
   if (!r.ok) {
     if (win) win.close();
     showToast('Error: ' + (r.error || ''), 'error');
