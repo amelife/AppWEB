@@ -3137,6 +3137,7 @@
 
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="famResEditarPlantilla()">Editar la plantilla</button>
+      <button class="btn btn-outline" onclick="famResWhatsApp()"><i class="i3d i3d-telefono"></i> Copiar para WhatsApp</button>
       <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="closeModal('modalFamResumen')">Cancelar</button>
       <button class="btn btn-primary" id="famResBtn" onclick="famEnviarResumen()">Enviar</button>
@@ -10667,6 +10668,45 @@ function famResTotal() {
     : '';
 
   famResPreview();       // destildar una factura cambia la tabla y el total
+}
+
+/**
+ * El mismo estado de cuenta, en texto de WhatsApp.
+ *
+ * El correo lleva una tabla HTML y los PDF adjuntos, y nada de eso
+ * entra en un chat. Acá va una línea por factura —número, saldo,
+ * vencimiento— y el total abajo. Respeta lo que está tildado en el
+ * modal: las facturas que entran y cuáles se marcan como vencidas.
+ */
+function famResWhatsApp() {
+  const R = FAM_STATE.resumen;
+  const elegidas = famResElegidas();
+  if (!R || !elegidas.length) { showToast('Tildá al menos una factura', 'error'); return; }
+
+  const moneda = (elegidas[0] && elegidas[0].moneda) || 'USD';
+  const total  = elegidas.reduce((a, f) => a + famSaldo(f), 0);
+
+  const L = ['*Estado de cuenta · ' + R.cliente + '*',
+             'AME LIFE 911 LLC · al ' + famFecha(new Date().toISOString().slice(0, 10)), ''];
+  elegidas.forEach(f => {
+    const dias = famDias(f.vence);
+    const cuando = famResVencida(f)
+                     ? (famVencida(f) ? '*vencida hace ' + famAtraso(dias, f.vence) + '*' : '*vencida*')
+                 : dias === null ? 'sin fecha de pago'
+                 : dias === 0    ? 'vence hoy'
+                 : 'vence en ' + dias + (dias === 1 ? ' día' : ' días');
+    L.push('• ' + f.numero + ' · ' + (f.moneda || 'USD') + ' ' + famFmt(famSaldo(f)) +
+           (dias === null ? '' : ' · ' + famFecha(f.vence)) + ' · ' + cuando);
+  });
+  L.push('');
+  L.push('*Total adeudado: ' + moneda + ' ' + famFmt(total) + '*');
+  L.push('');
+  L.push('Si alguno de estos pagos ya fue realizado, le agradecemos que nos envíe el comprobante para actualizar la cuenta.');
+
+  const txt = L.join('\n');
+  const tel = soloTelefono(elegidas.map(f => f.telefono).filter(Boolean)[0]);
+  copiarAlPortapapeles(txt, tel ? 'Copiado · se abre el chat' : 'Copiado · pegalo en WhatsApp');
+  window.open('https://wa.me/' + (tel || '') + '?text=' + encodeURIComponent(txt), '_blank');
 }
 
 /** Atajo a Configuración, para cambiar el texto de una vez y para siempre. */
