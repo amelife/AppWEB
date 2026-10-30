@@ -3340,7 +3340,7 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
 
     <div class="cfg-fila" style="margin-top:14px">
       <input type="checkbox" id="famGrAdj" checked>
-      <label for="famGrAdj">Adjuntar la factura</label>
+      <label for="famGrAdj" id="famGrAdjTxt">Adjuntar la factura</label>
     </div>
 
     <div class="modal-footer">
@@ -3380,6 +3380,40 @@ Eleg&iacute; uno o varios archivos: los <b>statements en PDF</b> arman la histor
       <span style="flex:1"></span>
       <button class="btn btn-outline" onclick="closeModal('modalFamPago')">Cancelar</button>
       <button class="btn btn-primary" id="famPagoBtn" onclick="famGuardarPago()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: un pago que cubre varias facturas del mismo cliente -->
+<div class="modal-overlay" id="modalFamPagoVarias" data-no-cerrar-fuera>
+  <div class="modal" style="max-width:600px;max-height:92vh;overflow-y:auto">
+    <div class="modal-header">
+      <div class="modal-title" id="famPvTitulo">Registrar pago</div>
+      <button class="modal-close" onclick="closeModal('modalFamPagoVarias')">✕</button>
+    </div>
+
+    <div class="cfg-seccion">Facturas que paga</div>
+    <div class="fam-res-lista" id="famPvLista"></div>
+    <div class="fam-res-tot"><span>Saldo de las tildadas</span><span id="famPvSaldo">US$ 0.00</span></div>
+
+    <div class="modal-grid" style="grid-template-columns:1fr 1fr">
+      <div class="field"><label>Monto cobrado</label>
+        <input type="number" step="0.01" min="0" id="famPvMonto" oninput="famPvMontoTocado()">
+      </div>
+      <div class="field"><label>Fecha del pago</label>
+        <input type="date" id="famPvFecha">
+      </div>
+    </div>
+    <div class="field"><label>Nota · opcional</label>
+      <input type="text" id="famPvNota" placeholder="Transferencia, cheque, a cuenta…">
+    </div>
+
+    <p class="cfg-ayuda" id="famPvAviso"></p>
+
+    <div class="modal-footer">
+      <span style="flex:1"></span>
+      <button class="btn btn-outline" onclick="closeModal('modalFamPagoVarias')">Cancelar</button>
+      <button class="btn btn-primary" id="famPvBtn" onclick="famPvGuardar()">Registrar</button>
     </div>
   </div>
 </div>
@@ -9162,6 +9196,10 @@ function famRender(lista) {
         '<span class="fam-grupo-v">debe US$ ' + famFmt(debe) + '</span>' +
         '<button class="fam-grupo-b" onclick="famAbrirResumen(\'' + cotEsc(b.cliente).replace(/'/g, "\\'") + '\')">' +
           'Mandar estado de cuenta</button>' +
+        (b.facturas.filter(famAbierta).length > 1
+          ? '<button class="fam-grupo-b" style="margin-right:6px" onclick="famAbrirPagoVarias(\'' +
+              cotEsc(b.cliente).replace(/'/g, "\\'") + '\')">Registrar pago</button>'
+          : '') +
       '</td></tr>' +
       b.facturas.map((x, i) => famFilaHTML(x, true, i === b.facturas.length - 1)).join('') +
       '<tr class="grp-cierre"><td colspan="7"></td></tr>';
@@ -10950,6 +10988,7 @@ async function famAbrirGracias(id, monto, resultado) {
   document.getElementById('famGrPara').value   = f.email || '';
   document.getElementById('famGrAsunto').value = FAM_GR_ASUNTO;
   document.getElementById('famGrCuerpo').value = FAM_GR_CUERPO;
+  document.getElementById('famGrAdjTxt').textContent = 'Adjuntar la factura';
   ccLimpiar('famGr', f.cliente);
 
   document.getElementById('famGrVars').innerHTML =
@@ -10999,7 +11038,7 @@ function famGrPreview() {
 
 /** El mismo agradecimiento, con los asteriscos de WhatsApp. */
 function famGrWhatsApp() {
-  const txt = msgWaTexto(FAM_GRACIAS.wa, FAM_GRACIAS.vars);
+  const txt = FAM_GRACIAS.varias ? famGrvWaTexto() : msgWaTexto(FAM_GRACIAS.wa, FAM_GRACIAS.vars);
   if (!txt) { showToast('El texto quedó vacío', 'error'); return; }
 
   const tel = soloTelefono(FAM_GRACIAS.factura && FAM_GRACIAS.factura.telefono);
@@ -11025,6 +11064,7 @@ async function famGrEnviar() {
   const r = await api('graciasPagoAME', {
     id:       f.id,
     factura:  f,
+    facturas: FAM_GRACIAS.varias || undefined,
     monto:    FAM_GRACIAS.monto,
     para:     para,
     asunto:   document.getElementById('famGrAsunto').value.trim(),
@@ -11038,9 +11078,295 @@ async function famGrEnviar() {
 
   ccRecordar('famGr');
   closeModal('modalFamGracias');
+  const varias = !!FAM_GRACIAS.varias;
   showToast('Agradecimiento enviado a ' + r.data.enviado_a +
-    (r.data.adjunto ? ' · con la factura adjunta' : ''), 'success');
-  if (r.data.sin_pdf) showToast('Esa factura no tiene PDF: fue sin adjunto', 'info');
+    (r.data.adjunto ? (varias ? ' · con las facturas adjuntas' : ' · con la factura adjunta') : ''), 'success');
+  if (r.data.sin_pdf) showToast(varias ? 'Alguna factura no tiene PDF: fue sin ese adjunto'
+                                       : 'Esa factura no tiene PDF: fue sin adjunto', 'info');
+}
+
+// ============================================================
+// UN PAGO QUE CUBRE VARIAS FACTURAS
+// ------------------------------------------------------------
+// Muchas veces el cliente manda una sola transferencia por varias
+// facturas. Se carga UNA vez: el monto se reparte de la factura que
+// vence primero a la que vence última, y cada una recibe su pago con
+// la misma fecha y nota. Las que quedan saldadas salen solas de lo
+// pendiente; si el monto no alcanza para todas, la última queda
+// Parcial. Después se ofrece UN agradecimiento por el pago entero.
+// ============================================================
+
+var FAM_PV = { cliente: '', facturas: [], montoTocado: false };
+
+function famAbrirPagoVarias(cliente) {
+  const clave = String(cliente || '').trim().toUpperCase();
+  const suyas = FAM_STATE.lista.filter(f =>
+    famAbierta(f) && String(f.cliente || '').trim().toUpperCase() === clave);
+  if (!suyas.length) { showToast('Ese cliente no tiene facturas abiertas', 'error'); return; }
+
+  // De la que vence primero a la última: es el orden en que se aplica.
+  suyas.sort((a, b) => String(a.vence || '9999').localeCompare(String(b.vence || '9999')));
+  FAM_PV = { cliente: cliente, facturas: suyas, montoTocado: false };
+
+  document.getElementById('famPvTitulo').textContent = 'Registrar pago · ' + cliente;
+  document.getElementById('famPvLista').innerHTML = suyas.map((f, i) =>
+    '<div class="fam-res-f">' +
+      '<input type="checkbox" id="fampv' + i + '" checked onchange="famPvCambio()">' +
+      '<span class="n">' + cotEsc(f.numero) + '</span>' +
+      '<span class="v">' + (f.vence ? 'vence ' + cotEsc(famFecha(f.vence)) : 'sin fecha de pago') +
+        (famVencida(f) ? ' · vencida' : '') +
+        (famPagado(f) > 0.005 ? ' · ya pagó ' + famFmt(famPagado(f)) : '') + '</span>' +
+      '<span class="s">' + famFmt(famSaldo(f)) + '</span>' +
+    '</div>').join('');
+
+  document.getElementById('famPvFecha').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('famPvNota').value  = '';
+  famPvCambio();
+  openModal('modalFamPagoVarias');
+}
+
+/** Las tildadas, en orden de vencimiento. */
+function famPvElegidas() {
+  return FAM_PV.facturas.filter((f, i) => {
+    const c = document.getElementById('fampv' + i);
+    return c && c.checked;
+  });
+}
+
+function famPvSaldoElegidas() {
+  return Math.round(famPvElegidas().reduce((a, f) => a + famSaldo(f), 0) * 100) / 100;
+}
+
+/** Tildar o destildar: el monto sigue al saldo mientras no lo hayas tocado. */
+function famPvCambio() {
+  const saldo = famPvSaldoElegidas();
+  document.getElementById('famPvSaldo').textContent = 'US$ ' + famFmt(saldo);
+  if (!FAM_PV.montoTocado) document.getElementById('famPvMonto').value = saldo.toFixed(2);
+  famPvAviso();
+}
+
+function famPvMontoTocado() {
+  FAM_PV.montoTocado = true;
+  famPvAviso();
+}
+
+/**
+ * Cuánto le toca a cada factura: se van saldando en orden hasta que
+ * se acaba la plata. Las que no alcanzan a recibir nada no entran.
+ */
+function famPvReparto(monto) {
+  let queda = Math.round(monto * 100) / 100;
+  const out = [];
+  famPvElegidas().forEach(f => {
+    if (queda <= 0.005) return;
+    const aplica = Math.min(famSaldo(f), queda);
+    queda = Math.round((queda - aplica) * 100) / 100;
+    out.push({ f: f, aplica: Math.round(aplica * 100) / 100 });
+  });
+  return out;
+}
+
+/** Dice cómo va a quedar cada factura ANTES de confirmar. */
+function famPvAviso() {
+  const t = document.getElementById('famPvAviso');
+  const monto = Number(document.getElementById('famPvMonto').value);
+  const saldo = famPvSaldoElegidas();
+
+  if (!famPvElegidas().length) { t.textContent = 'Tildá al menos una factura.'; return; }
+  if (!(monto > 0)) { t.textContent = 'Poné cuánto cobraste.'; return; }
+  if (monto > saldo + 0.005) {
+    t.innerHTML = '<b style="color:var(--danger)">Ese monto es mayor al saldo de las tildadas (' +
+                  famFmt(saldo) + ').</b> Revisá el número o tildá otra factura.';
+    return;
+  }
+
+  const rep = famPvReparto(monto);
+  const sinTocar = famPvElegidas().length - rep.length;
+  t.innerHTML = rep.map(x => {
+    const resta = Math.round((famSaldo(x.f) - x.aplica) * 100) / 100;
+    return '<b>' + cotEsc(x.f.numero) + '</b> · ' + famFmt(x.aplica) + ' → ' +
+      (resta <= 0.005 ? '<b>cobrada</b>' : 'queda saldo <b>' + famFmt(resta) + '</b> (Parcial)');
+  }).join('<br>') +
+  (sinTocar > 0 ? '<br>' + sinTocar + (sinTocar === 1 ? ' factura tildada no recibe' : ' facturas tildadas no reciben') +
+                  ' nada: el monto no alcanza.' : '');
+}
+
+async function famPvGuardar() {
+  const monto = Math.round(Number(document.getElementById('famPvMonto').value) * 100) / 100;
+  const saldo = famPvSaldoElegidas();
+  if (!famPvElegidas().length) { showToast('Tildá al menos una factura', 'error'); return; }
+  if (!(monto > 0))            { showToast('Poné cuánto cobraste', 'error'); return; }
+  if (monto > saldo + 0.005)   { showToast('El monto es mayor al saldo de las tildadas', 'error'); return; }
+
+  const rep   = famPvReparto(monto);
+  const fecha = document.getElementById('famPvFecha').value;
+  const nota  = document.getElementById('famPvNota').value.trim();
+  // La nota de cada pago dice que fue uno solo, así el historial de
+  // cada factura explica por qué el monto no es redondo.
+  const conjunto = rep.length > 1
+    ? 'Pago conjunto ' + famFmt(monto) + ' · ' + rep.map(x => x.f.numero).join(', ')
+    : '';
+  const notaFinal = [nota, conjunto].filter(Boolean).join(' · ');
+
+  const btn = document.getElementById('famPvBtn');
+  btn.disabled = true; btn.textContent = 'Registrando…';
+
+  // De a una y en orden: si una falla, se sabe exactamente cuáles
+  // quedaron cargadas y no se repite ninguna al reintentar.
+  const hechas = [];
+  let fallo = null;
+  for (const x of rep) {
+    const r = await api('registrarPagoFacturaAME', { id: x.f.id, monto: x.aplica, fecha: fecha, nota: notaFinal });
+    if (!r || !r.ok) { fallo = { f: x.f, error: (r && r.error) || 'error' }; break; }
+    hechas.push({ f: x.f, aplica: x.aplica, res: r.data });
+  }
+
+  btn.disabled = false; btn.textContent = 'Registrar';
+  famCargar(true);
+
+  if (fallo) {
+    showToast('No se pudo registrar ' + fallo.f.numero + ': ' + fallo.error +
+      (hechas.length ? ' · SÍ quedaron cargadas: ' + hechas.map(h => h.f.numero).join(', ') : ''), 'error');
+    if (!hechas.length) return;
+  }
+
+  closeModal('modalFamPagoVarias');
+  const cobradas = hechas.filter(h => h.res && h.res.estado === 'Pagada').length;
+  if (!fallo) {
+    showToast(hechas.length + ' facturas · ' + cobradas + (cobradas === 1 ? ' cobrada' : ' cobradas') +
+      (cobradas < hechas.length ? ' · 1 queda Parcial' : ''), 'success');
+  }
+
+  const total = Math.round(hechas.reduce((a, h) => a + h.aplica, 0) * 100) / 100;
+  if (hechas.length === 1) famAbrirGracias(hechas[0].f.id, total, hechas[0].res);
+  else famAbrirGraciasVarias(hechas, total);
+}
+
+// ── El agradecimiento por un pago que cubrió varias ───────
+// El texto de una sola factura dice "la factura {{numero}}"; acá hace
+// falta el plural y la tabla, así que tiene su propio texto por defecto.
+var FAM_GRV_ASUNTO = 'Pago recibido · Facturas {{numero}} · AME LIFE 911 LLC';
+var FAM_GRV_CUERPO = [
+  'Estimado/a {{cliente}},',
+  '',
+  'Confirmamos la recepción de su pago por *{{monto}}*, aplicado a las facturas *{{numero}}*.',
+  '',
+  '{{detalle}}',
+  '',
+  '{{resto}}',
+  '',
+  'Muchas gracias por su confianza y por cumplir en tiempo y forma.',
+  '',
+  'Quedamos a disposición para lo que necesiten.',
+  '',
+  'Saludos cordiales,',
+  'AME LIFE 911 LLC'
+].join('\n');
+
+/**
+ * Las variables, iguales a las que arma _famVarsGraciasVarias en
+ * 28_FacturasAME.gs: así la vista previa es lo que sale por correo.
+ */
+function famGrvVars(lista, monto) {
+  const o0 = lista[0] || {};
+  const moneda = o0.moneda || 'USD';
+  const BD = 'border-bottom:1px solid #E1E7EC';
+  const abiertas = lista.filter(f => (Number(f.total) || 0) - (Number(f.pagado) || 0) > 0.005);
+  const numeros = lista.map(f => f.numero);
+  const listaY = numeros.length <= 1 ? numeros.join('')
+               : numeros.slice(0, -1).join(', ') + ' y ' + numeros[numeros.length - 1];
+
+  const filas = lista.map(f => {
+    const saldo = Math.round(((Number(f.total) || 0) - (Number(f.pagado) || 0)) * 100) / 100;
+    return '<tr>' +
+      '<td style="padding:6px 9px;' + BD + '"><b>' + cotEsc(f.numero) + '</b></td>' +
+      '<td style="padding:6px 9px;' + BD + ';text-align:right;white-space:nowrap">' +
+        cotEsc(moneda) + ' ' + famFmt(f.aplicado) + '</td>' +
+      '<td style="padding:6px 9px;' + BD + '">' +
+        (saldo > 0.005 ? 'Queda ' + cotEsc(moneda) + ' ' + famFmt(saldo) : 'Cancelada') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  const a0 = abiertas[0];
+  return {
+    contacto: String(o0.contacto || '').trim() || 'Estimados',
+    cliente:  o0.cliente || '',
+    numero:   listaY,
+    cantidad: String(lista.length),
+    monto:    moneda + ' ' + famFmt(monto),
+    fecha:    famFecha(new Date().toISOString().slice(0, 10)),
+    total:    moneda + ' ' + famFmt(lista.reduce((a, f) => a + (Number(f.total) || 0), 0)),
+    resto: a0
+      ? 'Queda un saldo pendiente de *' + moneda + ' ' +
+        famFmt((Number(a0.total) || 0) - (Number(a0.pagado) || 0)) + '* en la factura ' + a0.numero + '.'
+      : 'Con este pago las ' + lista.length + ' facturas quedan canceladas en su totalidad.',
+    detalle:
+      '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;width:100%">' +
+        '<tr style="background:#1C2A3D;color:#fff">' +
+          '<th style="padding:6px 9px;text-align:left">Factura</th>' +
+          '<th style="padding:6px 9px;text-align:right">Pago aplicado</th>' +
+          '<th style="padding:6px 9px;text-align:left">Estado</th>' +
+        '</tr>' + filas +
+        '<tr><td style="padding:8px 9px;font-weight:bold">TOTAL RECIBIDO</td>' +
+        '<td style="padding:8px 9px;text-align:right;font-weight:bold;white-space:nowrap">' +
+          cotEsc(moneda) + ' ' + famFmt(monto) + '</td><td></td></tr>' +
+      '</table>'
+  };
+}
+
+function famAbrirGraciasVarias(hechas, monto) {
+  // Las facturas de la lista son las de ANTES del pago: se arma una
+  // copia de cada una con lo pagado ya al día y lo que le tocó.
+  const varias = hechas.map(h => {
+    const total = Number(h.f.total) || 0;
+    const saldo = Number(h.res && h.res.saldo) || 0;
+    return Object.assign({}, h.f, {
+      pagado:   Math.round((total - saldo) * 100) / 100,
+      saldo:    saldo,
+      estado:   (h.res && h.res.estado) || h.f.estado,
+      aplicado: h.aplica
+    });
+  });
+  const f = varias[0];
+  const moneda = f.moneda || 'USD';
+
+  FAM_GRACIAS = { factura: f, varias: varias, monto: monto, wa: '', vars: famGrvVars(varias, monto) };
+
+  const abiertas = varias.filter(x => x.saldo > 0.005).length;
+  document.getElementById('famGrResumen').innerHTML =
+    '<b style="color:var(--text)">' + cotEsc(f.cliente || '') + '</b> · ' + varias.length + ' facturas' +
+    '<div style="margin-top:5px">Cobrado <b style="color:var(--green)">' + moneda + ' ' + famFmt(monto) + '</b>' +
+      (abiertas ? ' · ' + abiertas + ' queda con saldo' : ' · todas canceladas') + '</div>';
+
+  document.getElementById('famGrPara').value   = varias.map(x => x.email).filter(Boolean)[0] || '';
+  document.getElementById('famGrAsunto').value = FAM_GRV_ASUNTO;
+  document.getElementById('famGrCuerpo').value = FAM_GRV_CUERPO;
+  document.getElementById('famGrAdjTxt').textContent = 'Adjuntar las facturas';
+  ccLimpiar('famGr', f.cliente);
+
+  document.getElementById('famGrVars').innerHTML =
+    ['contacto', 'cliente', 'numero', 'cantidad', 'monto', 'fecha', 'total', 'detalle', 'resto'].map(v =>
+      '<button type="button" class="msg-var" onclick="famGrVar(\'' + v + '\')">{{' + v + '}}</button>'
+    ).join('');
+  document.getElementById('famGrAsunto').oninput = famGrPreview;
+  document.getElementById('famGrCuerpo').oninput = famGrPreview;
+
+  famGrPreview();
+  openModal('modalFamGracias');
+}
+
+/** WhatsApp del pago conjunto: una línea por factura y el total. */
+function famGrvWaTexto() {
+  const v = FAM_GRACIAS.vars;
+  const moneda = (FAM_GRACIAS.factura && FAM_GRACIAS.factura.moneda) || 'USD';
+  const L = ['*Pago recibido · AME LIFE 911 LLC*', '',
+             v.cliente + ', confirmamos la recepción de su pago por *' + v.monto + '*, aplicado a:', ''];
+  FAM_GRACIAS.varias.forEach(x => {
+    L.push('• ' + x.numero + ' · ' + moneda + ' ' + famFmt(x.aplicado) +
+           (x.saldo > 0.005 ? ' · queda ' + moneda + ' ' + famFmt(x.saldo) : ' · cancelada'));
+  });
+  L.push('', '*Total recibido: ' + v.monto + '*', '', v.resto, 'Muchas gracias por su confianza.', '', 'AME LIFE 911 LLC');
+  return L.join('\n');
 }
 
 function famBorrarPago(id, indice) {
